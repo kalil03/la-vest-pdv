@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDV — Venda</title>
+  <link rel="stylesheet" href="/css/pdv.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>PDV</h1>
+    <nav><a href="/produtos.html">Cadastro de produtos</a></nav>
+  </header>
+
+  <main class="venda">
+    <!-- Busca de produto: o caixa digita código OU nome e dá Enter -->
+    <section class="busca-area">
+      <input id="busca" type="text" autocomplete="off" autofocus
+             placeholder="Código ou nome do produto  (Enter adiciona)">
+      <ul id="busca-resultados" class="dropdown" hidden></ul>
+    </section>
+
+    <!-- Itens da venda -->
+    <section class="itens-area">
+      <table id="tabela-itens">
+        <thead>
+          <tr>
+            <th>Código</th><th>Produto</th><th class="num">Qtd</th>
+            <th class="num">Preço</th><th class="num">Subtotal</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="itens"></tbody>
+      </table>
+      <p id="itens-vazio" class="vazio">Nenhum item. Busque um produto acima para começar.</p>
+    </section>
+
+    <!-- Rodapé: cliente + pagamento + fechar -->
+    <footer class="fechamento">
+      <div class="cliente-area">
+        <label for="cliente">Cliente <small>(opcional, obrigatório no fiado)</small></label>
+        <div class="cliente-linha">
+          <input id="cliente" type="text" autocomplete="off" placeholder="Nome do cliente">
+          <button id="cliente-limpar" type="button" title="Limpar cliente" hidden>&times;</button>
+        </div>
+        <ul id="cliente-resultados" class="dropdown" hidden></ul>
+        <span id="cliente-badge" class="badge" hidden></span>
+        <span id="cliente-novo-aviso" class="aviso" hidden>Cliente novo — será cadastrado ao fechar a venda</span>
+      </div>
+
+      <div class="pagamento-area">
+        <div class="formas" id="formas">
+          <button type="button" data-forma="DINHEIRO" class="ativa">Dinheiro <kbd>F2</kbd></button>
+          <button type="button" data-forma="PIX">PIX <kbd>F3</kbd></button>
+          <button type="button" data-forma="CARTAO">Cartão <kbd>F4</kbd></button>
+          <button type="button" data-forma="FIADO">Fiado <kbd>F6</kbd></button>
+        </div>
+        <div class="total-linha">
+          <span>Total</span>
+          <strong id="total">R$ 0,00</strong>
+        </div>
+        <button id="fechar" type="button" class="fechar-btn">
+          Fechar venda <kbd>F10</kbd>
+        </button>
+      </div>
+    </footer>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/js/recibo.js"></script>
+  <script src="/js/venda.js"></script>
+</body>
+</html>
