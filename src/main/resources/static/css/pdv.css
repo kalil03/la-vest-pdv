@@ -1,6 +1,11 @@
 /* PDV — estilo enxuto, fontes grandes (tela de caixa), alto contraste */
 * { box-sizing: border-box; }
 
+/* O atributo hidden perde para qualquer display declarado em classe
+   (ex.: .modal-overlay { display: flex }). Esta regra garante que
+   hidden SEMPRE esconda, independente da classe. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
