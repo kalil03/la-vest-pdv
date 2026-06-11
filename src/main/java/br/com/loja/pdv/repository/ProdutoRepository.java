@@ -19,12 +19,14 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
     @Query(value = """
             SELECT p.* FROM produto p
             WHERE (:q = '' OR p.codigo = :q OR p.codigo_barras = :q
+                   OR TRIM(LEADING '0' FROM p.codigo) = TRIM(LEADING '0' FROM :q)
                    OR unaccent(p.nome) ILIKE unaccent('%' || :q || '%'))
               AND (CAST(:marcaId AS bigint) IS NULL OR p.marca_id = :marcaId)
               AND (:categoria = '' OR p.categoria = :categoria)
               AND (CAST(:dataDe AS timestamptz) IS NULL OR p.data_criacao >= :dataDe)
               AND (CAST(:dataAte AS timestamptz) IS NULL OR p.data_criacao <= :dataAte)
-            ORDER BY (p.codigo = :q) DESC, p.nome
+            ORDER BY (p.codigo = :q
+                      OR TRIM(LEADING '0' FROM p.codigo) = TRIM(LEADING '0' FROM :q)) DESC, p.nome
             LIMIT 50
             """, nativeQuery = true)
     List<Produto> buscar(@Param("q") String q,
