@@ -13,5 +13,13 @@ public record NovoClienteRequest(
         String bairro,
         String cidade,
         String uf,
-        String cep) {
+        String cep,
+        String tipo,
+        String rg,
+        java.time.LocalDate dataNasc,
+        java.math.BigDecimal limiteCred,
+        String bloqueado,
+        String pfisProfissao,
+        java.math.BigDecimal pfisRendaConj,
+        String anotacoes) {
 }

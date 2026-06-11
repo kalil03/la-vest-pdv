@@ -21,6 +21,12 @@ public record ProdutoDTO(
         String unidade,
         String codigoBarras,
         Integer origem,
+        BigDecimal pCusto,
+        BigDecimal pLucro,
+        BigDecimal pAtacado,
+        BigDecimal pLucroAtacado,
+        BigDecimal estoque,
+        BigDecimal estMinimo,
         List<VariacaoDTO> variacoes) {
 
     public record VariacaoDTO(Long id, String tamanho, String cor, boolean padrao) {
@@ -35,6 +41,7 @@ public record ProdutoDTO(
                 p.getMarca() != null ? p.getMarca().getNome() : null,
                 p.getPreco(), p.getDataCriacao(),
                 p.getNcm(), p.getCest(), p.getUnidade(), p.getCodigoBarras(), p.getOrigem(),
+                p.getPrecoCusto(), p.getPLucro(), p.getPrecoVenda2(), p.getPLucro2(), null, p.getQtdeMin(),
                 p.getVariacoes().stream().map(VariacaoDTO::de).toList());
     }
 }

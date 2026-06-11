@@ -66,6 +66,12 @@ public class ProdutoService {
         produto.setUnidade(emBranco(req.unidade()) ? "UN" : req.unidade().trim().toUpperCase());
         produto.setCodigoBarras(limpar(req.codigoBarras()));
         produto.setOrigem(req.origem() != null ? req.origem() : 0);
+        produto.setPrecoCusto(req.pCusto());
+        produto.setPLucro(req.pLucro());
+        produto.setPrecoVenda2(req.pAtacado());
+        produto.setPLucro2(req.pLucroAtacado());
+        
+        produto.setQtdeMin(req.estMinimo());
     }
 
     private void aplicarVariacoes(Produto produto, NovoProdutoRequest req) {

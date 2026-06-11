@@ -37,7 +37,7 @@ public class ClienteService {
                         ClienteRepository.SaldoCliente::getSaldo));
 
         return clientes.stream()
-                .map(c -> ClienteDTO.de(c, saldos.getOrDefault(c.getId(), BigDecimal.ZERO)))
+                .map(c -> ClienteDTO.de(c, saldos.getOrDefault(c.getId(), BigDecimal.ZERO), c.getTipo(), c.getRg(), c.getDataNasc(), c.getLimiteCred(), c.getBloqueado(), c.getPfisProfissao(), c.getPfisRendaConj(), c.getAnotacoes()))
                 .toList();
     }
 
@@ -46,7 +46,7 @@ public class ClienteService {
         Cliente cliente = new Cliente();
         aplicar(cliente, req, null);
         clienteRepository.save(cliente);
-        return ClienteDTO.de(cliente, BigDecimal.ZERO);
+        return ClienteDTO.de(cliente, BigDecimal.ZERO, cliente.getTipo(), cliente.getRg(), cliente.getDataNasc(), cliente.getLimiteCred(), cliente.getBloqueado(), cliente.getPfisProfissao(), cliente.getPfisRendaConj(), cliente.getAnotacoes());
     }
 
     @Transactional
@@ -54,7 +54,7 @@ public class ClienteService {
         Cliente cliente = clienteRepository.findById(id)
                 .orElseThrow(() -> new RegraNegocioException("Cliente não encontrado (id " + id + ")"));
         aplicar(cliente, req, cliente.getCpf());
-        return ClienteDTO.de(cliente, clienteRepository.saldoDevedor(id));
+        return ClienteDTO.de(cliente, clienteRepository.saldoDevedor(id), cliente.getTipo(), cliente.getRg(), cliente.getDataNasc(), cliente.getLimiteCred(), cliente.getBloqueado(), cliente.getPfisProfissao(), cliente.getPfisRendaConj(), cliente.getAnotacoes());
     }
 
     private void aplicar(Cliente cliente, NovoClienteRequest req, String cpfAtual) {
@@ -72,6 +72,14 @@ public class ClienteService {
         cliente.setCidade(limpar(req.cidade()));
         cliente.setUf(limpar(req.uf()));
         cliente.setCep(limpar(req.cep()));
+        cliente.setTipo(limpar(req.tipo()));
+        cliente.setRg(limpar(req.rg()));
+        cliente.setDataNasc(req.dataNasc());
+        cliente.setLimiteCred(req.limiteCred());
+        cliente.setBloqueado(limpar(req.bloqueado()));
+        cliente.setPfisProfissao(limpar(req.pfisProfissao()));
+        cliente.setPfisRendaConj(req.pfisRendaConj());
+        cliente.setAnotacoes(limpar(req.anotacoes()));
     }
 
     @Transactional(readOnly = true)

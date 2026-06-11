@@ -34,3 +34,8 @@ build/
 
 # Banco legado do SET (Firebird) — nunca commitar
 bd/
+
+# Artefatos locais — nao commitar
+output.log
+csv
+Criar telas padrão 2026/

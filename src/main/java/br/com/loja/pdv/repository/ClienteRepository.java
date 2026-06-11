@@ -18,7 +18,7 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
                OR c.cpf LIKE :q || '%'
                OR c.telefone LIKE '%' || :q || '%'
             ORDER BY c.nome
-            LIMIT 50
+            LIMIT 200
             """, nativeQuery = true)
     List<Cliente> buscar(@Param("q") String q);
 

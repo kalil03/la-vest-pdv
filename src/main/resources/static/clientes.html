@@ -1,104 +1,321 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="antialiased">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PDV — Clientes</title>
-  <link rel="stylesheet" href="/css/pdv.css">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --background: #ffffff;
+      --foreground: oklch(0.145 0 0);
+      --card: #ffffff;
+      --card-foreground: oklch(0.145 0 0);
+      --primary: #030213;
+      --primary-foreground: oklch(1 0 0);
+      --secondary: oklch(0.95 0.0058 264.53);
+      --secondary-foreground: #030213;
+      --muted: #ececf0;
+      --muted-foreground: #717182;
+      --destructive: #d4183d;
+      --destructive-foreground: #ffffff;
+      --border: rgba(0, 0, 0, 0.1);
+      
+      --sidebar: oklch(0.985 0 0);
+      --sidebar-foreground: oklch(0.145 0 0);
+      --sidebar-primary: #030213;
+      --sidebar-primary-foreground: oklch(0.985 0 0);
+      --sidebar-accent: oklch(0.97 0 0);
+      --sidebar-accent-foreground: oklch(0.205 0 0);
+      --sidebar-border: oklch(0.922 0 0);
+    }
+    
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px; border-radius: 6px;
+      background: var(--foreground); color: var(--background);
+      font-size: 14px; font-weight: 500;
+      box-shadow: 0 10px 25px rgba(0,0,0,.1); z-index: 100;
+    }
+    .toast.ok { background: var(--primary); }
+
+    #lista tr { cursor: pointer; transition: background 0.2s; border-bottom: 1px solid var(--border); }
+    #lista tr:hover { background: rgba(0,0,0,0.03); }
+    #lista td { padding: 10px 16px; font-size: 13px; color: var(--foreground); }
+    #lista td:nth-child(5) { font-family: 'JetBrains Mono', monospace; font-weight: 600; text-align: right; }
+  </style>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            background: 'var(--background)', foreground: 'var(--foreground)',
+            card: 'var(--card)', 'card-foreground': 'var(--card-foreground)',
+            primary: { DEFAULT: 'var(--primary)', foreground: 'var(--primary-foreground)' },
+            secondary: { DEFAULT: 'var(--secondary)', foreground: 'var(--secondary-foreground)' },
+            muted: { DEFAULT: 'var(--muted)', foreground: 'var(--muted-foreground)' },
+            border: 'var(--border)',
+            sidebar: {
+              DEFAULT: 'var(--sidebar)', foreground: 'var(--sidebar-foreground)',
+              primary: 'var(--sidebar-primary)', 'primary-foreground': 'var(--sidebar-primary-foreground)',
+              accent: 'var(--sidebar-accent)', 'accent-foreground': 'var(--sidebar-accent-foreground)',
+              border: 'var(--sidebar-border)',
+            }
+          }
+        }
+      }
+    }
+  </script>
 </head>
-<body>
-  <header class="topo">
-    <h1>PDV</h1>
-    <nav>
-      <a href="/">Venda</a>
-      <a href="/produtos.html">Produtos</a>
-      <a href="/clientes.html" class="atual">Clientes</a>
-    </nav>
-  </header>
+<body class="bg-background overflow-hidden text-foreground">
 
-  <main>
-    <section class="card">
-      <h2 id="form-titulo">Novo cliente</h2>
-      <form id="form-cliente">
-        <input type="hidden" id="cliente-id">
-        <div class="form-grid cliente-grid">
-          <div>
-            <label for="nome">Nome *</label>
-            <input id="nome" type="text" required>
-          </div>
-          <div>
-            <label for="cpf">CPF <small>(p/ NFC-e identificada)</small></label>
-            <input id="cpf" type="text" maxlength="14" placeholder="000.000.000-00">
-          </div>
-          <div>
-            <label for="telefone">Telefone</label>
-            <input id="telefone" type="text">
-          </div>
-          <div>
-            <label for="email">E-mail</label>
-            <input id="email" type="email">
-          </div>
+  <div class="flex h-screen overflow-hidden">
+    <!-- SIDEBAR -->
+    <aside class="w-56 flex-shrink-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border">
+      <div class="flex items-center gap-2.5 px-5 py-4 border-b border-sidebar-border">
+        <div class="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
+          <i data-lucide="store" class="text-primary-foreground w-3.5 h-3.5"></i>
         </div>
-        <div class="form-grid endereco-grid">
-          <div>
-            <label for="logradouro">Endereço</label>
-            <input id="logradouro" type="text">
-          </div>
-          <div>
-            <label for="numero">Número</label>
-            <input id="numero" type="text">
-          </div>
-          <div>
-            <label for="bairro">Bairro</label>
-            <input id="bairro" type="text">
-          </div>
-          <div>
-            <label for="cidade">Cidade</label>
-            <input id="cidade" type="text">
-          </div>
-          <div>
-            <label for="uf">UF</label>
-            <input id="uf" type="text" maxlength="2">
-          </div>
-          <div>
-            <label for="cep">CEP</label>
-            <input id="cep" type="text" maxlength="9">
-          </div>
+        <div>
+          <p class="text-sidebar-accent-foreground leading-none font-semibold text-[13px]">NexoPDV</p>
+          <p class="text-sidebar-foreground mt-1 text-[11px]">Sistema de Gestão</p>
         </div>
-        <div class="form-acoes">
-          <button type="submit" class="salvar-btn" id="salvar">Salvar cliente</button>
-          <button type="button" id="cancelar-edicao" hidden>Cancelar edição</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="card lista-produtos">
-      <h2>Clientes</h2>
-      <div class="filtros">
-        <input id="f-texto" type="text" placeholder="Filtrar por nome, CPF ou telefone">
-        <button type="button" id="f-limpar">Limpar</button>
       </div>
-      <table>
-        <thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Cidade</th><th class="num">Saldo devedor</th><th></th></tr></thead>
-        <tbody id="lista"></tbody>
-      </table>
-    </section>
+      
+      <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <p class="text-sidebar-foreground px-2 mb-2 uppercase font-semibold text-[10px] tracking-widest">Menu Principal</p>
+        <a href="/" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="layout-dashboard" class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
+          <span class="flex-1">Venda (Caixa)</span>
+        </a>
+        <a href="/carne.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="wallet" class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
+          <span class="flex-1">Carnê</span>
+        </a>
+        <a href="/produtos.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="package" class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
+          <span class="flex-1">Produtos</span>
+        </a>
+        <a href="/clientes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group bg-sidebar-accent text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="users" class="w-[15px] h-[15px] text-primary"></i>
+          <span class="flex-1 font-medium">Clientes</span>
+          <i data-lucide="chevron-right" class="w-3 h-3 text-primary"></i>
+        </a>
+      </nav>
+      
+      <div class="px-4 py-3 border-t border-sidebar-border">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[11px] font-semibold text-primary">AD</div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sidebar-accent-foreground truncate text-[12px] font-medium">Admin</p>
+            <p class="text-sidebar-foreground truncate text-[11px]">Gerente</p>
+          </div>
+        </div>
+      </div>
+    </aside>
 
-    <section class="card">
-      <h2>Vendedores</h2>
-      <form id="form-vendedor" class="filtros">
-        <input id="v-nome" type="text" placeholder="Nome do vendedor *" required>
-        <input id="v-cpf" type="text" placeholder="CPF (opcional)">
-        <button type="submit" class="salvar-btn" style="margin-top:0">Adicionar</button>
-      </form>
-      <table>
-        <thead><tr><th>Nome</th><th>CPF</th></tr></thead>
-        <tbody id="lista-vendedores"></tbody>
-      </table>
-    </section>
-  </main>
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div class="flex-1 flex overflow-hidden">
+        
+        <!-- ESQUERDA: LISTA -->
+        <div id="painel-lista" class="flex flex-col overflow-hidden transition-all flex-1">
+          <div class="px-6 py-4 border-b border-border flex items-center justify-between gap-4">
+            <div>
+              <h1 class="text-foreground text-lg font-semibold leading-tight">Clientes</h1>
+              <p class="text-muted-foreground text-[13px] mt-0.5">Gestão de crediário e contatos</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="relative">
+                <i data-lucide="search" class="w-3 h-3 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"></i>
+                <input id="f-texto" placeholder="Buscar por nome, CPF ou tel" class="bg-secondary border border-border rounded-md pl-8 pr-3 py-1.5 text-foreground placeholder:text-muted-foreground outline-none focus:border-primary transition-colors text-[12px] w-[240px]">
+              </div>
+              <button type="button" id="f-limpar" class="bg-secondary border border-border rounded-md px-3 py-1.5 text-[12px] font-medium text-foreground hover:bg-muted">Limpar</button>
+              
+              <button onclick="window.novoCadastro && window.novoCadastro();" class="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity text-[12px] font-medium ml-1 cursor-pointer">
+                <i data-lucide="plus" class="w-3 h-3"></i> Novo Cliente
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-auto flex-1 bg-background">
+            <table class="w-full text-left">
+              <thead class="sticky top-0 bg-card z-10">
+                <tr class="border-b border-border">
+                  <th class="px-4 py-2.5 text-muted-foreground font-medium text-[11px] uppercase tracking-wider">Nome</th>
+                  <th class="px-4 py-2.5 text-muted-foreground font-medium text-[11px] uppercase tracking-wider">CPF/CNPJ</th>
+                  <th class="px-4 py-2.5 text-muted-foreground font-medium text-[11px] uppercase tracking-wider">Telefone</th>
+                  <th class="px-4 py-2.5 text-muted-foreground font-medium text-[11px] uppercase tracking-wider">Cidade</th>
+                  <th class="px-4 py-2.5 text-muted-foreground font-medium text-[11px] uppercase tracking-wider text-right">Saldo Devedor</th>
+                  <th class="px-4 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody id="lista">
+                <!-- Lista injetada pelo JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- DIREITA: DETALHE / FORMULÁRIO -->
+        <div id="detalhe-produto" class="border-l border-border bg-card overflow-y-auto transition-all" style="width: 42%;" hidden>
+          <div class="sticky top-0 bg-card z-20 px-5 py-4 border-b border-border flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 bg-secondary rounded-md flex items-center justify-center">
+                <i data-lucide="user" class="w-4 h-4 text-muted-foreground"></i>
+              </div>
+              <div>
+                <p id="form-titulo" class="text-foreground font-medium text-[13px]">Novo Cliente</p>
+                <p class="text-muted-foreground font-mono text-[11px]">Ficha Cadastral</p>
+              </div>
+            </div>
+            <button onclick="window.limparFormulario && window.limparFormulario();" class="text-muted-foreground hover:text-foreground transition-colors cursor-pointer p-1">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+
+          <form id="form-cliente" class="p-5 space-y-6">
+            <input type="hidden" id="cliente-id">
+            
+            <section>
+              <p class="text-muted-foreground mb-3 uppercase tracking-wider text-[10px] font-semibold">Contato Básicos</p>
+              <div class="space-y-3">
+                <div>
+                  <label for="nome" class="block text-muted-foreground text-[11px] font-medium mb-1.5">Nome / Razão Social *</label>
+                  <input id="nome" type="text" required class="w-full bg-background border border-border rounded-md px-3 py-2 text-[14px] font-medium text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label for="cpf" class="block text-muted-foreground text-[11px] font-medium mb-1.5">CPF / CNPJ</label>
+                    <input id="cpf" type="text" maxlength="18" placeholder="Apenas p/ identificação" class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary font-mono">
+                  </div>
+                  <div>
+                    <label for="telefone" class="block text-muted-foreground text-[11px] font-medium mb-1.5">Telefone</label>
+                    <input id="telefone" type="text" class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary">
+                  </div>
+                </div>
+                <div>
+                  <label for="email" class="block text-muted-foreground text-[11px] font-medium mb-1.5">E-mail</label>
+                  <input id="email" type="email" class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary">
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <p class="text-muted-foreground mb-3 uppercase tracking-wider text-[10px] font-semibold">Endereço</p>
+              <div class="space-y-3">
+                <div class="grid grid-cols-4 gap-3">
+                  <div class="col-span-3">
+                    <label for="logradouro" class="block text-muted-foreground text-[11px] font-medium mb-1.5">Endereço</label>
+                    <input id="logradouro" type="text" class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary">
+                  </div>
+                  <div>
+                    <label for="numero" class="block text-muted-foreground text-[11px] font-medium mb-1.5">Número</label>
+                    <input id="numero" type="text" class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary">
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label for="bairro" class="block text-muted-foreground text-[11px] font-medium mb-1.5">Bairro</label>
+                    <input id="bairro" type="text" class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary">
+                  </div>
+                  <div>
+                    <label for="cep" class="block text-muted-foreground text-[11px] font-medium mb-1.5">CEP</label>
+                    <input id="cep" type="text" maxlength="9" class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary font-mono">
+                  </div>
+                </div>
+                <div class="grid grid-cols-4 gap-3">
+                  <div class="col-span-3">
+                    <label for="cidade" class="block text-muted-foreground text-[11px] font-medium mb-1.5">Cidade</label>
+                    <input id="cidade" type="text" class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary">
+                  </div>
+                  <div>
+                    <label for="uf" class="block text-muted-foreground text-[11px] font-medium mb-1.5">UF</label>
+                    <input id="uf" type="text" maxlength="2" class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary">
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <details class="bg-secondary rounded-lg border border-border overflow-hidden group">
+              <summary class="px-4 py-3 cursor-pointer text-[13px] font-semibold text-foreground flex items-center justify-between outline-none">
+                Ficha Completa e Crediário
+                <i data-lucide="chevron-down" class="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-180"></i>
+              </summary>
+              <div class="p-4 pt-2 border-t border-border grid grid-cols-2 gap-x-4 gap-y-3 bg-background">
+                <div><label for="tipo" class="block text-muted-foreground text-[10px] mb-1">Tipo</label><select id="tipo" class="w-full bg-secondary border border-border rounded px-2.5 py-1.5 text-[12px]"><option value="FISICA">Física</option><option value="JURIDICA">Jurídica</option></select></div>
+                <div><label for="rg" class="block text-muted-foreground text-[10px] mb-1">RG / IE</label><input id="rg" type="text" class="w-full bg-secondary border border-border rounded px-2.5 py-1.5 text-[12px]"></div>
+                <div><label for="dataNasc" class="block text-muted-foreground text-[10px] mb-1">Data Nascimento</label><input id="dataNasc" type="date" class="w-full bg-secondary border border-border rounded px-2.5 py-1.5 text-[12px]"></div>
+                <div><label for="pfisProfissao" class="block text-muted-foreground text-[10px] mb-1">Profissão</label><input id="pfisProfissao" type="text" class="w-full bg-secondary border border-border rounded px-2.5 py-1.5 text-[12px]"></div>
+                <div><label for="pfisRendaConj" class="block text-muted-foreground text-[10px] mb-1">Renda Cônjuge (R$)</label><input id="pfisRendaConj" type="number" step="0.01" class="w-full bg-secondary border border-border rounded px-2.5 py-1.5 text-[12px] font-mono"></div>
+                <div><label for="limiteCred" class="block text-muted-foreground text-[10px] mb-1">Limite Crédito (R$)</label><input id="limiteCred" type="number" step="0.01" class="w-full bg-secondary border border-border rounded px-2.5 py-1.5 text-[12px] font-mono font-bold text-primary"></div>
+                <div><label for="bloqueado" class="block text-muted-foreground text-[10px] mb-1">Bloqueado para Fiado?</label><select id="bloqueado" class="w-full bg-secondary border border-border rounded px-2.5 py-1.5 text-[12px]"><option value="">Não</option><option value="SIM">Sim</option></select></div>
+                <div class="col-span-2"><label for="anotacoes" class="block text-muted-foreground text-[10px] mb-1">Anotações / Obs</label><input id="anotacoes" type="text" class="w-full bg-secondary border border-border rounded px-2.5 py-1.5 text-[12px]"></div>
+              </div>
+            </details>
+
+            <div class="flex gap-3 pt-4 border-t border-border mt-8">
+              <button type="submit" id="salvar" class="flex-1 py-2.5 bg-primary text-primary-foreground rounded-md text-[13px] font-semibold hover:opacity-90 transition-opacity shadow-sm">Salvar Cliente</button>
+              <button type="button" id="cancelar-edicao" hidden class="px-4 py-2.5 bg-background border border-border text-foreground rounded-md text-[13px] font-medium hover:bg-muted transition-colors shadow-sm">Cancelar</button>
+            </div>
+          </form>
+          
+          <!-- Elementos ocultos para vendedores (evita erro no JS) -->
+          <div hidden>
+            <form id="form-vendedor">
+              <input id="v-nome">
+              <input id="v-cpf">
+            </form>
+            <tbody id="lista-vendedores"></tbody>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
 
   <div id="toast" class="toast" hidden></div>
+  
+  <script>
+    lucide.createIcons();
+    window.onload = () => {
+      window.fecharPainel = () => {
+        document.getElementById('detalhe-produto').hidden = true;
+        document.getElementById('painel-lista').classList.replace('w-[58%]', 'flex-1');
+      };
+      window.abrirPainel = () => {
+        document.getElementById('detalhe-produto').hidden = false;
+        document.getElementById('painel-lista').classList.replace('flex-1', 'w-[58%]');
+      };
+
+      if(window.limparFormulario) {
+         const original = window.limparFormulario;
+         window.limparFormulario = () => {
+            original();
+            fecharPainel();
+         };
+         window.novoCadastro = () => {
+            original();
+            abrirPainel();
+         };
+      }
+      if(window.editarCliente) {
+         const originalEd = window.editarCliente;
+         window.editarCliente = (p) => {
+            originalEd(p);
+            abrirPainel();
+         };
+      }
+    };
+  </script>
   <script src="/js/clientes.js"></script>
 </body>
 </html>
