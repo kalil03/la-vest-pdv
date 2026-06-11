@@ -129,3 +129,89 @@ function imprimirRecibo(venda, loja) {
   };
   document.body.appendChild(iframe);
 }
+
+/** Impressão genérica via iframe oculto (sem popup). */
+function imprimirHTML(html) {
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  iframe.srcdoc = html;
+  iframe.onload = () => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => iframe.remove(), 3000);
+  };
+  document.body.appendChild(iframe);
+}
+
+/** Recibo térmico (80mm) do recebimento de carnê. */
+function reciboCarneHTML(r, loja) {
+  const fmtR = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const dataHora = new Date(r.data).toLocaleString('pt-BR');
+  const dataBr = (iso) => { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; };
+
+  const linhas = (r.parcelasQuitadas || []).map((p) => `
+    <tr><td>${esc(p.descricao)}</td><td>${dataBr(p.vencimento)}</td><td class="dir">${fmtR(p.valor)}</td></tr>`).join('');
+
+  const parcial = r.parcelaParcial ? `
+    <p class="texto">Parcela ${esc(r.parcelaParcial.descricao)} (${dataBr(r.parcelaParcial.vencimento)}):
+    pagamento parcial — resta <b>${fmtR(r.parcelaParcial.valorAberto)}</b></p>` : '';
+
+  const rotulo = { DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO: 'Cartão' }[r.tipo] || r.tipo;
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: 80mm auto; margin: 0; }
+  body { width: 72mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
+  .centro { text-align: center; }
+  .dir { text-align: right; }
+  h1 { font-size: 15px; margin: 6px 0 2px; text-align: center; }
+  .info { text-align: center; font-size: 11px; margin: 0; }
+  .sep { border-top: 1px dashed #000; margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 1px 0; vertical-align: top; font-size: 11px; }
+  .destaque { font-size: 15px; font-weight: bold; }
+  .texto { font-size: 11px; margin: 6px 0; }
+  .assinatura { margin-top: 34px; }
+  .linha-assinatura { border-top: 1px solid #000; margin: 0 8px 2px; }
+  .rodape { text-align: center; font-size: 10px; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>${esc(loja.nome)}</h1>
+  <p class="info">${esc(loja.endereco)}</p>
+  <p class="info">${esc(loja.telefone)}</p>
+  <div class="sep"></div>
+  <div class="centro" style="font-weight:bold">RECIBO DE PAGAMENTO — CARNÊ</div>
+  <p class="info">Recibo nº ${r.id} — ${dataHora}</p>
+  <p class="info">Cliente: ${esc(r.clienteNome)}</p>
+  <p class="info">Recebido por: ${esc(r.vendedorNome)}</p>
+  <div class="sep"></div>
+  ${linhas ? `<table><tr><td><b>Parcelas quitadas</b></td><td><b>Venc.</b></td><td class="dir"><b>Valor</b></td></tr>${linhas}</table>` : ''}
+  ${parcial}
+  <div class="sep"></div>
+  <table>
+    <tr><td class="destaque">VALOR RECEBIDO</td><td class="dir destaque">${fmtR(r.valor)}</td></tr>
+    <tr><td>Forma de pagamento</td><td class="dir">${rotulo}</td></tr>
+    <tr><td>Saldo anterior</td><td class="dir">${fmtR(r.saldoAnterior)}</td></tr>
+    <tr><td><b>Saldo restante</b></td><td class="dir"><b>${fmtR(r.saldoRestante)}</b></td></tr>
+  </table>
+  <div class="assinatura">
+    <div class="linha-assinatura"></div>
+    <div class="centro">${esc(r.clienteNome)}</div>
+  </div>
+  <div class="rodape">Obrigado pela preferência!</div>
+</body>
+</html>`;
+}
+
+function imprimirReciboCarne(recibo, loja) {
+  imprimirHTML(reciboCarneHTML(recibo, loja));
+}
