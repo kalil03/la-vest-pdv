@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="antialiased">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDV — Recebimento de Carnê</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/pdv.css">
+
+  <style>
+    :root {
+      --background: #ffffff; --foreground: oklch(0.145 0 0);
+      --primary: #030213; --primary-foreground: oklch(1 0 0);
+      --secondary: oklch(0.95 0.0058 264.53); --secondary-foreground: #030213;
+      --muted: #ececf0; --muted-foreground: #717182;
+      --destructive: #d4183d; --destructive-foreground: #ffffff;
+      --border: rgba(0, 0, 0, 0.1);
+      --sidebar: oklch(0.985 0 0); --sidebar-foreground: oklch(0.145 0 0);
+      --sidebar-primary: #030213; --sidebar-primary-foreground: oklch(0.985 0 0);
+      --sidebar-accent: oklch(0.97 0 0); --sidebar-accent-foreground: oklch(0.205 0 0);
+      --sidebar-border: oklch(0.922 0 0);
+      --ok: #16a34a; --ok-bg: #f0fdf4; --warn: #d97706; --warn-bg: #fffbeb;
+      --bad: #d4183d; --bad-bg: #fef2f2;
+    }
+    body { font-family: 'Inter', system-ui, sans-serif; margin: 0; }
+    [hidden] { display: none !important; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* métricas do cliente */
+    .metric { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--background); }
+    .metric .rotulo { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); }
+    .metric .valor { font-size: 24px; font-weight: 700; margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+
+    /* badges de status */
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .chip.atrasada { background: var(--bad-bg); color: var(--bad); }
+    .chip.hoje { background: var(--warn-bg); color: var(--warn); }
+    .chip.prazo { background: var(--ok-bg); color: var(--ok); }
+    .chip.parcial { background: #eef2ff; color: #4f46e5; }
+
+    /* tabela de parcelas */
+    .tab-parcelas { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .tab-parcelas th { padding: 10px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; color: var(--muted-foreground); text-align: left; border-bottom: 1px solid var(--border); background: var(--secondary); position: sticky; top: 0; z-index: 5; }
+    .tab-parcelas td { padding: 11px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
+    .tab-parcelas tbody tr { cursor: pointer; transition: background .12s; }
+    .tab-parcelas tbody tr:nth-child(even) { background: #fafafa; }
+    .tab-parcelas tbody tr:hover { background: var(--muted); }
+    .tab-parcelas tbody tr.sel { background: #eef2ff; }
+    .tab-parcelas tbody tr:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+    .tab-parcelas .num { text-align: right; font-family: 'JetBrains Mono', monospace; }
+
+    /* skeleton de carregamento */
+    .skel { background: linear-gradient(90deg, var(--muted) 25%, #f5f5f7 50%, var(--muted) 75%); background-size: 200% 100%; animation: skel 1.2s infinite; border-radius: 8px; }
+    @keyframes skel { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+
+    @keyframes pop { 0% { transform: scale(.97); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
+    .pop { animation: pop .18s ease-out; }
+
+    .forma-btn { border-color: var(--border); background: var(--background); color: var(--muted-foreground); cursor: pointer; }
+    .forma-btn:hover { background: var(--muted); }
+    .forma-btn.ativa { border-color: var(--primary); background: var(--primary); color: #fff; }
+
+    .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: rot .7s linear infinite; display: inline-block; vertical-align: -3px; }
+    @keyframes rot { to { transform: rotate(360deg) } }
+
+    .toast-carne {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px; border-radius: 10px; background: var(--foreground); color: var(--background);
+      font-size: 14px; font-weight: 500; box-shadow: 0 10px 25px rgba(0,0,0,.18); z-index: 100;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .toast-carne.ok { background: var(--ok); color: #fff; }
+    .toast-carne.erro { background: var(--bad); color: #fff; }
+
+    /* responsivo: painel desce para baixo da lista */
+    @media (max-width: 980px) {
+      .carne-grid { flex-direction: column !important; }
+      .painel-receber { width: 100% !important; position: static !important; }
+      aside.sidebar-nexo { display: none; }
+    }
+  </style>
+</head>
+<body class="bg-background overflow-hidden text-foreground">
+
+  <div class="flex h-screen overflow-hidden">
+    <!-- SIDEBAR -->
+    <aside class="sidebar-nexo w-56 flex-shrink-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border z-20 relative">
+      <div class="flex items-center gap-2.5 px-5 py-4 border-b border-sidebar-border">
+        <div class="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
+          <i data-lucide="store" class="text-primary-foreground w-3.5 h-3.5"></i>
+        </div>
+        <div>
+          <p class="text-sidebar-accent-foreground leading-none font-semibold text-[13px]">NexoPDV</p>
+          <p class="text-sidebar-foreground mt-1 text-[11px]">Sistema de Gestão</p>
+        </div>
+      </div>
+
+      <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <p class="text-sidebar-foreground px-2 mb-2 uppercase font-semibold text-[10px] tracking-widest">Menu Principal</p>
+        <a href="/" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="layout-dashboard" class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
+          <span class="flex-1">Venda (Caixa)</span>
+        </a>
+        <a href="/carne.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group bg-sidebar-accent text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="wallet" class="w-[15px] h-[15px] text-primary"></i>
+          <span class="flex-1 font-medium">Carnê</span>
+          <i data-lucide="chevron-right" class="w-3 h-3 text-primary"></i>
+        </a>
+        <a href="/produtos.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="package" class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
+          <span class="flex-1">Produtos</span>
+        </a>
+        <a href="/clientes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="users" class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
+          <span class="flex-1">Clientes</span>
+        </a>
+      </nav>
+
+      <!-- operador -->
+      <div class="px-4 py-3 border-t border-sidebar-border">
+        <div class="flex items-center gap-2.5">
+          <div id="op-avatar" class="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[11px] font-semibold text-primary">?</div>
+          <div class="flex-1 min-w-0">
+            <select id="operador" class="w-full text-[12px] font-medium bg-transparent border-0 outline-none cursor-pointer text-sidebar-accent-foreground -ml-1">
+              <option value="">Selecionar operador…</option>
+            </select>
+            <p class="text-sidebar-foreground truncate text-[11px]">Funcionário do caixa</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-secondary">
+
+      <!-- HEADER -->
+      <header class="bg-background border-b border-border px-8 py-4 flex items-center justify-between">
+        <div>
+          <nav class="text-[11px] text-muted-foreground flex items-center gap-1.5 mb-1">
+            <a href="/" class="hover:text-foreground">Início</a>
+            <i data-lucide="chevron-right" class="w-3 h-3"></i>
+            <span class="text-foreground font-medium">Carnê</span>
+          </nav>
+          <h1 class="text-lg font-bold flex items-center gap-2 m-0">
+            <i data-lucide="wallet" class="w-5 h-5"></i> Recebimento de Carnê
+          </h1>
+        </div>
+        <div id="header-operador" class="text-[12px] text-muted-foreground flex items-center gap-2">
+          <i data-lucide="user-check" class="w-4 h-4"></i>
+          <span id="header-operador-nome">Nenhum operador selecionado</span>
+        </div>
+      </header>
+
+      <!-- BUSCA DO CLIENTE -->
+      <section class="px-8 pt-6 pb-2 relative z-40">
+        <div class="relative max-w-2xl mx-auto">
+          <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground z-10"></i>
+          <input id="busca-cliente" type="text" autocomplete="off" autofocus
+                 placeholder="Buscar cliente por nome, CPF ou telefone…"
+                 class="w-full pl-12 pr-4 py-4 text-[16px] font-medium bg-background border-2 border-border rounded-xl outline-none transition-all focus:border-primary focus:shadow-lg">
+          <ul id="busca-resultados" class="dropdown !absolute !top-full !mt-2 !left-0 !right-0 shadow-2xl" hidden></ul>
+        </div>
+      </section>
+
+      <!-- CONTEÚDO -->
+      <div class="flex-1 overflow-y-auto px-8 py-4">
+
+        <!-- estado vazio -->
+        <div id="vazio" class="text-center text-muted-foreground mt-20 flex flex-col items-center gap-4">
+          <i data-lucide="wallet-cards" class="w-14 h-14 text-border"></i>
+          <p class="text-[15px] font-medium m-0">Busque um cliente para ver o carnê dele.</p>
+          <p class="text-[12px] m-0">9.453 parcelas migradas do sistema antigo estão aqui dentro.</p>
+        </div>
+
+        <!-- skeleton -->
+        <div id="skeleton" hidden>
+          <div class="skel h-28 mb-4"></div>
+          <div class="skel h-64"></div>
+        </div>
+
+        <!-- carnê do cliente -->
+        <div id="conteudo" class="carne-grid flex gap-6 items-start max-w-6xl mx-auto" hidden>
+
+          <div class="flex-1 min-w-0">
+            <!-- CARD DO CLIENTE -->
+            <div id="card-cliente" class="pop bg-background border border-border rounded-xl p-5 mb-4 shadow-sm">
+              <div class="flex items-center gap-4">
+                <div id="cli-avatar" class="w-14 h-14 rounded-full flex items-center justify-center text-[18px] font-bold text-white flex-shrink-0"></div>
+                <div class="flex-1 min-w-0">
+                  <h2 id="cli-nome" class="m-0 text-[17px] font-bold truncate"></h2>
+                  <div class="flex items-center gap-4 mt-1 text-[12px] text-muted-foreground">
+                    <span id="cli-cpf" class="mono"></span>
+                    <a id="cli-tel" class="flex items-center gap-1 hover:text-foreground" href="#" hidden>
+                      <i data-lucide="phone" class="w-3 h-3"></i><span></span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-3 mt-4">
+                <div class="metric">
+                  <div class="rotulo">Saldo devedor</div>
+                  <div id="m-saldo" class="valor" style="color: var(--bad)"></div>
+                </div>
+                <div class="metric">
+                  <div class="rotulo">Parcelas em aberto</div>
+                  <div id="m-qtd" class="valor"></div>
+                </div>
+                <div class="metric">
+                  <div class="rotulo">Mais antiga</div>
+                  <div id="m-antiga" class="valor text-[16px] flex items-center gap-2" style="font-size:16px"></div>
+                </div>
+              </div>
+
+              <div id="ultimos" class="mt-4 pt-3 border-t border-border" hidden>
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground m-0 mb-2">Últimos pagamentos</p>
+                <div id="ultimos-lista" class="flex flex-wrap gap-2"></div>
+              </div>
+            </div>
+
+            <!-- LISTA DE PARCELAS -->
+            <div class="pop bg-background border border-border rounded-xl shadow-sm overflow-hidden">
+              <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+                <h3 class="m-0 text-[14px] font-semibold flex items-center gap-2">
+                  <i data-lucide="list-checks" class="w-4 h-4"></i> Parcelas em aberto
+                </h3>
+                <button id="sel-atrasadas" class="text-[12px] font-medium px-3 py-1.5 rounded-md border border-border hover:bg-muted transition-colors flex items-center gap-1.5">
+                  <i data-lucide="alarm-clock" class="w-3.5 h-3.5"></i> Selecionar atrasadas
+                </button>
+              </div>
+              <p class="text-[11px] text-muted-foreground px-4 py-2 m-0 bg-secondary/60 border-b border-border flex items-center gap-1.5">
+                <i data-lucide="info" class="w-3 h-3"></i>
+                Pagamentos quitam sempre as parcelas mais antigas primeiro — a seleção segue essa ordem.
+              </p>
+              <div class="max-h-[420px] overflow-y-auto">
+                <table class="tab-parcelas">
+                  <thead>
+                    <tr>
+                      <th class="w-10"></th>
+                      <th>Parcela</th>
+                      <th>Vencimento</th>
+                      <th>Status</th>
+                      <th class="num">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody id="parcelas"></tbody>
+                </table>
+              </div>
+              <div class="flex items-center justify-between px-4 py-3 bg-secondary border-t border-border">
+                <span id="tot-rotulo" class="text-[12px] text-muted-foreground font-medium">Nenhuma parcela selecionada</span>
+                <span id="tot-valor" class="mono text-[16px] font-bold">R$ 0,00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- PAINEL DE RECEBIMENTO -->
+          <div class="painel-receber pop w-[340px] flex-shrink-0 bg-background border border-border rounded-xl p-5 shadow-sm sticky top-0">
+            <h3 class="m-0 mb-4 text-[14px] font-semibold flex items-center gap-2">
+              <i data-lucide="hand-coins" class="w-4 h-4"></i> Receber pagamento
+            </h3>
+
+            <div id="resumo-sel" class="text-[12px] text-muted-foreground mb-3">Selecione parcelas na lista ao lado.</div>
+
+            <label class="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5" for="valor-receber">Valor a receber</label>
+            <div class="relative mb-1.5">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[14px] text-muted-foreground font-medium">R$</span>
+              <input id="valor-receber" type="number" min="0.01" step="0.01"
+                     class="mono w-full pl-10 pr-3 py-3 text-[20px] font-bold border-2 border-border rounded-lg outline-none transition-colors focus:border-primary text-right">
+            </div>
+            <p id="aviso-parcial" class="text-[12px] font-medium m-0 mb-3" style="color: var(--warn)" hidden></p>
+
+            <label class="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 mt-3">Forma de pagamento</label>
+            <div id="formas-receber" class="grid grid-cols-3 gap-2 mb-4">
+              <button type="button" data-tipo="DINHEIRO" class="forma-btn ativa flex flex-col items-center gap-1 py-3 rounded-lg border-2 text-[12px] font-semibold transition-all">
+                <i data-lucide="banknote" class="w-4 h-4"></i> Dinheiro
+              </button>
+              <button type="button" data-tipo="PIX" class="forma-btn flex flex-col items-center gap-1 py-3 rounded-lg border-2 text-[12px] font-semibold transition-all">
+                <i data-lucide="qr-code" class="w-4 h-4"></i> Pix
+              </button>
+              <button type="button" data-tipo="CARTAO" class="forma-btn flex flex-col items-center gap-1 py-3 rounded-lg border-2 text-[12px] font-semibold transition-all">
+                <i data-lucide="credit-card" class="w-4 h-4"></i> Cartão
+              </button>
+            </div>
+
+            <p id="erro-receber" class="text-[12px] font-medium m-0 mb-3" style="color: var(--bad)" hidden></p>
+
+            <button id="btn-receber" disabled
+                    class="w-full py-4 rounded-lg text-[15px] font-bold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    style="background: var(--ok)">
+              Receber
+            </button>
+            <p class="text-[11px] text-muted-foreground text-center mt-2 m-0">Imprime o recibo e atualiza o saldo na hora <kbd>F10</kbd></p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast-carne" hidden></div>
+
+  <script src="/js/recibo.js"></script>
+  <script src="/js/carne.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

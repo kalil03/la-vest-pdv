@@ -22,6 +22,11 @@ public class PagamentoFiado {
     @JoinColumn(name = "venda_id")
     private Venda venda;
 
+    /** Funcionário que recebeu (recebimento de carnê). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendedor_id")
+    private Vendedor vendedor;
+
     @Column(nullable = false)
     private BigDecimal valor;
 
@@ -37,6 +42,8 @@ public class PagamentoFiado {
     public void setCliente(Cliente cliente) { this.cliente = cliente; }
     public Venda getVenda() { return venda; }
     public void setVenda(Venda venda) { this.venda = venda; }
+    public Vendedor getVendedor() { return vendedor; }
+    public void setVendedor(Vendedor vendedor) { this.vendedor = vendedor; }
     public BigDecimal getValor() { return valor; }
     public void setValor(BigDecimal valor) { this.valor = valor; }
     public TipoPagamentoFiado getTipo() { return tipo; }
