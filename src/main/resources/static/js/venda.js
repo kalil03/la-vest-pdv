@@ -1,34 +1,38 @@
 /**
- * Tela de venda rápida — o coração do sistema.
+ * Tela de venda rápida + confirmação.
  * Fluxo: digita código/nome → Enter → (escolhe tamanho/cor se tiver grade)
- * → F2/F3/F4/F6 escolhe pagamento → F10 fecha, imprime e baixa estoque.
- * Tudo operável só pelo teclado: precisa ser mais rápido que escrever à mão.
+ * → F10 abre a confirmação (desconto, vendedor, parcelamento) → F10 de novo
+ * confirma, grava e imprime. Esc na confirmação volta sem perder nada.
  */
 
 const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const round2 = (v) => Math.round(v * 100) / 100;
 
 // ---------- estado ----------
 let itens = [];            // {variacaoId, codigo, descricao, qtd, preco}
 let cliente = null;        // {id, nome} selecionado no autocomplete
 let formaPagamento = 'DINHEIRO';
 let loja = { nome: 'Loja', endereco: '', telefone: '' };
+let vendedores = [];
+let parcelas = [];         // [{numero, valor, vencimento(yyyy-mm-dd)}] no modal
 
 fetch('/api/config').then((r) => r.json()).then((c) => { loja = c; });
 
 // ---------- elementos ----------
-const $busca = document.getElementById('busca');
-const $buscaResultados = document.getElementById('busca-resultados');
-const $itens = document.getElementById('itens');
-const $itensVazio = document.getElementById('itens-vazio');
-const $total = document.getElementById('total');
-const $cliente = document.getElementById('cliente');
-const $clienteResultados = document.getElementById('cliente-resultados');
-const $clienteBadge = document.getElementById('cliente-badge');
-const $clienteLimpar = document.getElementById('cliente-limpar');
-const $clienteNovoAviso = document.getElementById('cliente-novo-aviso');
-const $fechar = document.getElementById('fechar');
-const $formas = document.getElementById('formas');
-const $toast = document.getElementById('toast');
+const $ = (id) => document.getElementById(id);
+const $busca = $('busca');
+const $itens = $('itens');
+const $itensVazio = $('itens-vazio');
+const $total = $('total');
+const $cliente = $('cliente');
+const $clienteBadge = $('cliente-badge');
+const $clienteLimpar = $('cliente-limpar');
+const $clienteNovoAviso = $('cliente-novo-aviso');
+const $avancar = $('avancar');
+const $formas = $('formas');
+const $toast = $('toast');
+const $overlay = $('modal-overlay');
+const $mErro = $('m-erro');
 
 // ---------- autocomplete genérico (produto e cliente usam o mesmo) ----------
 function criarAutocomplete($input, $lista, buscar, renderizar, escolher) {
@@ -82,14 +86,11 @@ function criarAutocomplete($input, $lista, buscar, renderizar, escolher) {
 // ---------- busca e escolha de produto ----------
 criarAutocomplete(
   $busca,
-  $buscaResultados,
+  $('busca-resultados'),
   async (q) => (await fetch(`/api/produtos?q=${encodeURIComponent(q)}`)).json(),
-  (p) => {
-    const estoqueTotal = p.variacoes.reduce((s, v) => s + v.estoque, 0);
-    return `<span class="cod">${p.codigo}</span><span>${p.nome}</span>` +
-      (estoqueTotal <= 0 ? '<span class="sem-estoque">sem estoque</span>' : '') +
-      `<span class="preco">${fmt(p.preco)}</span>`;
-  },
+  (p) => `<span class="cod">${p.codigo}</span><span>${p.nome}</span>` +
+         (p.marcaNome ? `<span class="cod">${p.marcaNome}</span>` : '') +
+         `<span class="preco">${fmt(p.preco)}</span>`,
   escolherProduto
 );
 
@@ -116,8 +117,7 @@ function mostrarEscolhaVariacao(produto, variacoes) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'vbtn';
-    const rotulo = [v.tamanho, v.cor].filter(Boolean).join(' ');
-    btn.innerHTML = `${rotulo} <small>(${v.estoque})</small>`;
+    btn.textContent = [v.tamanho, v.cor].filter(Boolean).join(' ');
     btn.addEventListener('click', () => { tr.remove(); adicionarItem(produto, v); });
     btn.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight') btn.nextElementSibling?.focus();
@@ -148,6 +148,10 @@ function adicionarItem(produto, variacao) {
   }
   renderItens();
   $busca.focus();
+}
+
+function subtotalVenda() {
+  return round2(itens.reduce((s, i) => s + i.qtd * i.preco, 0));
 }
 
 function renderItens() {
@@ -203,15 +207,16 @@ function renderItens() {
     $itens.appendChild(tr);
   });
   $itensVazio.hidden = itens.length > 0;
-  $total.textContent = fmt(itens.reduce((s, i) => s + i.qtd * i.preco, 0));
+  $total.textContent = fmt(subtotalVenda());
 }
 
 // ---------- cliente ----------
 criarAutocomplete(
   $cliente,
-  $clienteResultados,
+  $('cliente-resultados'),
   async (q) => (await fetch(`/api/clientes?q=${encodeURIComponent(q)}`)).json(),
-  (c) => `<span>${c.nome}</span>${c.telefone ? `<span class="cod">${c.telefone}</span>` : ''}`,
+  (c) => `<span>${c.nome}</span>${c.telefone ? `<span class="cod">${c.telefone}</span>` : ''}` +
+         (Number(c.saldoDevedor) > 0 ? `<span class="sem-estoque">deve ${fmt(c.saldoDevedor)}</span>` : ''),
   selecionarCliente
 );
 
@@ -260,11 +265,6 @@ $cliente.addEventListener('input', () => {
 function selecionarForma(forma) {
   formaPagamento = forma;
   [...$formas.children].forEach((b) => b.classList.toggle('ativa', b.dataset.forma === forma));
-  const fiado = forma === 'FIADO';
-  $fechar.classList.toggle('fiado', fiado);
-  $fechar.innerHTML = fiado
-    ? 'Fechar venda e imprimir promissória <kbd>F10</kbd>'
-    : 'Fechar venda <kbd>F10</kbd>';
 }
 
 $formas.addEventListener('click', (e) => {
@@ -272,26 +272,211 @@ $formas.addEventListener('click', (e) => {
   if (btn) selecionarForma(btn.dataset.forma);
 });
 
-// ---------- fechar venda: o clique único ----------
-async function fecharVenda() {
+// ============================================================
+// Modal de confirmação: revisão, desconto, vendedor, parcelas
+// ============================================================
+
+fetch('/api/vendedores').then((r) => r.json()).then((vs) => {
+  vendedores = vs;
+  const sel = $('m-vendedor');
+  vs.forEach((v) => {
+    const opt = document.createElement('option');
+    opt.value = v.id;
+    opt.textContent = v.nome;
+    sel.appendChild(opt);
+  });
+});
+
+// parcelas no cartão: 1x a 12x
+(() => {
+  const sel = $('m-parcelas-cartao');
+  for (let n = 1; n <= 12; n++) {
+    const opt = document.createElement('option');
+    opt.value = n;
+    opt.textContent = `${n}x`;
+    sel.appendChild(opt);
+  }
+})();
+
+const modalAberto = () => !$overlay.hidden;
+
+function abrirModal() {
   if (itens.length === 0) { toast('Adicione pelo menos um item'); $busca.focus(); return; }
 
+  // espelho dos itens, só leitura
+  $('m-itens').innerHTML = itens
+    .map((i) => `<div class="m-item"><span>${i.qtd}× ${i.descricao}</span><span>${fmt(i.qtd * i.preco)}</span></div>`)
+    .join('');
+
+  $('m-desconto').value = '0';
+  $('m-desconto-modo').value = 'R$';
+  $('m-forma').value = formaPagamento;
+  $('m-entrada').value = '0';
+  $('m-num-parcelas').value = '1';
+  $('m-primeiro-venc').value = isoMaisDias(new Date(), 30);
+  $mErro.hidden = true;
+
+  atualizarModal(true);
+  $overlay.hidden = false;
+  $('m-desconto').focus();
+  $('m-desconto').select();
+}
+
+function fecharModal() {
+  $overlay.hidden = true;
+  $busca.focus();
+}
+
+function descontoValor() {
+  const v = Math.max(0, parseFloat($('m-desconto').value) || 0);
+  return $('m-desconto-modo').value === '%'
+    ? round2(subtotalVenda() * Math.min(v, 100) / 100)
+    : Math.min(v, subtotalVenda());
+}
+
+const totalFinal = () => round2(subtotalVenda() - descontoValor());
+
+/** Divide o restante em n parcelas iguais; a última absorve os centavos. */
+function gerarParcelas(restante, n, primeiraDataIso) {
+  const cents = Math.round(restante * 100);
+  const base = Math.floor(cents / n);
+  return Array.from({ length: n }, (_, i) => ({
+    numero: i + 1,
+    valor: (i === n - 1 ? cents - base * (n - 1) : base) / 100,
+    vencimento: isoMaisMeses(primeiraDataIso, i),
+  }));
+}
+
+/** regerar = true recria o cronograma do zero (mudou nº de parcelas, entrada etc.). */
+function atualizarModal(regerar) {
+  const forma = $('m-forma').value;
+  formaPagamento = forma;
+  selecionarForma(forma);
+
+  $('m-subtotal').textContent = fmt(subtotalVenda());
+  $('m-total').textContent = fmt(totalFinal());
+  $('m-parcelas-cartao').hidden = forma !== 'CARTAO';
+  $('m-fiado').hidden = forma !== 'FIADO';
+  $('m-confirmar').textContent = '';
+  $('m-confirmar').insertAdjacentHTML('beforeend',
+    (forma === 'FIADO' ? 'Confirmar e imprimir promissória ' : 'Confirmar e imprimir ') + '<kbd>F10</kbd>');
+
+  if (forma === 'FIADO') {
+    const entrada = Math.max(0, parseFloat($('m-entrada').value) || 0);
+    const restante = round2(totalFinal() - entrada);
+    const n = Math.max(1, parseInt($('m-num-parcelas').value, 10) || 1);
+    if (regerar && restante > 0) {
+      parcelas = gerarParcelas(restante, n, $('m-primeiro-venc').value);
+    }
+    renderParcelas(restante);
+  }
+}
+
+function renderParcelas(restante) {
+  const $corpo = $('m-parcelas-corpo');
+  $corpo.innerHTML = '';
+  if (restante <= 0) {
+    $corpo.innerHTML = '<tr><td class="m-erro">Entrada deve ser menor que o total</td></tr>';
+    return;
+  }
+  parcelas.forEach((p, i) => {
+    const tr = document.createElement('tr');
+
+    const tdNum = document.createElement('td');
+    tdNum.textContent = `${p.numero}ª`;
+
+    const tdValor = document.createElement('td');
+    const inValor = document.createElement('input');
+    inValor.type = 'number';
+    inValor.min = '0.01';
+    inValor.step = '0.01';
+    inValor.value = p.valor.toFixed(2);
+    // Editou uma parcela: as anteriores ficam, as seguintes redistribuem o resto
+    inValor.addEventListener('change', () => {
+      p.valor = Math.max(0.01, parseFloat(inValor.value) || 0.01);
+      const fixado = parcelas.slice(0, i + 1).reduce((s, x) => s + x.valor, 0);
+      const sobra = round2(restante - fixado);
+      const seguintes = parcelas.length - (i + 1);
+      if (seguintes > 0 && sobra > 0) {
+        const novas = gerarParcelas(sobra, seguintes, p.vencimento);
+        novas.forEach((nv, j) => {
+          parcelas[i + 1 + j].valor = nv.valor;
+        });
+      }
+      renderParcelas(restante);
+    });
+    tdValor.appendChild(inValor);
+
+    const tdVenc = document.createElement('td');
+    const inVenc = document.createElement('input');
+    inVenc.type = 'date';
+    inVenc.value = p.vencimento;
+    inVenc.addEventListener('change', () => { p.vencimento = inVenc.value; });
+    tdVenc.appendChild(inVenc);
+
+    tr.append(tdNum, tdValor, tdVenc);
+    $corpo.appendChild(tr);
+  });
+
+  const soma = round2(parcelas.reduce((s, p) => s + p.valor, 0));
+  if (Math.abs(soma - restante) > 0.004) {
+    $mErro.textContent = `Parcelas somam ${fmt(soma)}, mas o restante é ${fmt(restante)}`;
+    $mErro.hidden = false;
+  } else {
+    $mErro.hidden = true;
+  }
+}
+
+// recalculo automático: qualquer mudança nesses campos refaz o cronograma
+['m-desconto', 'm-desconto-modo', 'm-entrada', 'm-num-parcelas', 'm-primeiro-venc']
+  .forEach((id) => $(id).addEventListener('input', () => atualizarModal(true)));
+$('m-forma').addEventListener('change', () => atualizarModal(true));
+
+$('m-cancelar').addEventListener('click', fecharModal);
+$('m-confirmar').addEventListener('click', confirmarVenda);
+$avancar.addEventListener('click', abrirModal);
+
+// ---------- confirmar: o clique único que grava + imprime ----------
+async function confirmarVenda() {
+  const forma = $('m-forma').value;
+
   const body = {
-    formaPagamento,
+    formaPagamento: forma,
+    desconto: descontoValor().toFixed(2),
     itens: itens.map((i) => ({ variacaoId: i.variacaoId, quantidade: i.qtd, precoUnit: i.preco.toFixed(2) })),
   };
+  const vendedorId = $('m-vendedor').value;
+  if (vendedorId) body.vendedorId = Number(vendedorId);
+  if (forma === 'CARTAO') body.parcelasCartao = Number($('m-parcelas-cartao').value);
+
   if (cliente) {
     body.clienteId = cliente.id;
   } else if ($cliente.value.trim()) {
     body.clienteNome = $cliente.value.trim();
   }
-  if (formaPagamento === 'FIADO' && !body.clienteId && !body.clienteNome) {
-    toast('Venda fiado precisa de um cliente');
-    $cliente.focus();
-    return;
+
+  if (forma === 'FIADO') {
+    if (!body.clienteId && !body.clienteNome) {
+      mostrarErroModal('Venda fiado precisa de um cliente — informe no campo Cliente');
+      return;
+    }
+    const entrada = Math.max(0, parseFloat($('m-entrada').value) || 0);
+    const restante = round2(totalFinal() - entrada);
+    const soma = round2(parcelas.reduce((s, p) => s + p.valor, 0));
+    if (restante <= 0) { mostrarErroModal('Entrada deve ser menor que o total'); return; }
+    if (Math.abs(soma - restante) > 0.004) {
+      mostrarErroModal(`Parcelas somam ${fmt(soma)}, mas o restante após a entrada é ${fmt(restante)}`);
+      return;
+    }
+    if (parcelas.some((p) => !p.vencimento)) { mostrarErroModal('Toda parcela precisa de vencimento'); return; }
+    body.fiado = {
+      entradaValor: entrada.toFixed(2),
+      entradaTipo: entrada > 0 ? $('m-entrada-tipo').value : null,
+      parcelas: parcelas.map((p) => ({ numero: p.numero, valor: p.valor.toFixed(2), vencimento: p.vencimento })),
+    };
   }
 
-  $fechar.disabled = true;
+  $('m-confirmar').disabled = true;
   try {
     const resp = await fetch('/api/vendas', {
       method: 'POST',
@@ -300,22 +485,29 @@ async function fecharVenda() {
     });
     if (!resp.ok) {
       const erro = await resp.json().catch(() => ({}));
-      toast(erro.erro || 'Erro ao fechar a venda');
+      mostrarErroModal(erro.erro || 'Erro ao fechar a venda');
       return;
     }
     const venda = await resp.json();
     imprimirRecibo(venda, loja);
     toast(`Venda nº ${venda.id} registrada — ${fmt(venda.total)}`, 'ok');
+    fecharModal();
     resetarVenda();
   } catch {
-    toast('Falha de conexão com o servidor');
+    mostrarErroModal('Falha de conexão com o servidor');
   } finally {
-    $fechar.disabled = false;
+    $('m-confirmar').disabled = false;
   }
+}
+
+function mostrarErroModal(msg) {
+  $mErro.textContent = msg;
+  $mErro.hidden = false;
 }
 
 function resetarVenda() {
   itens = [];
+  parcelas = [];
   renderItens();
   limparCliente();
   selecionarForma('DINHEIRO');
@@ -323,14 +515,32 @@ function resetarVenda() {
   $busca.focus();
 }
 
-$fechar.addEventListener('click', fecharVenda);
-
 // ---------- atalhos globais ----------
 document.addEventListener('keydown', (e) => {
+  if (modalAberto()) {
+    if (e.key === 'Escape') { e.preventDefault(); fecharModal(); }
+    else if (e.key === 'F10') { e.preventDefault(); confirmarVenda(); }
+    return;
+  }
   const atalhos = { F2: 'DINHEIRO', F3: 'PIX', F4: 'CARTAO', F6: 'FIADO' };
   if (atalhos[e.key]) { e.preventDefault(); selecionarForma(atalhos[e.key]); }
-  else if (e.key === 'F10') { e.preventDefault(); fecharVenda(); }
+  else if (e.key === 'F10') { e.preventDefault(); abrirModal(); }
 });
+
+// ---------- utilitários de data ----------
+function isoMaisDias(data, dias) {
+  const d = new Date(data);
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function isoMaisMeses(iso, meses) {
+  const [a, m, dia] = iso.split('-').map(Number);
+  const d = new Date(a, m - 1 + meses, dia);
+  // se o dia não existe no mês (31 → fev), recua para o último dia do mês
+  if (d.getDate() !== dia) d.setDate(0);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 // ---------- toast ----------
 let toastTimer = null;

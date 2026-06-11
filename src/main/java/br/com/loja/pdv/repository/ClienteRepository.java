@@ -6,17 +6,23 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 
 public interface ClienteRepository extends JpaRepository<Cliente, Long> {
 
+    /** Busca por nome (sem acento), CPF ou telefone — um campo só na tela. */
     @Query(value = """
             SELECT c.* FROM cliente c
             WHERE unaccent(c.nome) ILIKE unaccent('%' || :q || '%')
+               OR c.cpf LIKE :q || '%'
+               OR c.telefone LIKE '%' || :q || '%'
             ORDER BY c.nome
-            LIMIT 10
+            LIMIT 50
             """, nativeQuery = true)
     List<Cliente> buscar(@Param("q") String q);
+
+    boolean existsByCpf(String cpf);
 
     /**
      * Regra de ouro nº 1: a dívida nunca é armazenada, é sempre calculada.
@@ -30,10 +36,28 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
             """, nativeQuery = true)
     BigDecimal saldoDevedor(@Param("id") Long id);
 
+    /** Saldos de vários clientes de uma vez (listagem sem N+1). */
+    @Query(value = """
+            SELECT c.id AS "clienteId",
+                   COALESCE(v.tot, 0) - COALESCE(p.tot, 0) AS "saldo"
+            FROM cliente c
+            LEFT JOIN (SELECT cliente_id, SUM(total) AS tot FROM venda
+                       WHERE forma_pagamento = 'FIADO' GROUP BY cliente_id) v ON v.cliente_id = c.id
+            LEFT JOIN (SELECT cliente_id, SUM(valor) AS tot FROM pagamento_fiado
+                       GROUP BY cliente_id) p ON p.cliente_id = c.id
+            WHERE c.id IN (:ids)
+            """, nativeQuery = true)
+    List<SaldoCliente> saldosPorCliente(@Param("ids") Collection<Long> ids);
+
+    interface SaldoCliente {
+        Long getClienteId();
+        BigDecimal getSaldo();
+    }
+
     /**
      * "Score da casa": prazo médio, em dias, entre cada pagamento e a venda
-     * fiado mais recente antes dele. Heurística simples com os dados internos
-     * (a consulta Serasa é Fase 3). NULL se o cliente nunca pagou um fiado.
+     * fiado mais recente antes dele. Heurística com dados internos.
+     * NULL se o cliente nunca pagou um fiado.
      */
     @Query(value = """
             SELECT AVG(EXTRACT(EPOCH FROM (p.data - u.data_venda)) / 86400.0)

@@ -9,13 +9,18 @@
 <body>
   <header class="topo">
     <h1>PDV</h1>
-    <nav><a href="/">← Voltar para a venda</a></nav>
+    <nav>
+      <a href="/">Venda</a>
+      <a href="/produtos.html" class="atual">Produtos</a>
+      <a href="/clientes.html">Clientes</a>
+    </nav>
   </header>
 
   <main>
     <section class="card">
-      <h2>Novo produto</h2>
+      <h2 id="form-titulo">Novo produto</h2>
       <form id="form-produto">
+        <input type="hidden" id="produto-id">
         <div class="form-grid">
           <div>
             <label for="codigo">Código</label>
@@ -24,6 +29,11 @@
           <div>
             <label for="nome">Nome *</label>
             <input id="nome" type="text" required>
+          </div>
+          <div>
+            <label for="marca">Marca</label>
+            <input id="marca" type="text" list="marcas" placeholder="nova = criada na hora">
+            <datalist id="marcas"></datalist>
           </div>
           <div>
             <label for="categoria">Categoria</label>
@@ -40,22 +50,41 @@
           </div>
         </div>
 
+        <fieldset class="fiscal">
+          <legend>Dados fiscais (para a NFC-e — podem ser preenchidos depois)</legend>
+          <div class="form-grid fiscal-grid">
+            <div>
+              <label for="ncm">NCM</label>
+              <input id="ncm" type="text" maxlength="8" placeholder="8 dígitos">
+            </div>
+            <div>
+              <label for="cest">CEST</label>
+              <input id="cest" type="text" maxlength="7">
+            </div>
+            <div>
+              <label for="unidade">Unidade</label>
+              <input id="unidade" type="text" value="UN" maxlength="6">
+            </div>
+            <div>
+              <label for="codigo-barras">Cód. barras (EAN)</label>
+              <input id="codigo-barras" type="text" maxlength="14">
+            </div>
+            <div>
+              <label for="origem">Origem</label>
+              <select id="origem">
+                <option value="0">0 — Nacional</option>
+                <option value="1">1 — Estrangeira (importação direta)</option>
+                <option value="2">2 — Estrangeira (mercado interno)</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
         <label class="grade-toggle">
           <input id="tem-grade" type="checkbox">
           Tem grade (tamanho/cor)?
         </label>
 
-        <!-- Sem grade: só o estoque inicial da variação "padrão" -->
-        <div id="sem-grade" class="grade-area">
-          <div class="variacao-row">
-            <div>
-              <label for="estoque-unico">Estoque inicial</label>
-              <input id="estoque-unico" type="number" min="0" value="0">
-            </div>
-          </div>
-        </div>
-
-        <!-- Com grade: linhas tamanho/cor/estoque -->
         <div id="com-grade" class="grade-area" hidden>
           <div class="botoes-grade">
             <button type="button" id="add-variacao">+ Variação</button>
@@ -64,15 +93,25 @@
           <div id="variacoes"></div>
         </div>
 
-        <button type="submit" class="salvar-btn">Salvar produto</button>
+        <div class="form-acoes">
+          <button type="submit" class="salvar-btn" id="salvar">Salvar produto</button>
+          <button type="button" id="cancelar-edicao" hidden>Cancelar edição</button>
+        </div>
       </form>
     </section>
 
     <section class="card lista-produtos">
       <h2>Produtos cadastrados</h2>
-      <input id="filtro" type="text" placeholder="Filtrar por código ou nome" style="width:100%;font-size:16px;padding:9px;border:1px solid #c5cdd6;border-radius:6px;margin-bottom:10px;">
+      <div class="filtros">
+        <input id="f-texto" type="text" placeholder="Código, barras ou nome">
+        <select id="f-marca"><option value="">Todas as marcas</option></select>
+        <select id="f-categoria"><option value="">Todas as categorias</option></select>
+        <input id="f-data-de" type="date" title="Cadastrado a partir de">
+        <input id="f-data-ate" type="date" title="Cadastrado até">
+        <button type="button" id="f-limpar">Limpar</button>
+      </div>
       <table>
-        <thead><tr><th>Código</th><th>Nome</th><th>Categoria</th><th>Preço</th><th>Estoque</th></tr></thead>
+        <thead><tr><th>Código</th><th>Nome</th><th>Marca</th><th>Categoria</th><th>NCM</th><th>Preço</th><th>Cadastro</th><th></th></tr></thead>
         <tbody id="lista"></tbody>
       </table>
     </section>

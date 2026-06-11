@@ -7,6 +7,10 @@
 function reciboHTML(venda, loja) {
   const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const dataHora = new Date(venda.data).toLocaleString('pt-BR');
+  const dataBr = (iso) => {
+    const [a, m, d] = iso.split('-');
+    return `${d}/${m}/${a}`;
+  };
 
   const linhasItens = venda.itens.map((i) => `
     <tr>
@@ -18,7 +22,21 @@ function reciboHTML(venda, loja) {
       <td class="dir">${fmt(i.subtotal)}</td>
     </tr>`).join('');
 
+  const temDesconto = Number(venda.desconto) > 0;
+  const linhasTotais = `
+    ${temDesconto ? `
+    <tr><td>Subtotal</td><td></td><td class="dir">${fmt(venda.subtotal)}</td></tr>
+    <tr><td>Desconto</td><td></td><td class="dir">-${fmt(venda.desconto)}</td></tr>` : ''}
+    <tr class="total">
+      <td>TOTAL</td><td></td><td class="dir">${fmt(venda.total)}</td>
+    </tr>`;
+
   const fiado = venda.formaPagamento === 'FIADO';
+
+  const linhasParcelas = fiado && venda.parcelas.length
+    ? venda.parcelas.map((p) =>
+        `<tr><td>${p.numero}ª parcela</td><td>${dataBr(p.vencimento)}</td><td class="dir">${fmt(p.valor)}</td></tr>`).join('')
+    : '';
 
   const blocoFiado = fiado ? `
     <div class="sep"></div>
@@ -27,11 +45,16 @@ function reciboHTML(venda, loja) {
       Reconheço dever a importância de <b>${fmt(venda.total)}</b>
       referente às mercadorias acima descritas.
     </p>
+    ${venda.entrada ? `<p class="texto">Entrada: <b>${fmt(venda.entrada)}</b></p>` : ''}
+    ${linhasParcelas ? `<table>${linhasParcelas}</table>` : ''}
     <p class="texto">Saldo devedor total: <b>${fmt(venda.saldoDevedor)}</b></p>
     <div class="assinatura">
       <div class="linha-assinatura"></div>
       <div class="centro">${esc(venda.clienteNome || '')}</div>
     </div>` : '';
+
+  const pagamento = rotuloForma(venda.formaPagamento) +
+    (venda.formaPagamento === 'CARTAO' && venda.parcelasCartao > 1 ? ` ${venda.parcelasCartao}x` : '');
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -69,14 +92,11 @@ function reciboHTML(venda, loja) {
   <div class="sep"></div>
   <p class="info">Venda nº ${venda.id} — ${dataHora}</p>
   ${venda.clienteNome ? `<p class="info">Cliente: ${esc(venda.clienteNome)}</p>` : ''}
+  ${venda.vendedorNome ? `<p class="info">Vendedor(a): ${esc(venda.vendedorNome)}</p>` : ''}
   <div class="sep"></div>
-  <table>${linhasItens}
-    <tr class="total">
-      <td>TOTAL</td><td></td><td class="dir">${fmt(venda.total)}</td>
-    </tr>
-  </table>
+  <table>${linhasItens}${linhasTotais}</table>
   <div class="sep"></div>
-  <p class="info">Pagamento: ${rotuloForma(venda.formaPagamento)}</p>
+  <p class="info">Pagamento: ${pagamento}</p>
   ${blocoFiado}
   <div class="rodape">Obrigado pela preferência!</div>
 </body>

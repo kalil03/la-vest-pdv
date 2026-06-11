@@ -42,7 +42,10 @@ class VendaApiTest {
 
     @BeforeEach
     void limparEPopular() {
-        jdbc.execute("TRUNCATE item_venda, venda, pagamento_fiado, variacao, produto, cliente RESTART IDENTITY CASCADE");
+        jdbc.execute("""
+                TRUNCATE item_venda, parcela_fiado, pagamento_fiado, venda,
+                         variacao, produto, marca, vendedor, cliente
+                RESTART IDENTITY CASCADE""");
 
         Produto tenis = new Produto();
         tenis.setCodigo("T100");
@@ -130,6 +133,82 @@ class VendaApiTest {
         Cliente maria = clienteRepository.buscar("Maria").get(0);
         assertThat(clienteRepository.saldoDevedor(maria.getId())).isEqualByComparingTo("150.00");
         assertThat(estoque(variacaoTenis38)).isEqualTo(9);
+    }
+
+    @Test
+    void descontoReduzOTotalEFicaRegistrado() {
+        var req = Map.of(
+                "formaPagamento", "PIX",
+                "desconto", "30.00",
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 2, "precoUnit", "150.00")));
+
+        ResponseEntity<Map> resp = http.postForEntity("/api/vendas", req, Map.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(resp.getBody().get("subtotal")).isEqualTo(300.00);
+        assertThat(resp.getBody().get("desconto")).isEqualTo(30.00);
+        assertThat(resp.getBody().get("total")).isEqualTo(270.00);
+    }
+
+    @Test
+    void descontoMaiorQueAVendaERecusado() {
+        var req = Map.of(
+                "formaPagamento", "PIX",
+                "desconto", "500.00",
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
+
+        ResponseEntity<Map> resp = http.postForEntity("/api/vendas", req, Map.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(vendaRepository.count()).isZero();
+    }
+
+    @Test
+    void fiadoParceladoComEntradaCriaParcelasEPagamentoDaEntrada() {
+        // Tênis R$ 150 x 2 = 300; entrada de 60 em dinheiro; 3x de 80
+        var req = Map.of(
+                "clienteNome", "Carlos Souza",
+                "formaPagamento", "FIADO",
+                "fiado", Map.of(
+                        "entradaValor", "60.00",
+                        "entradaTipo", "DINHEIRO",
+                        "parcelas", List.of(
+                                Map.of("numero", 1, "valor", "80.00", "vencimento", "2026-07-11"),
+                                Map.of("numero", 2, "valor", "80.00", "vencimento", "2026-08-11"),
+                                Map.of("numero", 3, "valor", "80.00", "vencimento", "2026-09-11"))),
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 2, "precoUnit", "150.00")));
+
+        ResponseEntity<Map> resp = http.postForEntity("/api/vendas", req, Map.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(resp.getBody().get("entrada")).isEqualTo(60.00);
+        // Saldo devedor = venda 300 - entrada 60 (a entrada é um pagamento normal do carnê)
+        assertThat(resp.getBody().get("saldoDevedor")).isEqualTo(240.00);
+        assertThat((List<?>) resp.getBody().get("parcelas")).hasSize(3);
+
+        Integer parcelas = jdbc.queryForObject("SELECT COUNT(*) FROM parcela_fiado", Integer.class);
+        assertThat(parcelas).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT SUM(valor) FROM pagamento_fiado", java.math.BigDecimal.class))
+                .isEqualByComparingTo("60.00");
+    }
+
+    @Test
+    void parcelasQueNaoFechamComOTotalDerrubamAVendaInteira() {
+        var req = Map.of(
+                "clienteNome", "Ana Lima",
+                "formaPagamento", "FIADO",
+                "fiado", Map.of(
+                        "parcelas", List.of(
+                                Map.of("numero", 1, "valor", "100.00", "vencimento", "2026-07-11"))),
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
+
+        ResponseEntity<Map> resp = http.postForEntity("/api/vendas", req, Map.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        // rollback total: nem venda, nem parcela, nem cliente afetados
+        assertThat(vendaRepository.count()).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM parcela_fiado", Integer.class)).isZero();
+        assertThat(estoque(variacaoTenis38)).isEqualTo(10);
     }
 
     @Test

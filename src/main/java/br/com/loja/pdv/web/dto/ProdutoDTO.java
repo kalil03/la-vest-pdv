@@ -4,6 +4,7 @@ import br.com.loja.pdv.domain.Produto;
 import br.com.loja.pdv.domain.Variacao;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 public record ProdutoDTO(
@@ -11,17 +12,29 @@ public record ProdutoDTO(
         String codigo,
         String nome,
         String categoria,
+        Long marcaId,
+        String marcaNome,
         BigDecimal preco,
+        Instant dataCriacao,
+        String ncm,
+        String cest,
+        String unidade,
+        String codigoBarras,
+        Integer origem,
         List<VariacaoDTO> variacoes) {
 
-    public record VariacaoDTO(Long id, String tamanho, String cor, int estoque, boolean padrao) {
+    public record VariacaoDTO(Long id, String tamanho, String cor, boolean padrao) {
         public static VariacaoDTO de(Variacao v) {
-            return new VariacaoDTO(v.getId(), v.getTamanho(), v.getCor(), v.getEstoque(), v.isPadrao());
+            return new VariacaoDTO(v.getId(), v.getTamanho(), v.getCor(), v.isPadrao());
         }
     }
 
     public static ProdutoDTO de(Produto p) {
-        return new ProdutoDTO(p.getId(), p.getCodigo(), p.getNome(), p.getCategoria(), p.getPreco(),
+        return new ProdutoDTO(p.getId(), p.getCodigo(), p.getNome(), p.getCategoria(),
+                p.getMarca() != null ? p.getMarca().getId() : null,
+                p.getMarca() != null ? p.getMarca().getNome() : null,
+                p.getPreco(), p.getDataCriacao(),
+                p.getNcm(), p.getCest(), p.getUnidade(), p.getCodigoBarras(), p.getOrigem(),
                 p.getVariacoes().stream().map(VariacaoDTO::de).toList());
     }
 }
