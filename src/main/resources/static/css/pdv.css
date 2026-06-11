@@ -1,0 +1,188 @@
+/* PDV — estilo enxuto, fontes grandes (tela de caixa), alto contraste */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  background: #f4f5f7;
+  color: #1b1f24;
+}
+
+.topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: #1b3a5c;
+  color: #fff;
+}
+.topo h1 { margin: 0; font-size: 20px; letter-spacing: 2px; }
+.topo a { color: #bcd6f0; text-decoration: none; }
+.topo a:hover { text-decoration: underline; }
+
+main { max-width: 980px; margin: 16px auto; padding: 0 16px; }
+
+/* ---------- busca de produto ---------- */
+.busca-area { position: relative; }
+#busca {
+  width: 100%;
+  font-size: 22px;
+  padding: 14px 16px;
+  border: 2px solid #1b3a5c;
+  border-radius: 8px;
+}
+#busca:focus { outline: 3px solid #8db8e8; }
+
+.dropdown {
+  position: absolute;
+  z-index: 10;
+  left: 0; right: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #c5cdd6;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.15);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.dropdown li {
+  padding: 10px 14px;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+.dropdown li.ativo, .dropdown li:hover { background: #e3eefb; }
+.dropdown .cod { font-family: monospace; color: #5a6675; min-width: 70px; }
+.dropdown .preco { margin-left: auto; font-weight: 600; }
+.dropdown .sem-estoque { color: #b3261e; font-size: 13px; }
+
+/* ---------- tabela de itens ---------- */
+.itens-area { margin-top: 16px; background: #fff; border-radius: 8px; padding: 4px 12px 12px; }
+#tabela-itens { width: 100%; border-collapse: collapse; }
+#tabela-itens th { text-align: left; padding: 10px 8px; border-bottom: 2px solid #dde3ea; font-size: 14px; color: #5a6675; }
+#tabela-itens td { padding: 8px; border-bottom: 1px solid #eef1f5; }
+#tabela-itens .num { text-align: right; }
+#tabela-itens input { font-size: 16px; padding: 6px; border: 1px solid #c5cdd6; border-radius: 6px; text-align: right; }
+#tabela-itens input.qtd { width: 64px; }
+#tabela-itens input.preco { width: 96px; }
+.remover { background: none; border: none; color: #b3261e; font-size: 20px; cursor: pointer; }
+.vazio { color: #8893a0; text-align: center; padding: 18px 0; }
+
+/* escolha de variação (grade) */
+.variacoes-pendentes td { background: #fff8e6; }
+.variacoes-pendentes .vbtn {
+  margin: 2px 4px 2px 0;
+  padding: 8px 12px;
+  font-size: 16px;
+  border: 1px solid #c5a542;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.variacoes-pendentes .vbtn:focus, .variacoes-pendentes .vbtn:hover { background: #f4e3ad; outline: 2px solid #c5a542; }
+.variacoes-pendentes .vbtn small { color: #5a6675; }
+
+/* ---------- fechamento ---------- */
+.fechamento {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+}
+.cliente-area { position: relative; }
+.cliente-area label { font-weight: 600; display: block; margin-bottom: 6px; }
+.cliente-linha { display: flex; gap: 6px; }
+#cliente { flex: 1; font-size: 18px; padding: 10px; border: 1px solid #c5cdd6; border-radius: 8px; }
+#cliente-limpar { border: none; background: #eef1f5; border-radius: 8px; width: 40px; font-size: 20px; cursor: pointer; }
+
+.badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  background: #fdecea;
+  color: #8c1d18;
+}
+.badge.em-dia { background: #e6f4ea; color: #1e6b34; }
+.aviso { display: block; margin-top: 8px; font-size: 13px; color: #7a5d00; }
+
+.formas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.formas button {
+  padding: 12px;
+  font-size: 16px;
+  border: 2px solid #c5cdd6;
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.formas button.ativa { border-color: #1b3a5c; background: #e3eefb; font-weight: 700; }
+kbd {
+  font-size: 11px;
+  background: #eef1f5;
+  border: 1px solid #c5cdd6;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
+}
+
+.total-linha { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 2px; font-size: 18px; }
+.total-linha strong { font-size: 32px; }
+
+.fechar-btn {
+  width: 100%;
+  padding: 16px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  background: #1e6b34;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.fechar-btn:hover { background: #155126; }
+.fechar-btn.fiado { background: #8a5a00; }
+.fechar-btn.fiado:hover { background: #6d4700; }
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 22px;
+  border-radius: 8px;
+  background: #b3261e;
+  color: #fff;
+  font-size: 17px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.3);
+  z-index: 100;
+}
+.toast.ok { background: #1e6b34; }
+
+/* ---------- cadastro de produtos ---------- */
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+.card h2 { margin-top: 0; font-size: 18px; }
+.form-grid { display: grid; grid-template-columns: 160px 1fr 200px 140px; gap: 12px; }
+.form-grid label, .grade-area label { display: block; font-size: 13px; font-weight: 600; color: #5a6675; margin-bottom: 4px; }
+.form-grid input, .grade-area input {
+  width: 100%; font-size: 16px; padding: 9px; border: 1px solid #c5cdd6; border-radius: 6px;
+}
+.grade-area { margin-top: 14px; }
+.grade-toggle { margin: 14px 0 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.variacao-row { display: grid; grid-template-columns: 120px 160px 110px 40px; gap: 8px; margin-bottom: 6px; }
+.botoes-grade { margin: 10px 0; display: flex; gap: 8px; }
+.botoes-grade button, .salvar-btn {
+  padding: 9px 14px; font-size: 15px; border-radius: 6px; cursor: pointer; border: 1px solid #c5cdd6; background: #fff;
+}
+.salvar-btn { background: #1b3a5c; color: #fff; border: none; font-weight: 700; padding: 12px 24px; font-size: 17px; margin-top: 14px; }
+.lista-produtos table { width: 100%; border-collapse: collapse; }
+.lista-produtos th, .lista-produtos td { text-align: left; padding: 8px; border-bottom: 1px solid #eef1f5; font-size: 15px; }
+.lista-produtos .grade-chip { display: inline-block; background: #eef1f5; border-radius: 4px; padding: 2px 8px; margin: 1px 4px 1px 0; font-size: 13px; }
+.lista-produtos .neg { color: #b3261e; font-weight: 700; }

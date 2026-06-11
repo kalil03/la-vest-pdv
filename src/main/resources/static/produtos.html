@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDV — Produtos</title>
+  <link rel="stylesheet" href="/css/pdv.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>PDV</h1>
+    <nav><a href="/">← Voltar para a venda</a></nav>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Novo produto</h2>
+      <form id="form-produto">
+        <div class="form-grid">
+          <div>
+            <label for="codigo">Código</label>
+            <input id="codigo" type="text" placeholder="vazio = gerar">
+          </div>
+          <div>
+            <label for="nome">Nome *</label>
+            <input id="nome" type="text" required>
+          </div>
+          <div>
+            <label for="categoria">Categoria</label>
+            <input id="categoria" type="text" list="categorias">
+            <datalist id="categorias">
+              <option value="Roupas"></option>
+              <option value="Calçados"></option>
+              <option value="Perfumes"></option>
+            </datalist>
+          </div>
+          <div>
+            <label for="preco">Preço (R$) *</label>
+            <input id="preco" type="number" min="0" step="0.01" required>
+          </div>
+        </div>
+
+        <label class="grade-toggle">
+          <input id="tem-grade" type="checkbox">
+          Tem grade (tamanho/cor)?
+        </label>
+
+        <!-- Sem grade: só o estoque inicial da variação "padrão" -->
+        <div id="sem-grade" class="grade-area">
+          <div class="variacao-row">
+            <div>
+              <label for="estoque-unico">Estoque inicial</label>
+              <input id="estoque-unico" type="number" min="0" value="0">
+            </div>
+          </div>
+        </div>
+
+        <!-- Com grade: linhas tamanho/cor/estoque -->
+        <div id="com-grade" class="grade-area" hidden>
+          <div class="botoes-grade">
+            <button type="button" id="add-variacao">+ Variação</button>
+            <button type="button" id="grade-calcados">Grade calçados 34–44</button>
+          </div>
+          <div id="variacoes"></div>
+        </div>
+
+        <button type="submit" class="salvar-btn">Salvar produto</button>
+      </form>
+    </section>
+
+    <section class="card lista-produtos">
+      <h2>Produtos cadastrados</h2>
+      <input id="filtro" type="text" placeholder="Filtrar por código ou nome" style="width:100%;font-size:16px;padding:9px;border:1px solid #c5cdd6;border-radius:6px;margin-bottom:10px;">
+      <table>
+        <thead><tr><th>Código</th><th>Nome</th><th>Categoria</th><th>Preço</th><th>Estoque</th></tr></thead>
+        <tbody id="lista"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/js/produtos.js"></script>
+</body>
+</html>
