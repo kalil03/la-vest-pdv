@@ -17,6 +17,11 @@ public class PagamentoFiado {
     @JoinColumn(name = "cliente_id")
     private Cliente cliente;
 
+    /** Preenchido quando o pagamento nasce junto de uma venda (entrada do fiado). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "venda_id")
+    private Venda venda;
+
     @Column(nullable = false)
     private BigDecimal valor;
 
@@ -30,6 +35,8 @@ public class PagamentoFiado {
     public Long getId() { return id; }
     public Cliente getCliente() { return cliente; }
     public void setCliente(Cliente cliente) { this.cliente = cliente; }
+    public Venda getVenda() { return venda; }
+    public void setVenda(Venda venda) { this.venda = venda; }
     public BigDecimal getValor() { return valor; }
     public void setValor(BigDecimal valor) { this.valor = valor; }
     public TipoPagamentoFiado getTipo() { return tipo; }

@@ -9,14 +9,18 @@
 <body>
   <header class="topo">
     <h1>PDV</h1>
-    <nav><a href="/produtos.html">Cadastro de produtos</a></nav>
+    <nav>
+      <a href="/" class="atual">Venda</a>
+      <a href="/produtos.html">Produtos</a>
+      <a href="/clientes.html">Clientes</a>
+    </nav>
   </header>
 
   <main class="venda">
     <!-- Busca de produto: o caixa digita código OU nome e dá Enter -->
     <section class="busca-area">
       <input id="busca" type="text" autocomplete="off" autofocus
-             placeholder="Código ou nome do produto  (Enter adiciona)">
+             placeholder="Código, código de barras ou nome do produto  (Enter adiciona)">
       <ul id="busca-resultados" class="dropdown" hidden></ul>
     </section>
 
@@ -34,12 +38,12 @@
       <p id="itens-vazio" class="vazio">Nenhum item. Busque um produto acima para começar.</p>
     </section>
 
-    <!-- Rodapé: cliente + pagamento + fechar -->
+    <!-- Rodapé: cliente + pagamento + avançar -->
     <footer class="fechamento">
       <div class="cliente-area">
         <label for="cliente">Cliente <small>(opcional, obrigatório no fiado)</small></label>
         <div class="cliente-linha">
-          <input id="cliente" type="text" autocomplete="off" placeholder="Nome do cliente">
+          <input id="cliente" type="text" autocomplete="off" placeholder="Nome, CPF ou telefone">
           <button id="cliente-limpar" type="button" title="Limpar cliente" hidden>&times;</button>
         </div>
         <ul id="cliente-resultados" class="dropdown" hidden></ul>
@@ -58,12 +62,78 @@
           <span>Total</span>
           <strong id="total">R$ 0,00</strong>
         </div>
-        <button id="fechar" type="button" class="fechar-btn">
-          Fechar venda <kbd>F10</kbd>
+        <button id="avancar" type="button" class="fechar-btn">
+          Revisar e fechar <kbd>F10</kbd>
         </button>
       </div>
     </footer>
   </main>
+
+  <!-- Confirmação: revisão, desconto, vendedor, parcelamento, cancelar -->
+  <div id="modal-overlay" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-labelledby="modal-titulo">
+      <h2 id="modal-titulo">Confirmar venda</h2>
+
+      <div id="m-itens" class="m-itens"></div>
+
+      <div class="m-linha"><span>Subtotal</span><strong id="m-subtotal"></strong></div>
+
+      <div class="m-linha m-campos">
+        <label for="m-desconto">Desconto</label>
+        <select id="m-desconto-modo">
+          <option value="R$">R$</option>
+          <option value="%">%</option>
+        </select>
+        <input id="m-desconto" type="number" min="0" step="0.01" value="0">
+      </div>
+
+      <div class="m-linha m-campos">
+        <label for="m-vendedor">Vendedor</label>
+        <select id="m-vendedor"><option value="">—</option></select>
+      </div>
+
+      <div class="m-linha m-campos">
+        <label for="m-forma">Pagamento</label>
+        <select id="m-forma">
+          <option value="DINHEIRO">Dinheiro</option>
+          <option value="PIX">PIX</option>
+          <option value="CARTAO">Cartão</option>
+          <option value="FIADO">Fiado</option>
+        </select>
+        <select id="m-parcelas-cartao" hidden></select>
+      </div>
+
+      <!-- Bloco do fiado: entrada + cronograma com recálculo automático -->
+      <div id="m-fiado" hidden>
+        <div class="m-linha m-campos">
+          <label for="m-entrada">Entrada</label>
+          <input id="m-entrada" type="number" min="0" step="0.01" value="0">
+          <select id="m-entrada-tipo">
+            <option value="DINHEIRO">Dinheiro</option>
+            <option value="PIX">PIX</option>
+            <option value="CARTAO">Cartão</option>
+          </select>
+        </div>
+        <div class="m-linha m-campos">
+          <label for="m-num-parcelas">Parcelas</label>
+          <input id="m-num-parcelas" type="number" min="1" max="24" value="1">
+          <label for="m-primeiro-venc">1º venc.</label>
+          <input id="m-primeiro-venc" type="date">
+        </div>
+        <table class="m-parcelas">
+          <tbody id="m-parcelas-corpo"></tbody>
+        </table>
+      </div>
+
+      <div class="m-linha m-total"><span>Total a cobrar</span><strong id="m-total"></strong></div>
+      <p id="m-erro" class="m-erro" hidden></p>
+
+      <div class="m-botoes">
+        <button id="m-cancelar" type="button" class="m-btn-cancelar">Cancelar <kbd>Esc</kbd></button>
+        <button id="m-confirmar" type="button" class="fechar-btn">Confirmar e imprimir <kbd>F10</kbd></button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" class="toast" hidden></div>
 
