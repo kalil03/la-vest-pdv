@@ -88,9 +88,10 @@ criarAutocomplete(
   $busca,
   $('busca-resultados'),
   async (q) => (await fetch(`/api/produtos?q=${encodeURIComponent(q)}`)).json(),
-  (p) => `<span class="cod">${p.codigo}</span><span>${p.nome}</span>` +
-         (p.marcaNome ? `<span class="cod">${p.marcaNome}</span>` : '') +
-         `<span class="preco">${fmt(p.preco)}</span>`,
+  (p) => `<span class="cod">${p.codigo}</span>` +
+         `<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;" title="${p.nome}">${p.nome}</span>` +
+         (p.marcaNome ? `<span class="cod" style="max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.marcaNome}</span>` : '') +
+         `<span class="preco" style="margin-left: auto; white-space: nowrap;">${fmt(p.preco)}</span>`,
   escolherProduto
 );
 
@@ -215,8 +216,8 @@ criarAutocomplete(
   $cliente,
   $('cliente-resultados'),
   async (q) => (await fetch(`/api/clientes?q=${encodeURIComponent(q)}`)).json(),
-  (c) => `<span>${c.nome}</span>${c.telefone ? `<span class="cod">${c.telefone}</span>` : ''}` +
-         (Number(c.saldoDevedor) > 0 ? `<span class="sem-estoque">deve ${fmt(c.saldoDevedor)}</span>` : ''),
+  (c) => `<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;" title="${c.nome}">${c.nome}</span>` +
+         (Number(c.saldoDevedor) > 0 ? `<span class="sem-estoque" style="margin-left: auto; white-space: nowrap; background: #fee2e2; color: #dc2626; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">deve ${fmt(c.saldoDevedor)}</span>` : ''),
   selecionarCliente
 );
 

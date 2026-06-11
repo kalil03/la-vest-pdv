@@ -20,11 +20,11 @@ $temGrade.addEventListener('change', () => {
 
 function adicionarLinhaVariacao(tamanho = '', cor = '') {
   const row = document.createElement('div');
-  row.className = 'variacao-row';
+  row.className = 'flex items-end gap-2 mb-2';
   row.innerHTML = `
-    <div><label>Tamanho</label><input class="v-tamanho" type="text" value="${tamanho}"></div>
-    <div><label>Cor</label><input class="v-cor" type="text" value="${cor}"></div>
-    <button type="button" class="remover" title="Remover">×</button>`;
+    <div class="flex-1"><label class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Tamanho</label><input class="v-tamanho w-full bg-background border border-border rounded-md px-2 py-1.5 text-[12px] focus:border-primary outline-none" type="text" value="${tamanho}"></div>
+    <div class="flex-1"><label class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Cor</label><input class="v-cor w-full bg-background border border-border rounded-md px-2 py-1.5 text-[12px] focus:border-primary outline-none" type="text" value="${cor}"></div>
+    <button type="button" class="remover px-2 py-1.5 bg-destructive text-destructive-foreground rounded-md hover:opacity-90 transition-opacity flex items-center justify-center h-[30px]" title="Remover">&times;</button>`;
   row.querySelector('.remover').addEventListener('click', () => row.remove());
   $variacoes.appendChild(row);
 }
@@ -52,6 +52,12 @@ $form.addEventListener('submit', async (e) => {
     unidade: $('unidade').value.trim() || 'UN',
     codigoBarras: $('codigo-barras').value.trim() || null,
     origem: Number($('origem').value),
+    pCusto: $('pCusto').value.trim() || null,
+    pLucro: $('pLucro').value.trim() || null,
+    pAtacado: $('pAtacado').value.trim() || null,
+    pLucroAtacado: $('pLucroAtacado').value.trim() || null,
+    estoque: $('estoque').value.trim() || null,
+    estMinimo: $('estMinimo').value.trim() || null,
   };
 
   // Variações só na criação: itens vendidos apontam para elas (edição de grade fica para depois)
@@ -97,6 +103,7 @@ function limparFormulario() {
   $comGrade.hidden = true;
   $temGrade.disabled = false;
   $('codigo').focus();
+  document.getElementById('detalhe-produto').hidden = true;
 }
 
 $('cancelar-edicao').addEventListener('click', limparFormulario);
@@ -113,6 +120,12 @@ function editarProduto(p) {
   $('unidade').value = p.unidade ?? 'UN';
   $('codigo-barras').value = p.codigoBarras ?? '';
   $('origem').value = p.origem ?? 0;
+  $('pCusto').value = p.pCusto ?? '';
+  $('pLucro').value = p.pLucro ?? '';
+  $('pAtacado').value = p.pAtacado ?? '';
+  $('pLucroAtacado').value = p.pLucroAtacado ?? '';
+  $('estoque').value = p.estoque ?? '';
+  $('estMinimo').value = p.estMinimo ?? '';
   // grade não é editável por aqui (itens vendidos apontam para as variações)
   $temGrade.checked = false;
   $temGrade.disabled = true;
@@ -120,7 +133,9 @@ function editarProduto(p) {
   $('form-titulo').textContent = `Editando: ${p.nome}`;
   $('salvar').textContent = 'Salvar alterações';
   $('cancelar-edicao').hidden = false;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  
+  // Exibe o painel de detalhes no layout dual-pane
+  document.getElementById('detalhe-produto').hidden = false;
   $('nome').focus();
 }
 

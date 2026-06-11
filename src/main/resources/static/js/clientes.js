@@ -7,7 +7,7 @@ const $form = $('form-cliente');
 const $lista = $('lista');
 const $toast = $('toast');
 
-const CAMPOS = ['nome', 'cpf', 'telefone', 'email', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'cep'];
+const CAMPOS = ['nome', 'cpf', 'telefone', 'email', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'cep', 'tipo', 'rg', 'dataNasc', 'limiteCred', 'bloqueado', 'pfisProfissao', 'pfisRendaConj', 'anotacoes'];
 
 // ---------- salvar (cria ou edita) ----------
 $form.addEventListener('submit', async (e) => {
@@ -45,7 +45,11 @@ $('cancelar-edicao').addEventListener('click', limparFormulario);
 
 function editarCliente(c) {
   $('cliente-id').value = c.id;
-  CAMPOS.forEach((campo) => { $(campo).value = c[campo] ?? ''; });
+  CAMPOS.forEach((campo) => { 
+    let val = c[campo] ?? '';
+    if ($(campo) && $(campo).type === 'date' && val) val = val.split('T')[0];
+    if ($(campo)) $(campo).value = val; 
+  });
   $('form-titulo').textContent = `Editando: ${c.nome}`;
   $('salvar').textContent = 'Salvar alterações';
   $('cancelar-edicao').hidden = false;

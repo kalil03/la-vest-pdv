@@ -20,6 +20,12 @@ public record NovoProdutoRequest(
         String unidade,
         String codigoBarras,
         Integer origem,
+        BigDecimal pCusto,
+        BigDecimal pLucro,
+        BigDecimal pAtacado,
+        BigDecimal pLucroAtacado,
+        BigDecimal estoque,
+        BigDecimal estMinimo,
         @Valid List<NovaVariacao> variacoes) {
 
     public record NovaVariacao(String tamanho, String cor) {

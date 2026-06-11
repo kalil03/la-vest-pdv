@@ -16,11 +16,28 @@ public record ClienteDTO(
         String cidade,
         String uf,
         String cep,
-        BigDecimal saldoDevedor) {
+        BigDecimal saldoDevedor,
+        String tipo,
+        String rg,
+        java.time.LocalDate dataNasc,
+        BigDecimal limiteCred,
+        String bloqueado,
+        String pfisProfissao,
+        BigDecimal pfisRendaConj,
+        String anotacoes) {
 
-    public static ClienteDTO de(Cliente c, BigDecimal saldoDevedor) {
+    public static ClienteDTO de(Cliente c, BigDecimal saldoDevedor,
+        String tipo,
+        String rg,
+        java.time.LocalDate dataNasc,
+        BigDecimal limiteCred,
+        String bloqueado,
+        String pfisProfissao,
+        BigDecimal pfisRendaConj,
+        String anotacoes) {
         return new ClienteDTO(c.getId(), c.getNome(), c.getCpf(), c.getTelefone(), c.getEmail(),
                 c.getLogradouro(), c.getNumero(), c.getBairro(), c.getCidade(), c.getUf(), c.getCep(),
-                saldoDevedor);
+                saldoDevedor,
+                c.getTipo(), c.getRg(), c.getDataNasc(), c.getLimiteCred(), c.getBloqueado(), c.getPfisProfissao(), c.getPfisRendaConj(), c.getAnotacoes());
     }
 }

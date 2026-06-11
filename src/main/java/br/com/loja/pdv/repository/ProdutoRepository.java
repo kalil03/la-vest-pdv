@@ -27,7 +27,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
               AND (CAST(:dataAte AS timestamptz) IS NULL OR p.data_criacao <= :dataAte)
             ORDER BY (p.codigo = :q
                       OR TRIM(LEADING '0' FROM p.codigo) = TRIM(LEADING '0' FROM :q)) DESC, p.nome
-            LIMIT 50
+            LIMIT 200
             """, nativeQuery = true)
     List<Produto> buscar(@Param("q") String q,
                          @Param("marcaId") Long marcaId,
