@@ -65,14 +65,13 @@ async function carregarLista() {
   clientes.forEach((c) => {
     const deve = Number(c.saldoDevedor) > 0;
     const tr = document.createElement('tr');
+    tr.className = 'cursor-pointer hover:bg-muted transition-colors';
     tr.innerHTML = `
       <td>${c.nome}</td>
-      <td>${c.cpf ?? '<small class="falta">falta</small>'}</td>
-      <td>${c.telefone ?? ''}</td>
+      <td>${c.cpf ?? '<small class="text-muted-foreground">falta</small>'}</td>
       <td>${c.cidade ?? ''}</td>
-      <td class="num ${deve ? 'neg' : ''}">${deve ? fmt(c.saldoDevedor) : '—'}</td>
-      <td><button type="button" class="editar">editar</button></td>`;
-    tr.querySelector('.editar').addEventListener('click', () => editarCliente(c));
+      <td class="num text-right ${deve ? 'neg' : ''}">${deve ? fmt(c.saldoDevedor) : '—'}</td>`;
+    tr.addEventListener('click', () => editarCliente(c));
     $lista.appendChild(tr);
   });
 }
@@ -125,3 +124,9 @@ function toast(msg, tipo = '') {
 
 carregarLista();
 carregarVendedores();
+
+window.novoCadastro = () => {
+  limparFormulario();
+  document.getElementById('detalhe-produto').hidden = false;
+  $('nome').focus();
+};

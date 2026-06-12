@@ -11,6 +11,7 @@ const round2 = (v) => Math.round(v * 100) / 100;
 // ---------- estado ----------
 let itens = [];            // {variacaoId, codigo, descricao, qtd, preco}
 let cliente = null;        // {id, nome} selecionado no autocomplete
+let ultimaVenda = null;    // {resumo, itens, cliente} — p/ reimprimir/cancelar/reabrir
 let formaPagamento = 'DINHEIRO';
 let loja = { nome: 'Loja', endereco: '', telefone: '' };
 let vendedores = [];
@@ -29,6 +30,7 @@ const $clienteBadge = $('cliente-badge');
 const $clienteLimpar = $('cliente-limpar');
 const $clienteNovoAviso = $('cliente-novo-aviso');
 const $avancar = $('avancar');
+$('c-vendedor').addEventListener('change', atualizarAvancar);
 const $formas = $('formas');
 const $toast = $('toast');
 const $overlay = $('modal-overlay');
@@ -87,27 +89,36 @@ function criarAutocomplete($input, $lista, buscar, renderizar, escolher) {
 criarAutocomplete(
   $busca,
   $('busca-resultados'),
-  async (q) => (await fetch(`/api/produtos?q=${encodeURIComponent(q)}`)).json(),
+  async (q) => (await fetch(`/api/produtos?q=${encodeURIComponent(extrairQtd(q).termo)}`)).json(),
   (p) => `<span class="cod">${p.codigo}</span>` +
-         `<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;" title="${p.nome}">${p.nome}</span>` +
-         (p.marcaNome ? `<span class="cod" style="max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.marcaNome}</span>` : '') +
-         `<span class="preco" style="margin-left: auto; white-space: nowrap;">${fmt(p.preco)}</span>`,
+    `<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;" title="${p.nome}">${p.nome}</span>` +
+    (p.marcaNome ? `<span class="cod" style="max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.marcaNome}</span>` : '') +
+    `<span class="preco" style="margin-left: auto; white-space: nowrap;">${fmt(p.preco)}</span>`,
   escolherProduto
 );
 
+/** "2x1504" / "2X1504" = duas unidades do produto 1504. */
+function extrairQtd(texto) {
+  const q = (texto || '').trim();
+  const m = q.match(/^(\d{1,3})\s*[xX*]\s*(.+)$/);
+  if (m) return { qtd: parseInt(m[1], 10), termo: m[2] };
+  return { qtd: 1, termo: q };
+}
+
 function escolherProduto(p) {
+  const qtd = extrairQtd($busca.value).qtd; // captura o "2x" antes de limpar
   $busca.value = '';
   const visiveis = p.variacoes.filter((v) => !v.padrao);
   if (visiveis.length === 0) {
-    adicionarItem(p, p.variacoes[0]); // perfume etc.: variação padrão escondida
+    adicionarItem(p, p.variacoes[0], qtd); // perfume etc.: variação padrão escondida
   } else if (visiveis.length === 1) {
-    adicionarItem(p, visiveis[0]);
+    adicionarItem(p, visiveis[0], qtd);
   } else {
-    mostrarEscolhaVariacao(p, visiveis); // grade: botões rápidos de tamanho/cor
+    mostrarEscolhaVariacao(p, visiveis, qtd); // grade: botões rápidos de tamanho/cor
   }
 }
 
-function mostrarEscolhaVariacao(produto, variacoes) {
+function mostrarEscolhaVariacao(produto, variacoes, qtd = 1) {
   document.querySelector('.variacoes-pendentes')?.remove();
   const tr = document.createElement('tr');
   tr.className = 'variacoes-pendentes';
@@ -119,7 +130,7 @@ function mostrarEscolhaVariacao(produto, variacoes) {
     btn.type = 'button';
     btn.className = 'vbtn';
     btn.textContent = [v.tamanho, v.cor].filter(Boolean).join(' ');
-    btn.addEventListener('click', () => { tr.remove(); adicionarItem(produto, v); });
+    btn.addEventListener('click', () => { tr.remove(); adicionarItem(produto, v, qtd); });
     btn.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight') btn.nextElementSibling?.focus();
       if (e.key === 'ArrowLeft') btn.previousElementSibling?.focus();
@@ -133,17 +144,41 @@ function mostrarEscolhaVariacao(produto, variacoes) {
   td.querySelector('button')?.focus();
 }
 
-function adicionarItem(produto, variacao) {
+$busca.addEventListener('keydown', async (e) => {
+  if (e.key === 'Enter' && !e.defaultPrevented) {
+    e.preventDefault();
+    const q = $busca.value.trim();
+    if (!q) return;
+    const ext = extrairQtd(q);
+    try {
+      const resp = await fetch(`/api/produtos?q=${encodeURIComponent(ext.termo)}`);
+      const lista = await resp.json();
+      if (lista.length === 1) {
+        // Exatamente um resultado = leitor de código de barras bateu em cheio
+        escolherProduto(lista[0]);
+      } else if (lista.length > 1) {
+        // Vários resultados = dispara o input pra forçar o dropdown a abrir
+        $busca.dispatchEvent(new Event('input'));
+      } else {
+        toast('Produto não encontrado', 'erro');
+      }
+    } catch {
+      toast('Sem conexão', 'erro');
+    }
+  }
+});
+
+function adicionarItem(produto, variacao, qtd = 1) {
   const existente = itens.find((i) => i.variacaoId === variacao.id);
   if (existente) {
-    existente.qtd += 1;
+    existente.qtd += qtd;
   } else {
     const rotuloVar = [variacao.tamanho, variacao.cor].filter(Boolean).join(' ');
     itens.push({
       variacaoId: variacao.id,
       codigo: produto.codigo,
       descricao: produto.nome + (rotuloVar ? ` ${rotuloVar}` : ''),
-      qtd: 1,
+      qtd,
       preco: Number(produto.preco),
     });
   }
@@ -153,6 +188,11 @@ function adicionarItem(produto, variacao) {
 
 function subtotalVenda() {
   return round2(itens.reduce((s, i) => s + i.qtd * i.preco, 0));
+}
+
+
+function atualizarAvancar() {
+  $('avancar').disabled = itens.length === 0;
 }
 
 function renderItens() {
@@ -181,13 +221,11 @@ function renderItens() {
     const tdPreco = document.createElement('td');
     tdPreco.className = 'num';
     const inPreco = document.createElement('input');
-    inPreco.type = 'number';
-    inPreco.min = '0';
-    inPreco.step = '0.01';
-    inPreco.value = item.preco.toFixed(2);
+    inPreco.value = item.preco.toFixed(2).replace('.', ',');
     inPreco.className = 'preco';
+    instalarMoeda(inPreco); // digitou "10" → mostra "R$ 10,00"
     inPreco.addEventListener('change', () => {
-      item.preco = Math.max(0, parseFloat(inPreco.value) || 0);
+      item.preco = Math.max(0, lerMoeda(inPreco));
       renderItens();
     });
     tdPreco.appendChild(inPreco);
@@ -209,6 +247,7 @@ function renderItens() {
   });
   $itensVazio.hidden = itens.length > 0;
   $total.textContent = fmt(subtotalVenda());
+  if (typeof atualizarAvancar === 'function') atualizarAvancar();
 }
 
 // ---------- cliente ----------
@@ -217,7 +256,7 @@ criarAutocomplete(
   $('cliente-resultados'),
   async (q) => (await fetch(`/api/clientes?q=${encodeURIComponent(q)}`)).json(),
   (c) => `<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;" title="${c.nome}">${c.nome}</span>` +
-         (Number(c.saldoDevedor) > 0 ? `<span class="sem-estoque" style="margin-left: auto; white-space: nowrap; background: #fee2e2; color: #dc2626; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">deve ${fmt(c.saldoDevedor)}</span>` : ''),
+    (Number(c.saldoDevedor) > 0 ? `<span class="sem-estoque" style="margin-left: auto; white-space: nowrap; background: #fee2e2; color: #dc2626; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">deve ${fmt(c.saldoDevedor)}</span>` : ''),
   selecionarCliente
 );
 
@@ -279,7 +318,7 @@ $formas.addEventListener('click', (e) => {
 
 fetch('/api/vendedores').then((r) => r.json()).then((vs) => {
   vendedores = vs;
-  const sel = $('m-vendedor');
+  const sel = $('c-vendedor');
   vs.forEach((v) => {
     const opt = document.createElement('option');
     opt.value = v.id;
@@ -303,21 +342,58 @@ const modalAberto = () => !$overlay.hidden;
 
 function abrirModal() {
   if (itens.length === 0) { toast('Adicione pelo menos um item'); $busca.focus(); return; }
+  if (!$('c-vendedor').value) {
+    toast('Selecione um vendedor no rodapé para poder fechar a venda!', 'erro');
+    $('c-vendedor').focus();
+    $('c-vendedor').classList.add('ring-2', 'ring-destructive');
+    setTimeout(() => $('c-vendedor').classList.remove('ring-2', 'ring-destructive'), 2000);
+    return;
+  }
 
   // espelho dos itens, só leitura
   $('m-itens').innerHTML = itens
     .map((i) => `<div class="m-item"><span>${i.qtd}× ${i.descricao}</span><span>${fmt(i.qtd * i.preco)}</span></div>`)
     .join('');
 
-  $('m-desconto').value = '0';
-  $('m-desconto-modo').value = 'R$';
-  $('m-forma').value = formaPagamento;
-  $('m-entrada').value = '0';
-  $('m-num-parcelas').value = '1';
-  $('m-primeiro-venc').value = isoMaisDias(new Date(), 30);
+  let regerarParcelas = true;
+
+  if (window.reabrirContexto) {
+    const c = window.reabrirContexto;
+    formaPagamento = c.formaPagamento || 'DINHEIRO';
+    $('m-forma').value = formaPagamento;
+    $('m-desconto-modo').value = 'R$';
+    $('m-desconto').value = Number(c.desconto || 0).toFixed(2);
+    formatarMoeda($('m-desconto'));
+    
+    if (c.fiado) {
+      $('m-entrada').value = Number(c.fiado.entradaValor || 0).toFixed(2);
+      formatarMoeda($('m-entrada'));
+      if (c.fiado.entradaTipo) $('m-entrada-tipo').value = c.fiado.entradaTipo;
+      $('m-num-parcelas').value = c.fiado.parcelas ? c.fiado.parcelas.length : 1;
+      if (c.fiado.parcelas && c.fiado.parcelas.length > 0) {
+        parcelas = c.fiado.parcelas.map((p) => ({
+          numero: p.numero,
+          valor: Number(p.valor),
+          vencimento: p.vencimento
+        }));
+        regerarParcelas = false;
+      }
+    } else {
+      $('m-entrada').value = '0';
+      formatarMoeda($('m-entrada'));
+      $('m-num-parcelas').value = '1';
+    }
+    if (c.parcelasCartao) $('m-parcelas-cartao').value = c.parcelasCartao;
+    $('m-primeiro-venc').value = isoMaisDias(new Date(), 30);
+    window.reabrirContexto = null;
+  } else {
+    // Sincroniza o modal com a forma de pagamento que o usuário escolheu na tela principal (ex: F6)
+    $('m-forma').value = formaPagamento;
+  }
+
   $mErro.hidden = true;
 
-  atualizarModal(true);
+  atualizarModal(regerarParcelas);
   $overlay.hidden = false;
   $('m-desconto').focus();
   $('m-desconto').select();
@@ -329,7 +405,10 @@ function fecharModal() {
 }
 
 function descontoValor() {
-  const v = Math.max(0, parseFloat($('m-desconto').value) || 0);
+  // no modo % o campo é número puro; no modo R$ é campo de moeda formatado
+  const v = $('m-desconto-modo').value === '%'
+    ? Math.max(0, parseFloat(String($('m-desconto').value).replace(',', '.')) || 0)
+    : Math.max(0, lerMoeda($('m-desconto')));
   return $('m-desconto-modo').value === '%'
     ? round2(subtotalVenda() * Math.min(v, 100) / 100)
     : Math.min(v, subtotalVenda());
@@ -339,6 +418,7 @@ const totalFinal = () => round2(subtotalVenda() - descontoValor());
 
 /** Divide o restante em n parcelas iguais; a última absorve os centavos. */
 function gerarParcelas(restante, n, primeiraDataIso) {
+  if (!primeiraDataIso) primeiraDataIso = isoMaisDias(new Date(), 30);
   const cents = Math.round(restante * 100);
   const base = Math.floor(cents / n);
   return Array.from({ length: n }, (_, i) => ({
@@ -358,12 +438,13 @@ function atualizarModal(regerar) {
   $('m-total').textContent = fmt(totalFinal());
   $('m-parcelas-cartao').hidden = forma !== 'CARTAO';
   $('m-fiado').hidden = forma !== 'FIADO';
+  $('m-div-recebido').hidden = forma !== 'DINHEIRO';
   $('m-confirmar').textContent = '';
   $('m-confirmar').insertAdjacentHTML('beforeend',
     (forma === 'FIADO' ? 'Confirmar e imprimir promissória ' : 'Confirmar e imprimir ') + '<kbd>F10</kbd>');
 
   if (forma === 'FIADO') {
-    const entrada = Math.max(0, parseFloat($('m-entrada').value) || 0);
+    const entrada = Math.max(0, lerMoeda($('m-entrada')));
     const restante = round2(totalFinal() - entrada);
     const n = Math.max(1, parseInt($('m-num-parcelas').value, 10) || 1);
     if (regerar && restante > 0) {
@@ -371,6 +452,8 @@ function atualizarModal(regerar) {
     }
     renderParcelas(restante);
   }
+
+  if (typeof calcularTroco === 'function') calcularTroco();
 }
 
 function renderParcelas(restante) {
@@ -388,13 +471,11 @@ function renderParcelas(restante) {
 
     const tdValor = document.createElement('td');
     const inValor = document.createElement('input');
-    inValor.type = 'number';
-    inValor.min = '0.01';
-    inValor.step = '0.01';
-    inValor.value = p.valor.toFixed(2);
+    inValor.value = p.valor.toFixed(2).replace('.', ',');
+    instalarMoeda(inValor);
     // Editou uma parcela: as anteriores ficam, as seguintes redistribuem o resto
     inValor.addEventListener('change', () => {
-      p.valor = Math.max(0.01, parseFloat(inValor.value) || 0.01);
+      p.valor = Math.max(0.01, lerMoeda(inValor) || 0.01);
       const fixado = parcelas.slice(0, i + 1).reduce((s, x) => s + x.valor, 0);
       const sobra = round2(restante - fixado);
       const seguintes = parcelas.length - (i + 1);
@@ -446,8 +527,15 @@ async function confirmarVenda() {
     desconto: descontoValor().toFixed(2),
     itens: itens.map((i) => ({ variacaoId: i.variacaoId, quantidade: i.qtd, precoUnit: i.preco.toFixed(2) })),
   };
-  const vendedorId = $('m-vendedor').value;
-  if (vendedorId) body.vendedorId = Number(vendedorId);
+  const vendedorId = $('c-vendedor').value;
+  if (!vendedorId) {
+    mostrarErroModal('Selecione o vendedor antes de fechar a venda');
+    $('c-vendedor').focus();
+    return;
+  }
+  body.vendedorId = Number(vendedorId);
+  localStorage.setItem('pdv.vendedorId', vendedorId);
+  if ($('c-observacao').value.trim()) body.observacao = $('c-observacao').value.trim();
   if (forma === 'CARTAO') body.parcelasCartao = Number($('m-parcelas-cartao').value);
 
   if (cliente) {
@@ -458,10 +546,10 @@ async function confirmarVenda() {
 
   if (forma === 'FIADO') {
     if (!body.clienteId && !body.clienteNome) {
-      mostrarErroModal('Venda fiado precisa de um cliente — informe no campo Cliente');
+      mostrarErroModal('Venda fiado precisa de um cliente — feche e informe no rodapé');
       return;
     }
-    const entrada = Math.max(0, parseFloat($('m-entrada').value) || 0);
+    const entrada = Math.max(0, lerMoeda($('m-entrada')));
     const restante = round2(totalFinal() - entrada);
     const soma = round2(parcelas.reduce((s, p) => s + p.valor, 0));
     if (restante <= 0) { mostrarErroModal('Entrada deve ser menor que o total'); return; }
@@ -492,6 +580,15 @@ async function confirmarVenda() {
     const venda = await resp.json();
     imprimirRecibo(venda, loja);
     toast(`Venda nº ${venda.id} registrada — ${fmt(venda.total)}`, 'ok');
+    // guarda a última venda para reimpressão/cancelamento/reabertura
+    ultimaVenda = {
+      resumo: venda,
+      itens: itens.map((i) => ({ ...i })),
+      cliente: cliente ? { ...cliente } : null,
+      clienteNomeLivre: !cliente ? $cliente.value.trim() : '',
+      body: body,
+    };
+    mostrarUltimaVenda();
     fecharModal();
     resetarVenda();
   } catch {
@@ -500,6 +597,83 @@ async function confirmarVenda() {
     $('m-confirmar').disabled = false;
   }
 }
+
+// ---------- última venda: reimprimir, cancelar ou reabrir ----------
+function mostrarUltimaVenda() {
+  const $barra = $('ultima-venda');
+  if (!ultimaVenda) { $barra.hidden = true; return; }
+  $('ultima-venda-rotulo').textContent =
+    `Última venda nº ${ultimaVenda.resumo.id} — ${fmt(ultimaVenda.resumo.total)}`;
+  $barra.hidden = false;
+}
+
+$('uv-reimprimir').addEventListener('click', () => {
+  if (ultimaVenda) imprimirRecibo(ultimaVenda.resumo, loja);
+});
+
+async function cancelarUltimaVenda(silencioso) {
+  const resp = await fetch(`/api/vendas/${ultimaVenda.resumo.id}`, { method: 'DELETE' });
+  if (!resp.ok) {
+    const erro = await resp.json().catch(() => ({}));
+    toast(erro.erro || 'Não foi possível cancelar a venda');
+    return false;
+  }
+  if (!silencioso) toast(`Venda nº ${ultimaVenda.resumo.id} cancelada — estoque devolvido`, 'ok');
+  return true;
+}
+
+function confirmCustom(msg, onYes) {
+  const overlay = document.createElement('div');
+  overlay.className = 'fixed inset-0 bg-black/60 z-[100] flex items-center justify-center backdrop-blur-sm';
+  overlay.innerHTML = `
+    <div class="bg-card p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 border border-border flex flex-col gap-4">
+      <p class="text-[15px] text-foreground font-medium text-center leading-relaxed">${msg}</p>
+      <div class="flex gap-3 mt-2">
+        <button id="cc-no" class="flex-1 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 font-semibold text-[14px]">Não</button>
+        <button id="cc-yes" class="flex-1 py-2 rounded-lg bg-destructive text-destructive-foreground hover:opacity-90 font-semibold text-[14px]">Sim</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#cc-no').onclick = () => overlay.remove();
+  overlay.querySelector('#cc-yes').onclick = () => { overlay.remove(); onYes(); };
+}
+
+$('uv-cancelar').addEventListener('click', () => {
+  if (!ultimaVenda) return;
+  confirmCustom(`Cancelar a venda nº ${ultimaVenda.resumo.id}? O estoque volta e o fiado é desfeito.`, async () => {
+    if (await cancelarUltimaVenda(false)) {
+      ultimaVenda = null;
+      mostrarUltimaVenda();
+    }
+  });
+});
+
+// Reabrir = cancela no servidor e devolve os itens à tela para ajustar e fechar de novo
+$('uv-reabrir').addEventListener('click', () => {
+  if (!ultimaVenda) return;
+  const processarReabrir = async () => {
+    if (!(await cancelarUltimaVenda(true))) return;
+    window.reabrirContexto = ultimaVenda.body;
+    if (ultimaVenda.body.vendedorId) $('c-vendedor').value = ultimaVenda.body.vendedorId;
+    $('c-observacao').value = ultimaVenda.body.observacao || '';
+    if (typeof atualizarAvancar === 'function') atualizarAvancar();
+    itens = ultimaVenda.itens.map((i) => ({ ...i }));
+    if (ultimaVenda.cliente) selecionarCliente(ultimaVenda.cliente);
+    else if (ultimaVenda.clienteNomeLivre) $cliente.value = ultimaVenda.clienteNomeLivre;
+    renderItens();
+    toast(`Venda nº ${ultimaVenda.resumo.id} reaberta — ajuste e feche de novo`, 'ok');
+    ultimaVenda = null;
+    mostrarUltimaVenda();
+    $busca.focus();
+  };
+
+  if (itens.length > 0) {
+    confirmCustom('A venda em andamento será substituída pela última. Continuar?', processarReabrir);
+  } else {
+    processarReabrir();
+  }
+});
 
 function mostrarErroModal(msg) {
   $mErro.textContent = msg;
@@ -512,6 +686,14 @@ function resetarVenda() {
   renderItens();
   limparCliente();
   selecionarForma('DINHEIRO');
+  $('m-desconto').value = '0';
+  formatarMoeda($('m-desconto'));
+  $('m-desconto-modo').value = 'R$';
+  $('m-entrada').value = '0';
+  formatarMoeda($('m-entrada'));
+  $('m-num-parcelas').value = '1';
+  $('m-primeiro-venc').value = isoMaisDias(new Date(), 30);
+  $('c-observacao').value = ''; // observação é da venda, não do caixa (vendedor fica)
   $busca.value = '';
   $busca.focus();
 }
@@ -554,3 +736,18 @@ function toast(msg, tipo = '') {
 }
 
 renderItens();
+
+// Formatadores de moeda no modal
+if (typeof instalarMoeda === 'function') {
+  instalarMoeda($('m-entrada'));
+  instalarMoeda($('m-recebido'), calcularTroco);
+}
+
+function calcularTroco() {
+  const rec = lerMoeda($('m-recebido'));
+  const tot = totalFinal();
+  $('m-troco').textContent = rec > tot ? fmt(rec - tot) : 'R$ 0,00';
+}
+
+resetarVenda();
+

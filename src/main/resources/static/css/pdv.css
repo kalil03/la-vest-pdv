@@ -15,6 +15,35 @@
   --radius: 8px;
 }
 
+/* Tema escuro: html.dark vence os :root das páginas (especificidade maior) */
+html.dark {
+  --background: #111113;
+  --foreground: #f4f4f5;
+  --card: #18181b;
+  --card-foreground: #f4f4f5;
+  --primary: #e4e4e7;
+  --primary-foreground: #111113;
+  --secondary: #1c1c1f;
+  --secondary-foreground: #f4f4f5;
+  --muted: #26262a;
+  --muted-foreground: #a1a1aa;
+  --border: rgba(255, 255, 255, 0.12);
+  --input-bg: #1c1c1f;
+  --destructive: #f87171;
+  --success: #4ade80;
+  --sidebar: #161618;
+  --sidebar-foreground: #a1a1aa;
+  --sidebar-primary: #f4f4f5;
+  --sidebar-primary-foreground: #111113;
+  --sidebar-accent: #26262a;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --hover: rgba(255, 255, 255, 0.09);
+}
+html.dark body { background: var(--background); color: var(--foreground); }
+
+:root { --hover: rgba(0, 0, 0, 0.07); }
+
 * { box-sizing: border-box; }
 
 [hidden] { display: none !important; }
@@ -158,7 +187,7 @@ main.main-content {
   border-radius: 4px;
   font-size: 14px;
 }
-.dropdown li.ativo, .dropdown li:hover { background: var(--muted); }
+.dropdown li.ativo, .dropdown li:hover { background: var(--hover); }
 .dropdown .cod { font-family: 'JetBrains Mono', monospace; color: var(--muted-foreground); min-width: 70px; font-size: 13px; }
 .dropdown .preco { margin-left: auto; font-weight: 600; }
 .dropdown .sem-estoque { color: var(--destructive); font-size: 12px; font-weight: 500; }

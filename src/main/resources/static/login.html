@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="antialiased">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexoPDV — Entrar</title>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/pdv.css">
+  <style>
+    body {
+      font-family: 'Inter', system-ui, sans-serif; margin: 0; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--input-bg);
+    }
+    .login-card {
+      width: 360px; background: var(--background); border: 1px solid var(--border);
+      border-radius: 16px; padding: 36px 32px; box-shadow: 0 10px 40px rgba(0,0,0,.08);
+      animation: subir .25s ease-out;
+    }
+    @keyframes subir { from { transform: translateY(8px); opacity: 0 } to { transform: none; opacity: 1 } }
+    .logo { display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 6px; }
+    .logo .quadrado { width: 36px; height: 36px; border-radius: 10px; background: var(--primary);
+      display: flex; align-items: center; justify-content: center; color: var(--primary-foreground); }
+    h1 { font-size: 18px; font-weight: 700; text-align: center; margin: 0; color: var(--foreground); }
+    .sub { font-size: 12px; color: var(--muted-foreground); text-align: center; margin: 4px 0 24px; }
+    label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--muted-foreground); margin: 14px 0 6px; }
+    input {
+      width: 100%; box-sizing: border-box; padding: 11px 12px; font-size: 14px;
+      border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg);
+      color: var(--foreground); transition: all .15s;
+    }
+    input:focus { outline: none; border-color: var(--primary); background: var(--background); box-shadow: 0 0 0 1px var(--primary); }
+    .erro { color: var(--destructive); font-size: 12.5px; font-weight: 500; margin: 12px 0 0; min-height: 16px; }
+    button {
+      width: 100%; margin-top: 18px; padding: 12px; font-size: 14px; font-weight: 600;
+      color: var(--primary-foreground); background: var(--primary); border: none; border-radius: 8px;
+      cursor: pointer; transition: opacity .15s;
+    }
+    button:hover { opacity: .92; }
+    button:disabled { opacity: .5; cursor: wait; }
+  </style>
+</head>
+<body>
+  <form class="login-card" id="form">
+    <div class="logo">
+      <div class="quadrado"><i data-lucide="store" class="w-4 h-4" style="width:18px;height:18px"></i></div>
+    </div>
+    <h1>NexoPDV</h1>
+    <p class="sub">Sistema de Gestão — Loja da Família</p>
+
+    <label for="login">Usuário</label>
+    <input id="login" type="text" autocomplete="username" autofocus required>
+
+    <label for="senha">Senha</label>
+    <input id="senha" type="password" autocomplete="current-password" required>
+
+    <p class="erro" id="erro"></p>
+    <button type="submit" id="entrar">Entrar</button>
+  </form>
+
+  <script>
+    lucide.createIcons();
+    // tema persistido também na tela de login
+    if (localStorage.getItem('pdv.tema') === 'escuro') document.documentElement.classList.add('dark');
+
+    const $ = (id) => document.getElementById(id);
+    $('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('erro').textContent = '';
+      $('entrar').disabled = true;
+      try {
+        const resp = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login: $('login').value.trim(), senha: $('senha').value }),
+        });
+        if (!resp.ok) {
+          const erro = await resp.json().catch(() => ({}));
+          $('erro').textContent = erro.erro || 'Não foi possível entrar';
+          $('senha').select();
+          return;
+        }
+        localStorage.setItem('pdv.usuario', JSON.stringify(await resp.json()));
+        location.href = '/';
+      } catch {
+        $('erro').textContent = 'Sem conexão com o servidor';
+      } finally {
+        $('entrar').disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

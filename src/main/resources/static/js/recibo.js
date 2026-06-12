@@ -45,6 +45,7 @@ function reciboHTML(venda, loja) {
       Reconheço dever a importância de <b>${fmt(venda.total)}</b>
       referente às mercadorias acima descritas.
     </p>
+    ${venda.observacao ? `<p class="texto">Obs.: <b>${esc(venda.observacao)}</b></p>` : ''}
     ${venda.entrada ? `<p class="texto">Entrada: <b>${fmt(venda.entrada)}</b></p>` : ''}
     ${linhasParcelas ? `<table>${linhasParcelas}</table>` : ''}
     <p class="texto">Saldo devedor total: <b>${fmt(venda.saldoDevedor)}</b></p>

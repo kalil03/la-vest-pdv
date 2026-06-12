@@ -58,6 +58,7 @@ $form.addEventListener('submit', async (e) => {
     pLucroAtacado: $('pLucroAtacado').value.trim() || null,
     estoque: $('estoque').value.trim() || null,
     estMinimo: $('estMinimo').value.trim() || null,
+    tributado: $('tributado').value
   };
 
   // Variações só na criação: itens vendidos apontam para elas (edição de grade fica para depois)
@@ -126,6 +127,7 @@ function editarProduto(p) {
   $('pLucroAtacado').value = p.pLucroAtacado ?? '';
   $('estoque').value = p.estoque ?? '';
   $('estMinimo').value = p.estMinimo ?? '';
+  $('tributado').value = p.tributado ?? 'S';
   // grade não é editável por aqui (itens vendidos apontam para as variações)
   $temGrade.checked = false;
   $temGrade.disabled = true;
@@ -152,10 +154,13 @@ async function carregarMarcas() {
 
 async function carregarCategorias() {
   const cats = await (await fetch('/api/produtos/categorias')).json();
+  const optionsHtml = cats.map((c) => `<option value="${c}">${c}</option>`).join('');
+  
+  $('categorias').innerHTML = optionsHtml;
+  
   const sel = $('f-categoria');
   const atual = sel.value;
-  sel.innerHTML = '<option value="">Todas as categorias</option>' +
-    cats.map((c) => `<option value="${c}">${c}</option>`).join('');
+  sel.innerHTML = '<option value="">Todas as categorias</option>' + optionsHtml;
   sel.value = atual;
 }
 
@@ -173,16 +178,17 @@ async function carregarLista() {
     const variacoes = p.variacoes.filter((v) => !v.padrao)
       .map((v) => [v.tamanho, v.cor].filter(Boolean).join(' ')).join(', ');
     const tr = document.createElement('tr');
+    tr.className = 'cursor-pointer hover:bg-muted transition-colors';
     tr.innerHTML = `
-      <td>${p.codigo}</td>
-      <td>${p.nome}${variacoes ? ` <small class="grade-chip">${variacoes}</small>` : ''}</td>
-      <td>${p.marcaNome ?? ''}</td>
-      <td>${p.categoria ?? ''}</td>
-      <td>${p.ncm ?? '<small class="falta">falta</small>'}</td>
-      <td>${fmt(p.preco)}</td>
-      <td>${new Date(p.dataCriacao).toLocaleDateString('pt-BR')}</td>
-      <td><button type="button" class="editar">editar</button></td>`;
-    tr.querySelector('.editar').addEventListener('click', () => editarProduto(p));
+            <td class="px-4 py-2.5 text-[13px]">${p.codigo}</td>
+      <td class="px-4 py-2.5 text-[13px] font-medium">${p.nome}${variacoes ? ` <small class="grade-chip">${variacoes}</small>` : ''}</td>
+      <td class="px-4 py-2.5 text-[13px]">${p.marcaNome || ''}</td>
+      <td class="px-4 py-2.5 text-[13px]">${p.categoria || ''}</td>
+      <td class="px-4 py-2.5 text-[13px]">${p.ncm || ''}</td>
+      <td class="px-4 py-2.5 text-[13px]">${fmt(p.custo || 0)}</td>
+      <td class="px-4 py-2.5 text-[13px] text-primary font-semibold">${fmt(p.preco || 0)}</td>
+      <td class="px-4 py-2.5 text-[13px]">${new Date(p.dataCriacao).toLocaleDateString('pt-BR')}</td>`;
+    tr.addEventListener('click', () => editarProduto(p));
     $lista.appendChild(tr);
   });
 }
@@ -212,3 +218,10 @@ function toast(msg, tipo = '') {
 carregarMarcas();
 carregarCategorias();
 carregarLista();
+
+window.novoCadastro = () => {
+  limparFormulario();
+  document.getElementById('detalhe-produto').hidden = false;
+  $('nome').focus();
+};
+
