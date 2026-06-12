@@ -15,7 +15,9 @@ public record VendaResumo(
         BigDecimal subtotal,
         BigDecimal desconto,
         BigDecimal total,
+        Long clienteId,
         String clienteNome,
+        Long vendedorId,
         String vendedorNome,
         Integer parcelasCartao,
         String observacao,
@@ -24,7 +26,8 @@ public record VendaResumo(
         List<Item> itens,
         List<Parcela> parcelas) { // só em FIADO
 
-    public record Item(String descricao, int quantidade, BigDecimal precoUnit, BigDecimal subtotal) {
+    public record Item(Long variacaoId, String codigo, String descricao,
+                       int quantidade, BigDecimal precoUnit, BigDecimal subtotal) {
     }
 
     public record Parcela(int numero, BigDecimal valor, LocalDate vencimento) {

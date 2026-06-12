@@ -12,9 +12,25 @@ import org.springframework.web.bind.annotation.*;
 public class VendaController {
 
     private final VendaService vendaService;
+    private final br.com.loja.pdv.service.VendaConsultaService consultaService;
 
-    public VendaController(VendaService vendaService) {
+    public VendaController(VendaService vendaService,
+                           br.com.loja.pdv.service.VendaConsultaService consultaService) {
         this.vendaService = vendaService;
+        this.consultaService = consultaService;
+    }
+
+    /** Listagem para conferência/estorno: nº ou cliente, forma e período. */
+    @GetMapping
+    public br.com.loja.pdv.service.VendaConsultaService.Pagina listar(
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "") String forma,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate de,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate ate,
+            @RequestParam(defaultValue = "1") int pagina) {
+        return consultaService.listar(q, forma, de, ate, pagina);
     }
 
     /** O clique único: grava venda + itens, baixa estoque e (se fiado) lança no carnê. */

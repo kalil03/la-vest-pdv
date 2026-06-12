@@ -193,6 +193,7 @@ public class VendaService {
     private VendaResumo montarResumo(Venda venda) {
         var itens = venda.getItens().stream()
                 .map(i -> new VendaResumo.Item(
+                        i.getVariacao().getId(), i.getVariacao().getProduto().getCodigo(),
                         descricao(i.getVariacao()), i.getQuantidade(), i.getPrecoUnit(), i.getSubtotal()))
                 .toList();
 
@@ -213,7 +214,9 @@ public class VendaService {
         return new VendaResumo(
                 venda.getId(), venda.getData(), venda.getFormaPagamento(),
                 venda.getTotal().add(venda.getDesconto()), venda.getDesconto(), venda.getTotal(),
+                cliente != null ? cliente.getId() : null,
                 cliente != null ? cliente.getNome() : null,
+                venda.getVendedor() != null ? venda.getVendedor().getId() : null,
                 venda.getVendedor() != null ? venda.getVendedor().getNome() : null,
                 venda.getParcelasCartao(),
                 venda.getObservacao(),
