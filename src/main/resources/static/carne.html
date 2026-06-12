@@ -116,17 +116,23 @@
       width: 100%;
       border-collapse: separate;
       border-spacing: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--background);
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+      margin-top: 16px;
     }
 
     .tab-parcelas th {
-      padding: 10px 14px;
-      font-size: 11px;
+      padding: 16px 20px;
+      font-size: 12px;
       text-transform: uppercase;
       letter-spacing: .05em;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--muted-foreground);
       text-align: left;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 2px solid var(--border);
       background: var(--secondary);
       position: sticky;
       top: 0;
@@ -134,14 +140,15 @@
     }
 
     .tab-parcelas td {
-      padding: 11px 14px;
-      font-size: 13px;
+      padding: 16px 20px;
+      font-size: 14px;
       border-bottom: 1px solid var(--border);
+      color: var(--foreground);
     }
 
     .tab-parcelas tbody tr {
       cursor: pointer;
-      transition: background .12s;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .tab-parcelas tbody tr:nth-child(even) {
@@ -150,10 +157,12 @@
 
     .tab-parcelas tbody tr:hover {
       background: var(--muted);
+      transform: scale(1.002);
     }
 
     .tab-parcelas tbody tr.sel {
       background: #eef2ff;
+      border-left: 4px solid var(--primary);
     }
 
     .tab-parcelas tbody tr:focus-visible {
@@ -310,10 +319,10 @@
       class="sidebar-nexo w-56 flex-shrink-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border z-20 relative">
       <div class="flex items-center gap-2.5 px-5 py-4 border-b border-sidebar-border">
         <div class="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
-          <i data-lucide="store" class="text-primary-foreground w-3.5 h-3.5"></i>
+          <i data-lucide="shopping-bag" class="text-primary-foreground w-3.5 h-3.5"></i>
         </div>
         <div>
-          <p class="text-sidebar-accent-foreground leading-none font-semibold text-[13px]">NexoPDV</p>
+          <p class="text-sidebar-accent-foreground leading-none font-semibold text-[13px]">Loja La Vest PDV</p>
           <p class="text-sidebar-foreground mt-1 text-[11px]">Sistema de Gestão</p>
         </div>
       </div>

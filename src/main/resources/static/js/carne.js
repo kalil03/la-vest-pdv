@@ -39,8 +39,10 @@ function atualizarOperador() {
   const nome = $operador.selectedOptions[0]?.textContent || '';
   const tem = !!$operador.value;
   localStorage.setItem('pdv.operadorId', $operador.value);
-  $('op-avatar').textContent = tem ? iniciais(nome) : '?';
-  $('header-operador-nome').textContent = tem ? `Operador: ${nome}` : 'Nenhum operador selecionado';
+  const avatar = $('op-avatar'); // pode não existir (operador agora vive no painel)
+  if (avatar) avatar.textContent = tem ? iniciais(nome) : '?';
+  const indicador = $('header-operador-nome');
+  if (indicador) indicador.textContent = tem ? `Operador: ${nome}` : 'Nenhum operador selecionado';
 }
 
 $operador.addEventListener('change', atualizarOperador);
@@ -217,6 +219,8 @@ function renderCarne() {
 function statusChip(p) {
   const parcial = Number(p.valorAberto) < Number(p.valor);
   const extra = parcial ? ` <span class="chip parcial">parcial · resta ${fmt(p.valorAberto)}</span>` : '';
+  // datas digitadas erradas no sistema antigo (ex.: ano 0257) viram aviso, não "646 mil dias"
+  if (p.diasAtraso > 36500) return `<span class="chip hoje">data inválida no SET</span>${extra}`;
   if (p.diasAtraso > 0) return `<span class="chip atrasada">Vencida há ${p.diasAtraso} dias</span>${extra}`;
   const hoje = new Date().toLocaleDateString('sv-SE'); // yyyy-mm-dd local
   if (p.vencimento === hoje) return `<span class="chip hoje">Vence hoje</span>${extra}`;

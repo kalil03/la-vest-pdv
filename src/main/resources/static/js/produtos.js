@@ -144,7 +144,13 @@ function editarProduto(p) {
 // ---------- filtros e listagem ----------
 async function carregarMarcas() {
   const marcas = await (await fetch('/api/marcas')).json();
-  $('marcas').innerHTML = marcas.map((m) => `<option value="${m.nome}"></option>`).join('');
+  // select do formulário (marca é obrigatória no cadastro)
+  const form = $('marca');
+  const valorForm = form.value;
+  form.innerHTML = '<option value="">Selecione...</option>' +
+    marcas.map((m) => `<option value="${m.nome}">${m.nome}</option>`).join('');
+  form.value = valorForm;
+  // select do filtro da lista
   const sel = $('f-marca');
   const atual = sel.value;
   sel.innerHTML = '<option value="">Todas as marcas</option>' +
@@ -155,9 +161,12 @@ async function carregarMarcas() {
 async function carregarCategorias() {
   const cats = await (await fetch('/api/produtos/categorias')).json();
   const optionsHtml = cats.map((c) => `<option value="${c}">${c}</option>`).join('');
-  
-  $('categorias').innerHTML = optionsHtml;
-  
+  // select do formulário
+  const form = $('categoria');
+  const valorForm = form.value;
+  form.innerHTML = '<option value="">Selecione...</option>' + optionsHtml;
+  form.value = valorForm;
+  // select do filtro da lista
   const sel = $('f-categoria');
   const atual = sel.value;
   sel.innerHTML = '<option value="">Todas as categorias</option>' + optionsHtml;

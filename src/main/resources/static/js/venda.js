@@ -246,7 +246,7 @@ function renderItens() {
     $itens.appendChild(tr);
   });
   $itensVazio.hidden = itens.length > 0;
-  $total.textContent = fmt(subtotalVenda());
+  $total.innerHTML = fmt(subtotalVenda()).replace('R$\u00a0', '<span class="cifrao">R$</span>');
   if (typeof atualizarAvancar === 'function') atualizarAvancar();
 }
 
