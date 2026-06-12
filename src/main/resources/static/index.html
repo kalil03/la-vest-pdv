@@ -202,6 +202,41 @@
       gap: 14px;
       overflow-y: auto;
     }
+    .btn-nova {
+      width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--background);
+      color: var(--foreground);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-nova:hover { background: var(--secondary); }
+    /* sem venda fechada, o botão fica apagado — clicar avisa em vez de agir */
+    .btn-nova.inativa { opacity: 0.4; }
+
+    .acoes-fechada { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .acoes-fechada button {
+      padding: 12px 8px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--background);
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .acoes-fechada button:hover { background: var(--secondary); }
+    .acoes-fechada .destrutivo { color: var(--destructive); border-color: color-mix(in srgb, var(--destructive) 35%, transparent); }
+    .acoes-fechada .destrutivo:hover { background: var(--destructive); color: #fff; }
+    .acoes-fechada .largo { grid-column: 1 / -1; }
+
+    #v-codigo[readonly] { background: var(--secondary) !important; text-align: center; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+
     /* o divisor empurra total/formas/botão para o pé do painel */
     .painel-divisor { height: 1px; background: var(--border); margin-top: auto; }
 
@@ -411,23 +446,6 @@
     <!-- MAIN CAIXA -->
     <main class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
 
-      <!-- BARRA ÚLTIMA VENDA -->
-      <div id="ultima-venda" hidden
-        class="bg-sidebar-accent border-b border-border px-8 py-3 flex items-center justify-between shadow-sm z-30">
-        <span id="ultima-venda-rotulo" class="text-[13px] font-semibold text-sidebar-accent-foreground"></span>
-        <div class="flex gap-2">
-          <button id="uv-reimprimir"
-            class="px-3 py-1.5 rounded bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors flex items-center gap-1.5"><i
-              data-lucide="printer" class="w-3.5 h-3.5"></i> Recibo</button>
-          <button id="uv-reabrir"
-            class="px-3 py-1.5 rounded bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors flex items-center gap-1.5"><i
-              data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reabrir</button>
-          <button id="uv-cancelar"
-            class="px-3 py-1.5 rounded bg-destructive/10 text-destructive border border-destructive/20 text-[11px] font-medium hover:bg-destructive hover:text-white transition-colors flex items-center gap-1.5"><i
-              data-lucide="x-circle" class="w-3.5 h-3.5"></i> Cancelar</button>
-        </div>
-      </div>
-
       <div class="venda-container">
 
         <!-- CABEÇALHO DO CAIXA -->
@@ -475,6 +493,19 @@
 
           <!-- DIREITA: PAINEL DA VENDA -->
           <aside class="painel-venda">
+            <div class="flex gap-3">
+              <div class="flex-1 min-w-0">
+                <label for="v-codigo" class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Código</label>
+                <input id="v-codigo" readonly placeholder="—" tabindex="-1"
+                  class="!w-full !px-3 !py-2.5 !text-[14px] !border !border-border !rounded-lg !outline-none">
+              </div>
+              <div class="flex-1 min-w-0">
+                <label for="v-data" class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Data</label>
+                <input id="v-data" type="date"
+                  class="!w-full !px-3 !py-2 !font-medium !text-[13px] !bg-background !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
+              </div>
+            </div>
+
             <div class="relative">
               <label for="cliente"
                 class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -521,6 +552,14 @@
             <button id="avancar" type="button" class="btn-fechar">
               Revisar e Fechar Venda <kbd>F10</kbd>
             </button>
+
+            <div id="acoes-fechada" class="acoes-fechada" hidden>
+              <button id="vf-editar" type="button"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Editar venda</button>
+              <button id="vf-cancelar" type="button" class="destrutivo"><i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Cancelar venda</button>
+              <button id="vf-recibo" type="button" class="largo"><i data-lucide="printer" class="w-3.5 h-3.5"></i> Reimprimir recibo</button>
+            </div>
+
+            <button id="nova-venda" type="button" class="btn-nova inativa">Nova venda <kbd>F10</kbd></button>
           </aside>
         </div>
       </div>

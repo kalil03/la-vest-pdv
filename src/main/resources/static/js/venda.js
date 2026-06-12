@@ -11,7 +11,7 @@ const round2 = (v) => Math.round(v * 100) / 100;
 // ---------- estado ----------
 let itens = [];            // {variacaoId, codigo, descricao, qtd, preco}
 let cliente = null;        // {id, nome} selecionado no autocomplete
-let ultimaVenda = null;    // {resumo, itens, cliente} — p/ reimprimir/cancelar/reabrir
+let vendaFechada = null;   // resumo da venda recém-fechada (fica na tela até Nova venda)
 let formaPagamento = 'DINHEIRO';
 let loja = { nome: 'Loja', endereco: '', telefone: '' };
 let vendedores = [];
@@ -218,6 +218,7 @@ function renderItens() {
     inQtd.min = '1';
     inQtd.value = item.qtd;
     inQtd.className = 'qtd';
+    inQtd.disabled = !!vendaFechada;
     inQtd.addEventListener('change', () => {
       item.qtd = Math.max(1, parseInt(inQtd.value, 10) || 1);
       renderItens();
@@ -229,6 +230,7 @@ function renderItens() {
     const inPreco = document.createElement('input');
     inPreco.value = item.preco.toFixed(2).replace('.', ',');
     inPreco.className = 'preco';
+    inPreco.disabled = !!vendaFechada;
     instalarMoeda(inPreco); // digitou "10" → mostra "R$ 10,00"
     inPreco.addEventListener('change', () => {
       item.preco = Math.max(0, lerMoeda(inPreco));
@@ -245,6 +247,7 @@ function renderItens() {
     btnDel.className = 'remover';
     btnDel.textContent = '×';
     btnDel.title = 'Remover item';
+    btnDel.style.visibility = vendaFechada ? 'hidden' : 'visible';
     btnDel.addEventListener('click', () => { itens.splice(idx, 1); renderItens(); $busca.focus(); });
     tdDel.appendChild(btnDel);
 
@@ -541,6 +544,7 @@ async function confirmarVenda() {
   }
   body.vendedorId = Number(vendedorId);
   localStorage.setItem('pdv.vendedorId', vendedorId);
+  if ($('v-data').value) body.data = $('v-data').value;
   if ($('c-observacao').value.trim()) body.observacao = $('c-observacao').value.trim();
   if (forma === 'CARTAO') body.parcelasCartao = Number($('m-parcelas-cartao').value);
 
@@ -586,17 +590,10 @@ async function confirmarVenda() {
     const venda = await resp.json();
     imprimirRecibo(venda, loja);
     toast(`Venda nº ${venda.id} registrada — ${fmt(venda.total)}`, 'ok');
-    // guarda a última venda para reimpressão/cancelamento/reabertura
-    ultimaVenda = {
-      resumo: venda,
-      itens: itens.map((i) => ({ ...i })),
-      cliente: cliente ? { ...cliente } : null,
-      clienteNomeLivre: !cliente ? $cliente.value.trim() : '',
-      body: body,
-    };
-    mostrarUltimaVenda();
+    // a venda fica na tela, travada: dá para cancelar/editar ou abrir uma nova
+    vendaFechada = venda;
     fecharModal();
-    resetarVenda();
+    aplicarEstado();
   } catch {
     mostrarErroModal('Falha de conexão com o servidor');
   } finally {
@@ -604,27 +601,33 @@ async function confirmarVenda() {
   }
 }
 
-// ---------- última venda: reimprimir, cancelar ou reabrir ----------
-function mostrarUltimaVenda() {
-  const $barra = $('ultima-venda');
-  if (!ultimaVenda) { $barra.hidden = true; return; }
-  $('ultima-venda-rotulo').textContent =
-    `Última venda nº ${ultimaVenda.resumo.id} — ${fmt(ultimaVenda.resumo.total)}`;
-  $barra.hidden = false;
+// ---------- venda fechada na tela: editar, cancelar, nova ----------
+/** Trava/destrava a tela conforme exista uma venda recém-fechada nela. */
+function aplicarEstado() {
+  const fechada = !!vendaFechada;
+  $('v-codigo').value = fechada ? `Nº ${vendaFechada.id}` : '';
+  $('acoes-fechada').hidden = !fechada;
+  $avancar.hidden = fechada;
+  $('nova-venda').classList.toggle('inativa', !fechada);
+  $busca.disabled = fechada;
+  $busca.placeholder = fechada
+    ? `Venda nº ${vendaFechada.id} fechada — clique em Nova venda para continuar`
+    : 'Código, cód. de barras ou nome do produto (Enter adiciona)';
+  $cliente.disabled = fechada;
+  $('c-vendedor').disabled = fechada;
+  $('c-observacao').disabled = fechada;
+  $('v-data').disabled = fechada;
+  [...$formas.children].forEach((b) => { b.disabled = fechada; });
+  renderItens();
 }
 
-$('uv-reimprimir').addEventListener('click', () => {
-  if (ultimaVenda) imprimirRecibo(ultimaVenda.resumo, loja);
-});
-
-async function cancelarUltimaVenda(silencioso) {
-  const resp = await fetch(`/api/vendas/${ultimaVenda.resumo.id}`, { method: 'DELETE' });
+async function cancelarVendaServidor() {
+  const resp = await fetch(`/api/vendas/${vendaFechada.id}`, { method: 'DELETE' });
   if (!resp.ok) {
     const erro = await resp.json().catch(() => ({}));
-    toast(erro.erro || 'Não foi possível cancelar a venda');
+    toast(erro.erro || 'Não foi possível cancelar a venda', 'erro');
     return false;
   }
-  if (!silencioso) toast(`Venda nº ${ultimaVenda.resumo.id} cancelada — estoque devolvido`, 'ok');
   return true;
 }
 
@@ -645,41 +648,45 @@ function confirmCustom(msg, onYes) {
   overlay.querySelector('#cc-yes').onclick = () => { overlay.remove(); onYes(); };
 }
 
-$('uv-cancelar').addEventListener('click', () => {
-  if (!ultimaVenda) return;
-  confirmCustom(`Cancelar a venda nº ${ultimaVenda.resumo.id}? O estoque volta e o fiado é desfeito.`, async () => {
-    if (await cancelarUltimaVenda(false)) {
-      ultimaVenda = null;
-      mostrarUltimaVenda();
-    }
+// Editar = cancela no servidor e destrava a mesma venda na tela para ajustar
+$('vf-editar').addEventListener('click', async () => {
+  if (!vendaFechada) return;
+  const numero = vendaFechada.id;
+  if (!(await cancelarVendaServidor())) return;
+  vendaFechada = null;
+  aplicarEstado();
+  toast(`Venda nº ${numero} aberta para edição — ajuste e feche de novo`, 'ok');
+  $busca.focus();
+});
+
+$('vf-cancelar').addEventListener('click', () => {
+  if (!vendaFechada) return;
+  confirmCustom(`Cancelar a venda nº ${vendaFechada.id}? O estoque volta e o fiado é desfeito.`, async () => {
+    const numero = vendaFechada.id;
+    if (!(await cancelarVendaServidor())) return;
+    vendaFechada = null;
+    resetarVenda();
+    toast(`Venda nº ${numero} cancelada — estoque devolvido`, 'ok');
   });
 });
 
-// Reabrir = cancela no servidor e devolve os itens à tela para ajustar e fechar de novo
-$('uv-reabrir').addEventListener('click', () => {
-  if (!ultimaVenda) return;
-  const processarReabrir = async () => {
-    if (!(await cancelarUltimaVenda(true))) return;
-    window.reabrirContexto = ultimaVenda.body;
-    if (ultimaVenda.body.vendedorId) $('c-vendedor').value = ultimaVenda.body.vendedorId;
-    $('c-observacao').value = ultimaVenda.body.observacao || '';
-    if (typeof atualizarAvancar === 'function') atualizarAvancar();
-    itens = ultimaVenda.itens.map((i) => ({ ...i }));
-    if (ultimaVenda.cliente) selecionarCliente(ultimaVenda.cliente);
-    else if (ultimaVenda.clienteNomeLivre) $cliente.value = ultimaVenda.clienteNomeLivre;
-    renderItens();
-    toast(`Venda nº ${ultimaVenda.resumo.id} reaberta — ajuste e feche de novo`, 'ok');
-    ultimaVenda = null;
-    mostrarUltimaVenda();
-    $busca.focus();
-  };
-
-  if (itens.length > 0) {
-    confirmCustom('A venda em andamento será substituída pela última. Continuar?', processarReabrir);
-  } else {
-    processarReabrir();
-  }
+$('vf-recibo').addEventListener('click', () => {
+  if (vendaFechada) imprimirRecibo(vendaFechada, loja);
 });
+
+function novaVenda() {
+  if (!vendaFechada) {
+    toast(itens.length
+      ? 'Feche a venda atual antes de começar outra (F10 revisa e fecha)'
+      : 'Nada para limpar — a tela já está pronta para vender', 'erro');
+    return;
+  }
+  vendaFechada = null;
+  resetarVenda();
+  $busca.focus();
+}
+
+$('nova-venda').addEventListener('click', novaVenda);
 
 function mostrarErroModal(msg) {
   $mErro.textContent = msg;
@@ -689,7 +696,9 @@ function mostrarErroModal(msg) {
 function resetarVenda() {
   itens = [];
   parcelas = [];
-  renderItens();
+  $('v-codigo').value = '';
+  $('v-data').value = new Date().toLocaleDateString('sv-SE'); // hoje, editável
+  aplicarEstado();
   limparCliente();
   selecionarForma('DINHEIRO');
   $('m-desconto').value = '0';
@@ -713,7 +722,7 @@ document.addEventListener('keydown', (e) => {
   }
   const atalhos = { F2: 'DINHEIRO', F3: 'PIX', F4: 'CARTAO', F6: 'FIADO' };
   if (atalhos[e.key]) { e.preventDefault(); selecionarForma(atalhos[e.key]); }
-  else if (e.key === 'F10') { e.preventDefault(); abrirModal(); }
+  else if (e.key === 'F10') { e.preventDefault(); vendaFechada ? novaVenda() : abrirModal(); }
 });
 
 // ---------- utilitários de data ----------

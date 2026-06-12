@@ -25,6 +25,7 @@ public record FecharVendaRequest(
         @PositiveOrZero(message = "Desconto não pode ser negativo") BigDecimal desconto,
         Integer parcelasCartao,
         String observacao,
+        LocalDate data, // null = agora; preenchida = venda lançada com outra data (ex.: venda de ontem anotada no papel)
         @Valid Fiado fiado,
         @NotEmpty(message = "Venda sem itens") @Valid List<Item> itens) {
 

@@ -66,6 +66,7 @@ public class Venda {
     public Vendedor getVendedor() { return vendedor; }
     public void setVendedor(Vendedor vendedor) { this.vendedor = vendedor; }
     public Instant getData() { return data; }
+    public void setData(Instant data) { this.data = data; }
     public FormaPagamento getFormaPagamento() { return formaPagamento; }
     public void setFormaPagamento(FormaPagamento formaPagamento) { this.formaPagamento = formaPagamento; }
     public BigDecimal getDesconto() { return desconto; }

@@ -54,6 +54,14 @@ public class VendaService {
         }
 
         Venda venda = new Venda();
+        if (req.data() != null) {
+            java.time.ZoneId fuso = java.time.ZoneId.of("America/Sao_Paulo");
+            if (req.data().isAfter(java.time.LocalDate.now(fuso))) {
+                throw new RegraNegocioException("Data da venda não pode estar no futuro");
+            }
+            // dia escolhido no caixa (ex.: venda de ontem anotada no papel), meio-dia local
+            venda.setData(req.data().atTime(12, 0).atZone(fuso).toInstant());
+        }
         venda.setCliente(cliente);
         venda.setFormaPagamento(req.formaPagamento());
         venda.setVendedor(resolverVendedor(req.vendedorId()));
