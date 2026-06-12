@@ -621,8 +621,9 @@ function aplicarEstado() {
   renderItens();
 }
 
-async function cancelarVendaServidor() {
-  const resp = await fetch(`/api/vendas/${vendaFechada.id}`, { method: 'DELETE' });
+async function cancelarVendaServidor(motivoEstorno = 'estorno') {
+  const op = encodeURIComponent(window.usuarioLogado?.nome || '');
+  const resp = await fetch(`/api/vendas/${vendaFechada.id}?operador=${op}&motivo=${motivoEstorno}`, { method: 'DELETE' });
   if (!resp.ok) {
     const erro = await resp.json().catch(() => ({}));
     toast(erro.erro || 'Não foi possível cancelar a venda', 'erro');
@@ -652,7 +653,7 @@ function confirmCustom(msg, onYes) {
 $('vf-editar').addEventListener('click', async () => {
   if (!vendaFechada) return;
   const numero = vendaFechada.id;
-  if (!(await cancelarVendaServidor())) return;
+  if (!(await cancelarVendaServidor('edicao'))) return;
   vendaFechada = null;
   aplicarEstado();
   toast(`Venda nº ${numero} aberta para edição — ajuste e feche de novo`, 'ok');
@@ -786,7 +787,8 @@ resetarVenda();
     }
     const venda = await resp.json();
 
-    const del = await fetch(`/api/vendas/${editarId}`, { method: 'DELETE' });
+    const op = encodeURIComponent(window.usuarioLogado?.nome || '');
+    const del = await fetch(`/api/vendas/${editarId}?operador=${op}&motivo=edicao`, { method: 'DELETE' });
     if (!del.ok) {
       const erro = await del.json().catch(() => ({}));
       toast(erro.erro || 'Não foi possível abrir esta venda para edição', 'erro');

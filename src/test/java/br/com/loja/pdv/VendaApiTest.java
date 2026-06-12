@@ -44,7 +44,7 @@ class VendaApiTest {
     void limparEPopular() {
         jdbc.execute("""
                 TRUNCATE item_venda, parcela_fiado, pagamento_fiado, venda,
-                         variacao, produto, marca, vendedor, cliente
+                         variacao, produto, marca, vendedor, cliente, estorno
                 RESTART IDENTITY CASCADE""");
 
         vendedorId = jdbc.queryForObject(
@@ -263,10 +263,14 @@ class VendaApiTest {
                 .getBody().get("id")).longValue();
         assertThat(estoque(variacaoTenis38)).isEqualTo(9);
 
-        http.delete("/api/vendas/" + vendaId);
+        http.delete("/api/vendas/" + vendaId + "?operador=Administrador&motivo=estorno");
 
         assertThat(vendaRepository.count()).isZero();
         assertThat(estoque(variacaoTenis38)).isEqualTo(10); // estoque de volta
+        // auditoria: ficou registrado quem desfez o quê
+        assertThat(jdbc.queryForObject(
+                "SELECT operador FROM estorno WHERE venda_id = " + vendaId, String.class))
+                .isEqualTo("Administrador");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM parcela_fiado", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pagamento_fiado", Integer.class)).isZero();
         Cliente bia = clienteRepository.buscar("Beatriz").get(0);
