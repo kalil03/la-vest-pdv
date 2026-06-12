@@ -13,11 +13,14 @@ public class VendaController {
 
     private final VendaService vendaService;
     private final br.com.loja.pdv.service.VendaConsultaService consultaService;
+    private final br.com.loja.pdv.repository.EstornoRepository estornoRepository;
 
     public VendaController(VendaService vendaService,
-                           br.com.loja.pdv.service.VendaConsultaService consultaService) {
+                           br.com.loja.pdv.service.VendaConsultaService consultaService,
+                           br.com.loja.pdv.repository.EstornoRepository estornoRepository) {
         this.vendaService = vendaService;
         this.consultaService = consultaService;
+        this.estornoRepository = estornoRepository;
     }
 
     /** Listagem para conferência/estorno: nº ou cliente, forma e período. */
@@ -46,10 +49,30 @@ public class VendaController {
         return vendaService.buscarResumo(id);
     }
 
-    /** Cancela a venda: devolve estoque e apaga lançamentos — atômico. */
+    /** Cancela a venda: devolve estoque e apaga lançamentos — atômico, com auditoria. */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void cancelar(@PathVariable Long id) {
-        vendaService.cancelar(id);
+    public void cancelar(@PathVariable Long id,
+                         @RequestParam(defaultValue = "") String operador,
+                         @RequestParam(defaultValue = "estorno") String motivo) {
+        vendaService.cancelar(id, operador.isBlank() ? null : operador, motivo);
+    }
+
+    /** Trilha de auditoria: últimos estornos (nunca apagados). */
+    @GetMapping("/estornos")
+    public java.util.List<java.util.Map<String, Object>> estornos() {
+        return estornoRepository.findTop50ByOrderByDataDesc().stream()
+                .map(e -> {
+                    var m = new java.util.LinkedHashMap<String, Object>();
+                    m.put("vendaId", e.getVendaId());
+                    m.put("data", e.getData());
+                    m.put("operador", e.getOperador());
+                    m.put("motivo", e.getMotivo());
+                    m.put("clienteNome", e.getClienteNome());
+                    m.put("formaPagamento", e.getFormaPagamento());
+                    m.put("total", e.getTotal());
+                    m.put("resumo", e.getResumo());
+                    return (java.util.Map<String, Object>) m;
+                }).toList();
     }
 }

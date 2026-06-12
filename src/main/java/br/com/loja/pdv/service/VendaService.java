@@ -20,17 +20,20 @@ public class VendaService {
     private final ClienteRepository clienteRepository;
     private final VendedorRepository vendedorRepository;
     private final PagamentoFiadoRepository pagamentoFiadoRepository;
+    private final EstornoRepository estornoRepository;
 
     public VendaService(VendaRepository vendaRepository,
                         VariacaoRepository variacaoRepository,
                         ClienteRepository clienteRepository,
                         VendedorRepository vendedorRepository,
-                        PagamentoFiadoRepository pagamentoFiadoRepository) {
+                        PagamentoFiadoRepository pagamentoFiadoRepository,
+                        EstornoRepository estornoRepository) {
         this.vendaRepository = vendaRepository;
         this.variacaoRepository = variacaoRepository;
         this.clienteRepository = clienteRepository;
         this.vendedorRepository = vendedorRepository;
         this.pagamentoFiadoRepository = pagamentoFiadoRepository;
+        this.estornoRepository = estornoRepository;
     }
 
     /**
@@ -230,7 +233,7 @@ public class VendaService {
      * fiado já recebeu pagamento (o carnê já andou; cancelar bagunçaria o caixa).
      */
     @Transactional
-    public void cancelar(Long id) {
+    public void cancelar(Long id, String operador, String motivo) {
         Venda venda = vendaRepository.findById(id)
                 .orElseThrow(() -> new RegraNegocioException("Venda não encontrada (id " + id + ")"));
 
@@ -240,6 +243,19 @@ public class VendaService {
             throw new RegraNegocioException(
                     "Esta venda já tem parcela recebida no carnê — não dá mais para cancelar");
         }
+
+        // auditoria: a venda some, o registro de quem desfez fica para sempre
+        Estorno estorno = new Estorno();
+        estorno.setVendaId(venda.getId());
+        estorno.setOperador(operador);
+        estorno.setMotivo(motivo);
+        estorno.setClienteNome(venda.getCliente() != null ? venda.getCliente().getNome() : null);
+        estorno.setFormaPagamento(venda.getFormaPagamento().name());
+        estorno.setTotal(venda.getTotal());
+        estorno.setResumo(venda.getItens().stream()
+                .map(i -> i.getQuantidade() + "x " + descricao(i.getVariacao()))
+                .collect(java.util.stream.Collectors.joining("; ")));
+        estornoRepository.save(estorno);
 
         for (ItemVenda item : venda.getItens()) {
             variacaoRepository.devolverEstoque(item.getVariacao().getId(), item.getQuantidade());

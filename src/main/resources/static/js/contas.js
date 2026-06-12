@@ -150,13 +150,15 @@ $('v-lista').addEventListener('click', async (e) => {
   }
   if (btn.dataset.acao === 'estornar') {
     confirmarAcao(`Estornar a venda nº ${id}? O estoque volta e o fiado é desfeito. Não dá para desfazer.`, async () => {
-      const resp = await fetch(`/api/vendas/${id}`, { method: 'DELETE' });
+      const op = encodeURIComponent(window.usuarioLogado?.nome || '');
+      const resp = await fetch(`/api/vendas/${id}?operador=${op}&motivo=estorno`, { method: 'DELETE' });
       if (!resp.ok) {
         const erro = await resp.json().catch(() => ({}));
         toastContas(erro.erro || 'Não foi possível estornar', 'erro');
         return;
       }
       toastContas(`Venda nº ${id} estornada`, 'ok');
+      if (!$('estornos-det').hidden) carregarEstornos();
       carregarVendas();
       carregar(); // KPIs e parcelas mudam junto
     });
@@ -203,3 +205,26 @@ $('v-limpar').addEventListener('click', () => {
 });
 $('v-pag-ant').addEventListener('click', () => { if (vPagina > 1) { vPagina--; carregarVendas(); } });
 $('v-pag-prox').addEventListener('click', () => { if (vPagina < vTotalPaginas) { vPagina++; carregarVendas(); } });
+
+// ---------- trilha de estornos ----------
+$('ver-estornos').addEventListener('click', async () => {
+  const det = $('estornos-det');
+  det.hidden = !det.hidden;
+  $('ver-estornos').textContent = det.hidden ? 'Ver estornos' : 'Ocultar estornos';
+  if (!det.hidden) carregarEstornos();
+});
+
+async function carregarEstornos() {
+  const lista = await (await fetch('/api/vendas/estornos')).json();
+  $('estornos-corpo').innerHTML = lista.map((e) => `
+    <tr>
+      <td class="mono">${e.vendaId}</td>
+      <td class="mono">${dataHoraBr(e.data)}</td>
+      <td>${e.operador ?? '<span class="text-muted-foreground">?</span>'}</td>
+      <td><span class="chip ${e.motivo === 'edicao' ? 'parcial' : 'atrasada'}">${e.motivo === 'edicao' ? 'Edição' : 'Estorno'}</span></td>
+      <td>${e.clienteNome ?? 'à vista'}</td>
+      <td class="text-muted-foreground" title="${(e.resumo || '').replace(/"/g, '&quot;')}">${(e.resumo || '').slice(0, 40)}${(e.resumo || '').length > 40 ? '…' : ''}</td>
+      <td class="num font-semibold">${fmt(e.total)}</td>
+    </tr>`).join('')
+    || '<tr><td colspan="7" class="text-center text-muted-foreground py-6">Nenhum estorno registrado</td></tr>';
+}

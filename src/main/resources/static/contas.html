@@ -242,7 +242,22 @@
                 </div>
               </div>
             </div>
-            <p class="text-[11px] text-muted-foreground m-0">Estornar devolve o estoque e desfaz o fiado. Editar reabre a venda no caixa para corrigir e fechar de novo. Venda fiado com parcela já recebida não pode ser alterada.</p>
+            <div class="flex items-center justify-between">
+              <p class="text-[11px] text-muted-foreground m-0">Estornar devolve o estoque e desfaz o fiado. Editar reabre a venda no caixa. Venda fiado com parcela já recebida não pode ser alterada.</p>
+              <button id="ver-estornos" class="pag-btn" type="button">Ver estornos</button>
+            </div>
+
+            <div id="estornos-det" class="bg-background border border-border rounded-xl overflow-hidden" hidden>
+              <div class="px-4 py-3 border-b border-border">
+                <h3 class="m-0 text-[13px] font-semibold">Trilha de estornos <span class="text-muted-foreground font-normal">— registro permanente de quem desfez o quê</span></h3>
+              </div>
+              <div class="max-h-[40vh] overflow-y-auto">
+                <table class="tab-contas">
+                  <thead><tr><th>Venda</th><th>Quando</th><th>Operador</th><th>Motivo</th><th>Cliente</th><th>Itens</th><th class="num">Valor</th></tr></thead>
+                  <tbody id="estornos-corpo"></tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>
