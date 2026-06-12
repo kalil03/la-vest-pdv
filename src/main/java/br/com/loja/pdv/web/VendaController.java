@@ -58,6 +58,15 @@ public class VendaController {
         vendaService.cancelar(id, operador.isBlank() ? null : operador, motivo);
     }
 
+    /** Fechamento de caixa: vendas e recebimentos de um dia. */
+    @GetMapping("/caixa-dia")
+    public br.com.loja.pdv.service.VendaConsultaService.CaixaDia caixaDia(
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate data) {
+        return consultaService.caixaDia(data != null ? data
+                : java.time.LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo")));
+    }
+
     /** Trilha de auditoria: últimos estornos (nunca apagados). */
     @GetMapping("/estornos")
     public java.util.List<java.util.Map<String, Object>> estornos() {

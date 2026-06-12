@@ -40,3 +40,8 @@ output.log
 csv
 Criar telas padrão 2026/
 .shots/
+
+# rascunhos de desenvolvimento
+patch_*.js
+apply_changes*.js
+backend.log

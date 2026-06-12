@@ -90,14 +90,37 @@ const dataHoraBr = (iso) => new Date(iso).toLocaleString('pt-BR', { day: '2-digi
 // alternância de abas
 $('aba-parcelas').addEventListener('click', () => alternarAba('parcelas'));
 $('aba-vendas').addEventListener('click', () => alternarAba('vendas'));
+$('aba-caixa').addEventListener('click', () => alternarAba('caixa'));
 
 function alternarAba(qual) {
-  $('aba-parcelas').classList.toggle('ativa', qual === 'parcelas');
-  $('aba-vendas').classList.toggle('ativa', qual === 'vendas');
-  $('painel-parcelas').hidden = qual !== 'parcelas';
-  $('painel-vendas').hidden = qual !== 'vendas';
+  for (const aba of ['parcelas', 'vendas', 'caixa']) {
+    $(`aba-${aba}`).classList.toggle('ativa', qual === aba);
+    $(`painel-${aba}`).hidden = qual !== aba;
+  }
   if (qual === 'vendas') carregarVendas();
+  if (qual === 'caixa') carregarCaixa();
 }
+
+// ---------- caixa do dia ----------
+async function carregarCaixa() {
+  if (!$('cx-data').value) $('cx-data').value = new Date().toLocaleDateString('sv-SE');
+  const r = await (await fetch(`/api/vendas/caixa-dia?data=${$('cx-data').value}`)).json();
+
+  const ROTULO = { DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO: 'Cartão', FIADO: 'Fiado (a prazo)', VALE_CREDITO: 'Vale-crédito' };
+  const linhas = (lista) => lista.map((l) => `
+    <tr><td>${ROTULO[l.rotulo] || l.rotulo}</td>
+        <td class="num text-muted-foreground">${l.qtd}×</td>
+        <td class="num font-semibold">${fmt(l.total)}</td></tr>`).join('')
+    || '<tr><td colspan="3" class="text-center text-muted-foreground py-5">Nada neste dia</td></tr>';
+
+  $('cx-vendas').innerHTML = linhas(r.vendasPorForma);
+  $('cx-recebimentos').innerHTML = linhas(r.recebimentosPorTipo);
+  $('cx-total-vendas').textContent = fmt(r.totalVendas);
+  $('cx-total-receb').textContent = fmt(r.totalRecebimentos);
+  $('cx-entrou').textContent = fmt(r.entrouNoCaixa);
+}
+
+$('cx-data').addEventListener('input', carregarCaixa);
 
 async function carregarVendas() {
   const params = new URLSearchParams({ pagina: vPagina });

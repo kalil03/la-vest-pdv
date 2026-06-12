@@ -32,6 +32,49 @@ public class VendaConsultaService {
 
     public record Pagina(List<VendaLinha> vendas, long total, int pagina, int porPagina, Totais totais) {}
 
+    public record Linha(String rotulo, long qtd, BigDecimal total) {}
+
+    public record CaixaDia(LocalDate dia, List<Linha> vendasPorForma, List<Linha> recebimentosPorTipo,
+                           BigDecimal totalVendas, BigDecimal vendidoFiado,
+                           BigDecimal totalRecebimentos, BigDecimal entrouNoCaixa) {}
+
+    /**
+     * Fechamento do dia: o que foi vendido por forma e o que ENTROU de
+     * dinheiro (vendas à vista + entradas e recebimentos de carnê).
+     * Venda fiado é venda, mas não é dinheiro no caixa.
+     */
+    @Transactional(readOnly = true)
+    public CaixaDia caixaDia(LocalDate dia) {
+        var params = new MapSqlParameterSource().addValue("dia", dia);
+
+        List<Linha> vendas = jdbc.query("""
+                SELECT forma_pagamento AS rotulo, COUNT(*) AS qtd, COALESCE(SUM(total), 0) AS total
+                FROM venda
+                WHERE CAST(data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                GROUP BY forma_pagamento ORDER BY forma_pagamento
+                """, params,
+                (rs, i) -> new Linha(rs.getString("rotulo"), rs.getLong("qtd"), rs.getBigDecimal("total")));
+
+        // documento IS NULL = só lançamentos do sistema (histórico migrado do SET fica fora)
+        List<Linha> recebimentos = jdbc.query("""
+                SELECT tipo AS rotulo, COUNT(*) AS qtd, COALESCE(SUM(valor), 0) AS total
+                FROM pagamento_fiado
+                WHERE valor > 0 AND documento IS NULL
+                  AND CAST(data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                GROUP BY tipo ORDER BY tipo
+                """, params,
+                (rs, i) -> new Linha(rs.getString("rotulo"), rs.getLong("qtd"), rs.getBigDecimal("total")));
+
+        BigDecimal totalVendas = vendas.stream().map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal vendidoFiado = vendas.stream().filter(l -> "FIADO".equals(l.rotulo()))
+                .map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalReceb = recebimentos.stream().map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add);
+        // à vista + tudo que entrou pelo carnê (entrada de fiado e recebimentos)
+        BigDecimal entrou = totalVendas.subtract(vendidoFiado).add(totalReceb);
+
+        return new CaixaDia(dia, vendas, recebimentos, totalVendas, vendidoFiado, totalReceb, entrou);
+    }
+
     @Transactional(readOnly = true)
     public Pagina listar(String q, String forma, LocalDate de, LocalDate ate, int pagina) {
         int porPagina = 50;

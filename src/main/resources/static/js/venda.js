@@ -592,6 +592,7 @@ async function confirmarVenda() {
     toast(`Venda nº ${venda.id} registrada — ${fmt(venda.total)}`, 'ok');
     // a venda fica na tela, travada: dá para cancelar/editar ou abrir uma nova
     vendaFechada = venda;
+    localStorage.removeItem('pdv.recuperacao');
     fecharModal();
     aplicarEstado();
   } catch {
@@ -599,6 +600,21 @@ async function confirmarVenda() {
   } finally {
     $('m-confirmar').disabled = false;
   }
+}
+
+// snapshot de segurança: se a luz cair entre o estorno e o refechamento,
+// a venda em edição é recuperável ao reabrir o caixa
+function salvarSnapshotEdicao(numeroOriginal) {
+  localStorage.setItem('pdv.recuperacao', JSON.stringify({
+    numeroOriginal,
+    itens,
+    clienteId: cliente?.id || null,
+    clienteNome: cliente?.nome || $cliente.value.trim(),
+    vendedorId: $('c-vendedor').value || null,
+    observacao: $('c-observacao').value,
+    data: $('v-data').value,
+    forma: formaPagamento,
+  }));
 }
 
 // ---------- venda fechada na tela: editar, cancelar, nova ----------
@@ -654,6 +670,7 @@ $('vf-editar').addEventListener('click', async () => {
   if (!vendaFechada) return;
   const numero = vendaFechada.id;
   if (!(await cancelarVendaServidor('edicao'))) return;
+  salvarSnapshotEdicao(numero);
   vendaFechada = null;
   aplicarEstado();
   toast(`Venda nº ${numero} aberta para edição — ajuste e feche de novo`, 'ok');
@@ -810,9 +827,46 @@ resetarVenda();
     selecionarForma(venda.formaPagamento);
     renderItens();
     if (typeof atualizarAvancar === 'function') atualizarAvancar();
+    salvarSnapshotEdicao(editarId);
     toast(`Venda nº ${editarId} aberta para edição — ajuste e feche de novo`, 'ok');
     $busca.focus();
   } catch {
     toast('Sem conexão com o servidor', 'erro');
   }
+})();
+
+// ============================================================
+// Recuperação: havia uma venda em edição que não foi refechada
+// (queda de luz/fechou a aba). O registro original já foi
+// estornado — oferecemos remontar o carrinho.
+// ============================================================
+(function () {
+  if (new URLSearchParams(location.search).get('editar')) return; // edição nova tem prioridade
+  let snap = null;
+  try { snap = JSON.parse(localStorage.getItem('pdv.recuperacao') || 'null'); } catch (e) { /* corrompido */ }
+  if (!snap || !snap.itens?.length) return;
+
+  confirmCustom(`A venda nº ${snap.numeroOriginal} estava em edição e não foi refechada. Recuperar os itens?`, async () => {
+    itens = snap.itens;
+    if (snap.clienteId) selecionarCliente({ id: snap.clienteId, nome: snap.clienteNome });
+    else if (snap.clienteNome) $cliente.value = snap.clienteNome;
+    await vendedoresProntos;
+    if (snap.vendedorId) $('c-vendedor').value = snap.vendedorId;
+    $('c-observacao').value = snap.observacao || '';
+    if (snap.data) $('v-data').value = snap.data;
+    selecionarForma(snap.forma || 'DINHEIRO');
+    renderItens();
+    if (typeof atualizarAvancar === 'function') atualizarAvancar();
+    toast('Venda recuperada — confira e feche', 'ok');
+  });
+  // recusou = descartou de vez (o overlay do confirmCustom só tem Sim/Não)
+  const limparAoRecusar = setInterval(() => {
+    const overlay = document.querySelector('#cc-no');
+    if (overlay && !overlay.dataset.recuperacao) {
+      overlay.dataset.recuperacao = '1';
+      overlay.addEventListener('click', () => localStorage.removeItem('pdv.recuperacao'));
+      clearInterval(limparAoRecusar);
+    }
+  }, 100);
+  setTimeout(() => clearInterval(limparAoRecusar), 3000);
 })();
