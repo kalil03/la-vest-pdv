@@ -87,31 +87,7 @@ $('f-limpar').addEventListener('click', () => {
   carregarLista();
 });
 
-// ---------- vendedores ----------
-$('form-vendedor').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const resp = await fetch('/api/vendedores', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nome: $('v-nome').value.trim(), cpf: $('v-cpf').value.trim() || null }),
-  });
-  if (!resp.ok) {
-    const erro = await resp.json().catch(() => ({}));
-    toast(erro.erro || 'Erro ao salvar vendedor');
-    return;
-  }
-  $('v-nome').value = '';
-  $('v-cpf').value = '';
-  toast('Vendedor adicionado', 'ok');
-  carregarVendedores();
-});
-
-async function carregarVendedores() {
-  const vendedores = await (await fetch('/api/vendedores')).json();
-  $('lista-vendedores').innerHTML = vendedores
-    .map((v) => `<tr><td>${v.nome}</td><td>${v.cpf ?? ''}</td></tr>`)
-    .join('');
-}
+// vendedores agora são cadastrados na tela de Ajustes
 
 let toastTimer = null;
 function toast(msg, tipo = '') {
@@ -123,7 +99,6 @@ function toast(msg, tipo = '') {
 }
 
 carregarLista();
-carregarVendedores();
 
 window.novoCadastro = () => {
   limparFormulario();
