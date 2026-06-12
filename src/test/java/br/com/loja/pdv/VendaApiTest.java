@@ -300,6 +300,21 @@ class VendaApiTest {
         assertThat(vendaRepository.count()).isEqualTo(1); // venda continua lá
     }
 
+    @Test
+    void entradaDeFiadoNaoContaComoPagamentoNoPrazoMedio() {
+        var req = pedido(
+                "clienteNome", "Cliente Score",
+                "formaPagamento", "FIADO",
+                "fiado", Map.of("entradaValor", "50.00", "entradaTipo", "PIX",
+                        "parcelas", List.of(Map.of("numero", 1, "valor", "100.00", "vencimento", "2030-01-10"))),
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
+        http.postForEntity("/api/vendas", req, Map.class);
+        Long clienteId = clienteRepository.buscar("Cliente Score").get(0).getId();
+
+        // entrada paga "em 0 dias" distorceria o score — deve ficar de fora
+        assertThat(clienteRepository.prazoMedioPagamentoDias(clienteId)).isNull();
+    }
+
     private int estoque(Long variacaoId) {
         return jdbc.queryForObject("SELECT estoque FROM variacao WHERE id = ?", Integer.class, variacaoId);
     }
