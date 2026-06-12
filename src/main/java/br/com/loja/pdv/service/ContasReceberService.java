@@ -25,7 +25,7 @@ public class ContasReceberService {
     }
 
     public record Conta(String id, Long clienteId, String clienteNome, Long notinha,
-                        String descricao, LocalDate vencimento,
+                        String documento, String descricao, LocalDate vencimento,
                         BigDecimal valor, BigDecimal valorAberto, String status) {}
 
     public record Totais(BigDecimal totalAberto, BigDecimal totalVencido,
@@ -36,7 +36,7 @@ public class ContasReceberService {
     /** Todas as parcelas, das duas origens, já com valor em aberto. */
     private static final String FONTE = """
             SELECT 'L' || p.id AS id, c.id AS cliente_id, c.nome AS cliente_nome,
-                   NULL::bigint AS notinha, 'Carnê SET' AS descricao,
+                   NULL::bigint AS notinha, p.documento, 'Carnê SET' AS descricao,
                    CAST(p.data AT TIME ZONE 'America/Sao_Paulo' AS date) AS vencimento,
                    -p.valor AS valor, COALESCE(p.valor_aberto, 0) AS valor_aberto
             FROM pagamento_fiado p
@@ -44,7 +44,7 @@ public class ContasReceberService {
             WHERE p.tipo = 'DEBITO_INICIAL'
             UNION ALL
             SELECT 'V' || pf.id, c.id, c.nome,
-                   v.id, 'Parcela ' || pf.numero || '/' || cnt.total,
+                   v.id, NULL AS documento, 'Parcela ' || pf.numero || '/' || cnt.total,
                    pf.vencimento, pf.valor, pf.valor_aberto
             FROM parcela_fiado pf
             JOIN venda v ON v.id = pf.venda_id
@@ -64,7 +64,8 @@ public class ContasReceberService {
 
         String filtro = """
                 WHERE (:q = '' OR unaccent(t.cliente_nome) ILIKE unaccent('%' || :q || '%')
-                       OR CAST(t.notinha AS text) = :q)
+                       OR CAST(t.notinha AS text) = :q
+                       OR t.documento = :q OR t.documento LIKE :q || '/%')
                   AND (CAST(:de AS date) IS NULL OR t.vencimento >= :de)
                   AND (CAST(:ate AS date) IS NULL OR t.vencimento <= :ate)
                 """ + condicaoStatus(status);
@@ -79,6 +80,7 @@ public class ContasReceberService {
                     return new Conta(rs.getString("id"), rs.getLong("cliente_id"),
                             rs.getString("cliente_nome"),
                             rs.getObject("notinha") == null ? null : rs.getLong("notinha"),
+                            rs.getString("documento"),
                             rs.getString("descricao"), rs.getDate("vencimento").toLocalDate(),
                             valor, aberto, statusDe(valor, aberto, rs.getDate("vencimento").toLocalDate()));
                 });

@@ -33,7 +33,7 @@ async function carregar() {
   $('lista').innerHTML = r.contas.map((c) => `
     <tr data-cliente="${c.clienteId}" title="Abrir o carnê de ${c.clienteNome}">
       <td class="font-medium">${c.clienteNome}</td>
-      <td class="mono">${c.notinha ?? '<span class="text-muted-foreground">SET</span>'}</td>
+      <td class="mono">${c.notinha ?? c.documento ?? '—'}</td>
       <td>${c.descricao}</td>
       <td class="mono">${dataBr(c.vencimento)}</td>
       <td>${CHIP[c.status] || c.status}</td>
