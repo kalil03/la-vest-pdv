@@ -162,6 +162,7 @@ async function selecionarCliente(c) {
       return;
     }
     carne = await resp.json();
+    $busca.value = carne.cliente.nome; // deep-link chega só com o id
     selecionadas = [];
     renderCarne();
   } catch {
@@ -499,3 +500,7 @@ function toast(msg, tipoToast = '') {
 }
 
 carregarOperadores();
+
+// aberto a partir do contas a receber: /carne.html?cliente=ID
+const clienteParam = new URLSearchParams(location.search).get('cliente');
+if (clienteParam) selecionarCliente({ id: Number(clienteParam), nome: '' });
