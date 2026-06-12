@@ -40,6 +40,9 @@ public class Venda {
     @Column(name = "parcelas_cartao")
     private Integer parcelasCartao;
 
+    /** Ex.: "comprou no nome da avó com autorização" — sai na promissória e no carnê. */
+    private String observacao;
+
     @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ItemVenda> itens = new ArrayList<>();
 
@@ -71,6 +74,8 @@ public class Venda {
     public void setTotal(BigDecimal total) { this.total = total; }
     public Integer getParcelasCartao() { return parcelasCartao; }
     public void setParcelasCartao(Integer parcelasCartao) { this.parcelasCartao = parcelasCartao; }
+    public String getObservacao() { return observacao; }
+    public void setObservacao(String observacao) { this.observacao = observacao; }
     public List<ItemVenda> getItens() { return itens; }
     public List<ParcelaFiado> getParcelas() { return parcelas; }
 }

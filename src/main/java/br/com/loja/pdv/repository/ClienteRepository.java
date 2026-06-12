@@ -24,6 +24,13 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
 
     boolean existsByCpf(String cpf);
 
+    /** Busca por nº da notinha (venda): quem é o dono daquela venda. */
+    @Query(value = """
+            SELECT c.* FROM cliente c JOIN venda v ON v.cliente_id = c.id
+            WHERE v.id = :vendaId
+            """, nativeQuery = true)
+    java.util.Optional<Cliente> donoDaVenda(@Param("vendaId") Long vendaId);
+
     /**
      * Regra de ouro nº 1: a dívida nunca é armazenada, é sempre calculada.
      * Saldo devedor = soma das vendas FIADO - soma dos pagamentos do carnê.

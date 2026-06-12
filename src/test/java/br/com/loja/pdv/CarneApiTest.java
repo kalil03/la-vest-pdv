@@ -9,14 +9,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Recebimento de carnê: status de parcela é sempre CALCULADO por alocação
- * FIFO dos pagamentos — nada de flag gravada. Roda contra PostgreSQL real.
+ * Recebimento de carnê com rateio POR ORDEM DE SELEÇÃO: a tela manda quanto
+ * abater de cada parcela. O saldo devedor continua sempre calculado;
+ * valor_aberto é só o rateio (invariante: SUM(valor_aberto) == saldo).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class CarneApiTest {
@@ -26,6 +28,9 @@ class CarneApiTest {
 
     Long clienteId;
     Long vendedorId;
+    Long parcela100Antiga;  // 2023-01-10
+    Long parcela100Media;   // 2023-02-10
+    Long parcela50Nova;     // 2023-03-10
 
     @BeforeEach
     void preparar() {
@@ -37,17 +42,27 @@ class CarneApiTest {
                 "INSERT INTO cliente (nome, cpf) VALUES ('Devedora Teste', '11122233344') RETURNING id", Long.class);
         vendedorId = jdbc.queryForObject(
                 "INSERT INTO vendedor (nome) VALUES ('Rosana') RETURNING id", Long.class);
-        // três parcelas migradas do SET: 100 (2023-01-10), 100 (2023-02-10), 50 (2023-03-10)
-        jdbc.update("""
-                INSERT INTO pagamento_fiado (cliente_id, valor, tipo, data) VALUES
-                (?, -100, 'DEBITO_INICIAL', '2023-01-10'),
-                (?, -100, 'DEBITO_INICIAL', '2023-02-10'),
-                (?,  -50, 'DEBITO_INICIAL', '2023-03-10')""", clienteId, clienteId, clienteId);
+        parcela100Antiga = debito("2023-01-10", 100);
+        parcela100Media = debito("2023-02-10", 100);
+        parcela50Nova = debito("2023-03-10", 50);
+    }
+
+    private Long debito(String venc, int valor) {
+        return jdbc.queryForObject("""
+                INSERT INTO pagamento_fiado (cliente_id, valor, tipo, data, valor_aberto)
+                VALUES (?, ?, 'DEBITO_INICIAL', CAST(? AS date), ?) RETURNING id""",
+                Long.class, clienteId, -valor, venc, valor);
     }
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> carne() {
         return http.getForEntity("/api/clientes/" + clienteId + "/carne", Map.class).getBody();
+    }
+
+    private ResponseEntity<Map> receber(String valor, List<Map<String, Object>> alocacoes) {
+        return http.postForEntity("/api/recebimentos", Map.of(
+                "clienteId", clienteId, "valor", valor, "tipo", "PIX",
+                "vendedorId", vendedorId, "alocacoes", alocacoes), Map.class);
     }
 
     @Test
@@ -58,84 +73,140 @@ class CarneApiTest {
         assertThat(c.get("vencimentoMaisAntigo")).isEqualTo("2023-01-10");
         var parcelas = (List<Map<String, Object>>) c.get("parcelas");
         assertThat(parcelas.get(0).get("vencimento")).isEqualTo("2023-01-10");
-        assertThat((int) (long) ((Number) parcelas.get(0).get("diasAtraso")).longValue()).isGreaterThan(90);
+        assertThat(((Number) parcelas.get(0).get("diasAtraso")).longValue()).isGreaterThan(90);
     }
 
     @Test
-    void recebimentoParcialCobreFifoEMostraDiferenca() {
-        // paga 150: quita a 1ª (100), metade da 2ª (50 de 100), 3ª intacta
-        var resp = http.postForEntity("/api/recebimentos",
-                Map.of("clienteId", clienteId, "valor", "150.00", "tipo", "PIX", "vendedorId", vendedorId),
-                Map.class);
+    void recebimentoSegueOrdemDeSelecaoComValorLimite() {
+        // a moça selecionou a de 50 PRIMEIRO e depois a antiga de 100,
+        // mas só tinha 80: quita a de 50 e abate 30 da antiga
+        var resp = receber("80.00", List.of(
+                Map.of("parcelaId", "L" + parcela50Nova, "valor", "50.00"),
+                Map.of("parcelaId", "L" + parcela100Antiga, "valor", "30.00")));
+
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(resp.getBody().get("saldoAnterior")).isEqualTo(250.0);
-        assertThat(resp.getBody().get("saldoRestante")).isEqualTo(100.0);
-        assertThat((List<?>) resp.getBody().get("parcelasQuitadas")).hasSize(1);
-        var parcial = (Map<String, Object>) resp.getBody().get("parcelaParcial");
-        assertThat(parcial.get("valorAberto")).isEqualTo(50.0);
+        assertThat(resp.getBody().get("saldoRestante")).isEqualTo(170.0);
+        var itens = (List<Map<String, Object>>) resp.getBody().get("itens");
+        assertThat(itens).hasSize(2);
+        assertThat(itens.get(0).get("restante")).isEqualTo(0.0);   // 50 quitada
+        assertThat(itens.get(1).get("restante")).isEqualTo(70.0);  // 100 - 30
 
         var c = carne();
-        assertThat(c.get("parcelasAbertas")).isEqualTo(2); // 2ª (parcial) e 3ª
+        assertThat(c.get("parcelasAbertas")).isEqualTo(2);
         var parcelas = (List<Map<String, Object>>) c.get("parcelas");
-        assertThat(parcelas.get(0).get("valorAberto")).isEqualTo(50.0);
-        assertThat(parcelas.get(0).get("valor")).isEqualTo(100.0);
+        assertThat(parcelas.get(0).get("valorAberto")).isEqualTo(70.0);
+        // invariante: rateio fecha com o saldo calculado
+        var soma = parcelas.stream().mapToDouble(p -> ((Number) p.get("valorAberto")).doubleValue()).sum();
+        assertThat(soma).isEqualTo(170.0);
     }
 
     @Test
-    void receberMaisQueOSaldoERecusado() {
-        var resp = http.postForEntity("/api/recebimentos",
-                Map.of("clienteId", clienteId, "valor", "999.00", "tipo", "DINHEIRO", "vendedorId", vendedorId),
-                Map.class);
+    void selecionarUmaParcelaSozinhaMesmoNaoSendoAMaisAntiga() {
+        var resp = receber("50.00", List.of(
+                Map.of("parcelaId", "L" + parcela50Nova, "valor", "50.00")));
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        var c = carne();
+        assertThat(c.get("saldoDevedor")).isEqualTo(200.0);
+        var parcelas = (List<Map<String, Object>>) c.get("parcelas");
+        // as duas antigas continuam intactas; a nova sumiu
+        assertThat(parcelas).hasSize(2);
+        assertThat(parcelas).allSatisfy(p -> assertThat(p.get("valorAberto")).isEqualTo(100.0));
+    }
+
+    @Test
+    void somaDasAlocacoesTemQueFecharComOValor() {
+        var resp = receber("80.00", List.of(
+                Map.of("parcelaId", "L" + parcela50Nova, "valor", "50.00")));
+
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        // rollback total: nada abatido, nenhum pagamento gravado
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM pagamento_fiado WHERE valor > 0", Integer.class)).isZero();
+        assertThat(carne().get("saldoDevedor")).isEqualTo(250.0);
     }
 
     @Test
-    void tipoInvalidoERecusado() {
-        var resp = http.postForEntity("/api/recebimentos",
-                Map.of("clienteId", clienteId, "valor", "10.00", "tipo", "DEBITO_INICIAL", "vendedorId", vendedorId),
-                Map.class);
+    void naoDeixaAbaterMaisQueORestanteDaParcela() {
+        var resp = receber("60.00", List.of(
+                Map.of("parcelaId", "L" + parcela50Nova, "valor", "60.00")));
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(carne().get("saldoDevedor")).isEqualTo(250.0);
+    }
+
+    @Test
+    void parcelaDeOutroClienteERecusada() {
+        Long outroCliente = jdbc.queryForObject(
+                "INSERT INTO cliente (nome) VALUES ('Outra Pessoa') RETURNING id", Long.class);
+        Long parcelaDela = jdbc.queryForObject("""
+                INSERT INTO pagamento_fiado (cliente_id, valor, tipo, data, valor_aberto)
+                VALUES (?, -40, 'DEBITO_INICIAL', CAST('2023-05-01' AS date), 40) RETURNING id""",
+                Long.class, outroCliente);
+
+        var resp = receber("40.00", List.of(
+                Map.of("parcelaId", "L" + parcelaDela, "valor", "40.00")));
+
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
-    void entradaDeVendaFiadoNaoContaDuasVezesNoCarne() {
-        // venda fiado de 200 com entrada de 50: parcelas líquidas 2x75
-        var venda = Map.of(
-                "clienteId", clienteId, "formaPagamento", "FIADO",
-                "fiado", Map.of("entradaValor", "50.00", "entradaTipo", "DINHEIRO",
-                        "parcelas", List.of(
-                                Map.of("numero", 1, "valor", "75.00", "vencimento", "2030-01-10"),
-                                Map.of("numero", 2, "valor", "75.00", "vencimento", "2030-02-10"))),
-                "itens", List.of(Map.of("variacaoId", criarVariacao(), "quantidade", 1, "precoUnit", "200.00")));
-        assertThat(http.postForEntity("/api/vendas", venda, Map.class).getStatusCode())
-                .isEqualTo(HttpStatus.CREATED);
+    void historicoMostraRecebimentoComFuncionarioEDetalhe() {
+        receber("50.00", List.of(Map.of("parcelaId", "L" + parcela50Nova, "valor", "50.00")));
 
-        var c = carne();
-        // saldo: 250 legado + 200 venda - 50 entrada = 400
-        assertThat(c.get("saldoDevedor")).isEqualTo(400.0);
-        // parcelas abertas: 3 legadas + 2 da venda (entrada NÃO abate as legadas)
-        assertThat(c.get("parcelasAbertas")).isEqualTo(5);
-        var soma = ((List<Map<String, Object>>) c.get("parcelas")).stream()
-                .mapToDouble(p -> ((Number) p.get("valorAberto")).doubleValue()).sum();
-        assertThat(soma).isEqualTo(400.0); // visão FIFO bate com o saldo calculado
-    }
-
-    @Test
-    void historicoMostraRecebimentoComFuncionario() {
-        http.postForEntity("/api/recebimentos",
-                Map.of("clienteId", clienteId, "valor", "100.00", "tipo", "DINHEIRO", "vendedorId", vendedorId),
-                Map.class);
         var ultimos = (List<Map<String, Object>>) carne().get("ultimosPagamentos");
         assertThat(ultimos).hasSize(1);
         assertThat(ultimos.get(0).get("vendedorNome")).isEqualTo("Rosana");
+        assertThat((String) ultimos.get(0).get("detalhe")).contains("Carnê SET");
     }
 
-    private Long criarVariacao() {
+    @Test
+    void observacaoDaVendaApareceNaParcelaDoCarne() {
         Long produtoId = jdbc.queryForObject(
                 "INSERT INTO produto (codigo, nome, preco) VALUES ('T1', 'Tênis', 200) RETURNING id", Long.class);
-        return jdbc.queryForObject(
+        Long variacaoId = jdbc.queryForObject(
                 "INSERT INTO variacao (produto_id, estoque) VALUES (?, 5) RETURNING id", Long.class, produtoId);
+        var venda = Map.of(
+                "clienteId", clienteId, "vendedorId", vendedorId, "formaPagamento", "FIADO",
+                "observacao", "comprou no nome da avó",
+                "fiado", Map.of("parcelas", List.of(
+                        Map.of("numero", 1, "valor", "200.00", "vencimento", "2030-01-10"))),
+                "itens", List.of(Map.of("variacaoId", variacaoId, "quantidade", 1, "precoUnit", "200.00")));
+        assertThat(http.postForEntity("/api/vendas", venda, Map.class).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+
+        var parcelas = (List<Map<String, Object>>) carne().get("parcelas");
+        var daVenda = parcelas.stream().filter(p -> p.get("notinha") != null).findFirst().orElseThrow();
+        assertThat(daVenda.get("observacao")).isEqualTo("comprou no nome da avó");
+        assertThat(((Number) daVenda.get("diasAtraso")).longValue()).isLessThan(0); // ainda vai vencer
+    }
+
+    @Test
+    void buscaClientePorNumeroDaNotinha() {
+        Long produtoId = jdbc.queryForObject(
+                "INSERT INTO produto (codigo, nome, preco) VALUES ('T2', 'Bolsa', 90) RETURNING id", Long.class);
+        Long variacaoId = jdbc.queryForObject(
+                "INSERT INTO variacao (produto_id, estoque) VALUES (?, 5) RETURNING id", Long.class, produtoId);
+        var venda = Map.of(
+                "clienteId", clienteId, "vendedorId", vendedorId, "formaPagamento", "FIADO",
+                "itens", List.of(Map.of("variacaoId", variacaoId, "quantidade", 1, "precoUnit", "90.00")));
+        Long vendaId = ((Number) http.postForEntity("/api/vendas", venda, Map.class)
+                .getBody().get("id")).longValue();
+
+        ResponseEntity<Map> resp = http.getForEntity("/api/clientes/por-venda/" + vendaId, Map.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getBody().get("nome")).isEqualTo("Devedora Teste");
+    }
+
+    @Test
+    void loginValidaCredenciais() {
+        assertThat(http.postForEntity("/api/login",
+                Map.of("login", "admin", "senha", "admin"), Map.class).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(http.postForEntity("/api/login",
+                Map.of("login", "admin", "senha", "errada"), Map.class).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
     }
 }

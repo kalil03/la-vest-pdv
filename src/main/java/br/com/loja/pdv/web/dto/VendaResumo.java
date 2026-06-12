@@ -18,6 +18,7 @@ public record VendaResumo(
         String clienteNome,
         String vendedorNome,
         Integer parcelasCartao,
+        String observacao,
         BigDecimal entrada,       // só em FIADO com entrada
         BigDecimal saldoDevedor,  // só em FIADO (saldo já incluindo esta venda)
         List<Item> itens,

@@ -29,4 +29,11 @@ public class VendaController {
     public VendaResumo resumo(@PathVariable Long id) {
         return vendaService.buscarResumo(id);
     }
+
+    /** Cancela a venda: devolve estoque e apaga lançamentos — atômico. */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelar(@PathVariable Long id) {
+        vendaService.cancelar(id);
+    }
 }

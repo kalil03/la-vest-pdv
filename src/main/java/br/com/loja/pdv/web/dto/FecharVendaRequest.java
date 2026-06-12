@@ -24,6 +24,7 @@ public record FecharVendaRequest(
         @NotNull(message = "Forma de pagamento é obrigatória") FormaPagamento formaPagamento,
         @PositiveOrZero(message = "Desconto não pode ser negativo") BigDecimal desconto,
         Integer parcelasCartao,
+        String observacao,
         @Valid Fiado fiado,
         @NotEmpty(message = "Venda sem itens") @Valid List<Item> itens) {
 

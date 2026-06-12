@@ -98,9 +98,9 @@ def main():
                         datas_suspeitas += 1  # preservada mesmo assim (ex.: 0257-01-10)
                     cur.execute(
                         """
-                        INSERT INTO pagamento_fiado (cliente_id, valor, tipo, data)
-                        VALUES (%s, %s, 'DEBITO_INICIAL', CAST(%s AS date))
-                        """, (cliente_id, -valor, venc))
+                        INSERT INTO pagamento_fiado (cliente_id, valor, tipo, data, valor_aberto)
+                        VALUES (%s, %s, 'DEBITO_INICIAL', CAST(%s AS date), %s)
+                        """, (cliente_id, -valor, venc, valor))
                     inseridos += 1
                     total += valor
 
