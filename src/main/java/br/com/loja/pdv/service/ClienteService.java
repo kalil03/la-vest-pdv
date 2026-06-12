@@ -82,6 +82,15 @@ public class ClienteService {
         cliente.setAnotacoes(limpar(req.anotacoes()));
     }
 
+    /** Busca por nº da notinha (venda) — para a tela de carnê. */
+    @Transactional(readOnly = true)
+    public ClienteDTO porVenda(Long vendaId) {
+        Cliente cliente = clienteRepository.donoDaVenda(vendaId)
+                .orElseThrow(() -> new RegraNegocioException(
+                        "Nenhum cliente na venda nº " + vendaId + " (não existe ou foi à vista)"));
+        return ClienteDTO.de(cliente, clienteRepository.saldoDevedor(cliente.getId()));
+    }
+
     @Transactional(readOnly = true)
     public ScoreCliente score(Long clienteId) {
         return new ScoreCliente(

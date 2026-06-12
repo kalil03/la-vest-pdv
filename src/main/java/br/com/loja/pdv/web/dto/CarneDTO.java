@@ -15,18 +15,22 @@ public record CarneDTO(
         List<Pagamento> ultimosPagamentos) {
 
     /**
-     * Status calculado por alocação FIFO dos pagamentos nas parcelas mais
-     * antigas — nada de flag "paga" gravada (regra de ouro nº 1).
+     * valorAberto vem do rateio dos recebimentos (por ordem de seleção no
+     * balcão). O saldo devedor continua 100% calculado — invariante:
+     * SUM(valorAberto) == saldoDevedor.
      */
     public record Parcela(
             String id,            // "L123" = carnê migrado do SET, "V45" = parcela de venda nossa
             String descricao,
+            Long notinha,         // nº da venda (null nas parcelas migradas do SET)
+            String observacao,    // observação da venda ("comprou no nome da avó"), se houver
             LocalDate vencimento,
             BigDecimal valor,
-            BigDecimal valorAberto, // < valor quando parcialmente coberta
-            long diasAtraso) {
+            BigDecimal valorAberto,
+            long diasAtraso) {    // negativo = ainda vai vencer (ex.: -5 → vence em 5 dias)
     }
 
-    public record Pagamento(Instant data, BigDecimal valor, String tipo, String vendedorNome) {
+    public record Pagamento(Instant data, BigDecimal valor, String tipo, String vendedorNome,
+                            String detalhe) {
     }
 }

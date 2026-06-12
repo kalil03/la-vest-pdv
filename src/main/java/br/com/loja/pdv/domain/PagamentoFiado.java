@@ -37,6 +37,13 @@ public class PagamentoFiado {
     @Column(nullable = false)
     private Instant data = Instant.now();
 
+    /** Só para DEBITO_INICIAL: quanto desta parcela migrada ainda falta pagar. */
+    @Column(name = "valor_aberto")
+    private BigDecimal valorAberto;
+
+    /** Resumo legível do que um recebimento quitou (ex.: "Venda nº 12 (2/3)"). */
+    private String detalhe;
+
     public Long getId() { return id; }
     public Cliente getCliente() { return cliente; }
     public void setCliente(Cliente cliente) { this.cliente = cliente; }
@@ -49,4 +56,8 @@ public class PagamentoFiado {
     public TipoPagamentoFiado getTipo() { return tipo; }
     public void setTipo(TipoPagamentoFiado tipo) { this.tipo = tipo; }
     public Instant getData() { return data; }
+    public BigDecimal getValorAberto() { return valorAberto; }
+    public void setValorAberto(BigDecimal valorAberto) { this.valorAberto = valorAberto; }
+    public String getDetalhe() { return detalhe; }
+    public void setDetalhe(String detalhe) { this.detalhe = detalhe; }
 }

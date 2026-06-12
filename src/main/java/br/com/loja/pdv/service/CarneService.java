@@ -12,15 +12,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.StringJoiner;
 
 @Service
 public class CarneService {
 
     private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
+    private static final DateTimeFormatter DATA_BR = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final EnumSet<TipoPagamentoFiado> TIPOS_RECEBIMENTO =
             EnumSet.of(TipoPagamentoFiado.DINHEIRO, TipoPagamentoFiado.PIX, TipoPagamentoFiado.CARTAO);
 
@@ -40,32 +43,36 @@ public class CarneService {
     }
 
     /**
-     * O status de cada parcela é CALCULADO, nunca gravado: os pagamentos do
-     * cliente são alocados nas parcelas mais antigas primeiro (FIFO, como
-     * carnê funciona no balcão). Parcela coberta some da lista; coberta pela
-     * metade aparece com valorAberto menor. Mutação zero — regra de ouro nº 1.
+     * O saldo devedor continua 100% calculado (vendas FIADO - pagamentos).
+     * O valor_aberto de cada parcela é o rateio dos recebimentos feitos no
+     * balcão, POR ORDEM DE SELEÇÃO da atendente — invariante:
+     * SUM(valor_aberto) == saldo devedor.
      */
     @Transactional(readOnly = true)
     public CarneDTO montar(Long clienteId) {
         Cliente cliente = buscarCliente(clienteId);
         BigDecimal saldo = clienteRepository.saldoDevedor(clienteId);
 
-        List<CarneDTO.Parcela> abertas = parcelasAbertas(clienteId, pagamentoRepository.creditoAvulso(clienteId));
+        List<CarneDTO.Parcela> abertas = parcelasAbertas(clienteId);
 
         var ultimos = pagamentoRepository
                 .findTop3ByClienteIdAndTipoNotOrderByDataDesc(clienteId, TipoPagamentoFiado.DEBITO_INICIAL)
                 .stream()
                 .map(p -> new CarneDTO.Pagamento(p.getData(), p.getValor(), p.getTipo().name(),
-                        p.getVendedor() != null ? p.getVendedor().getNome() : null))
+                        p.getVendedor() != null ? p.getVendedor().getNome() : null, p.getDetalhe()))
                 .toList();
 
         return new CarneDTO(
-                ClienteDTO.de(cliente, saldo, cliente.getTipo(), cliente.getRg(), cliente.getDataNasc(), cliente.getLimiteCred(), cliente.getBloqueado(), cliente.getPfisProfissao(), cliente.getPfisRendaConj(), cliente.getAnotacoes()), saldo, abertas.size(),
+                ClienteDTO.de(cliente, saldo), saldo, abertas.size(),
                 abertas.isEmpty() ? null : abertas.get(0).vencimento(),
                 abertas, ultimos);
     }
 
-    /** Recebimento atômico: valida, grava o pagamento e devolve o recibo. */
+    /**
+     * Recebimento atômico com rateio por ordem de seleção: a tela manda
+     * quanto abater de cada parcela; aqui validamos que a soma fecha com o
+     * valor recebido e que nenhuma parcela recebe mais do que deve.
+     */
     @Transactional
     public ReciboRecebimento receber(ReceberRequest req) {
         Cliente cliente = buscarCliente(req.clienteId());
@@ -76,69 +83,109 @@ public class CarneService {
                 .orElseThrow(() -> new RegraNegocioException("Funcionário não encontrado"));
 
         BigDecimal saldoAnterior = clienteRepository.saldoDevedor(cliente.getId());
-        if (req.valor().compareTo(saldoAnterior) > 0) {
-            throw new RegraNegocioException(
-                    "Valor maior que o saldo devedor (R$ " + saldoAnterior + ")");
+
+        BigDecimal somaAlocacoes = req.alocacoes().stream()
+                .map(ReceberRequest.Alocacao::valor)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (somaAlocacoes.compareTo(req.valor()) != 0) {
+            throw new RegraNegocioException("As parcelas somam R$ " + somaAlocacoes
+                    + " mas o valor recebido é R$ " + req.valor());
         }
 
-        // O que este recebimento quita: diferença entre a visão FIFO antes e depois
-        BigDecimal creditoAntes = pagamentoRepository.creditoAvulso(cliente.getId());
-        List<CarneDTO.Parcela> abertasAntes = parcelasAbertas(cliente.getId(), creditoAntes);
-        List<CarneDTO.Parcela> abertasDepois = parcelasAbertas(cliente.getId(), creditoAntes.add(req.valor()));
-
-        var idsDepois = abertasDepois.stream().map(CarneDTO.Parcela::id).toList();
-        List<CarneDTO.Parcela> quitadas = abertasAntes.stream()
-                .filter(p -> !idsDepois.contains(p.id()))
-                .toList();
-        CarneDTO.Parcela parcial = abertasDepois.stream()
-                .filter(p -> p.valorAberto().compareTo(p.valor()) < 0)
-                .findFirst().orElse(null);
+        List<ReciboRecebimento.Item> itens = new ArrayList<>();
+        StringJoiner detalhe = new StringJoiner("; ");
+        for (ReceberRequest.Alocacao aloc : req.alocacoes()) {
+            itens.add(abater(cliente, aloc, detalhe));
+        }
 
         PagamentoFiado pagamento = new PagamentoFiado();
         pagamento.setCliente(cliente);
         pagamento.setValor(req.valor());
         pagamento.setTipo(req.tipo());
         pagamento.setVendedor(vendedor);
+        pagamento.setDetalhe(detalhe.toString());
         pagamentoRepository.saveAndFlush(pagamento);
 
         return new ReciboRecebimento(
                 pagamento.getId(), pagamento.getData(), cliente.getNome(), vendedor.getNome(),
                 req.valor(), req.tipo().name(),
-                saldoAnterior, clienteRepository.saldoDevedor(cliente.getId()),
-                quitadas, parcial);
+                saldoAnterior, clienteRepository.saldoDevedor(cliente.getId()), itens);
     }
 
-    /** Parcelas (carnê SET + vendas fiado nossas) ainda abertas após alocar o crédito FIFO. */
-    private List<CarneDTO.Parcela> parcelasAbertas(Long clienteId, BigDecimal credito) {
-        record Debito(String id, String descricao, LocalDate vencimento, BigDecimal valor) {}
-        List<Debito> debitos = new ArrayList<>();
+    /** Abate uma alocação numa parcela ("L.." = carnê SET, "V.." = parcela de venda). */
+    private ReciboRecebimento.Item abater(Cliente cliente, ReceberRequest.Alocacao aloc,
+                                          StringJoiner detalhe) {
+        String id = aloc.parcelaId();
+        if (id.startsWith("L")) {
+            PagamentoFiado debito = pagamentoRepository.findById(idNumerico(id))
+                    .filter(p -> p.getTipo() == TipoPagamentoFiado.DEBITO_INICIAL
+                            && p.getCliente().getId().equals(cliente.getId()))
+                    .orElseThrow(() -> new RegraNegocioException("Parcela não encontrada: " + id));
+            BigDecimal aberto = debito.getValorAberto();
+            validarValor(aloc.valor(), aberto, id);
+            debito.setValorAberto(aberto.subtract(aloc.valor()));
+            LocalDate venc = LocalDate.ofInstant(debito.getData(), FUSO);
+            String desc = "Carnê SET " + DATA_BR.format(venc);
+            detalhe.add(desc);
+            return new ReciboRecebimento.Item(desc, null, venc, aloc.valor(), debito.getValorAberto());
+        }
+        if (id.startsWith("V")) {
+            ParcelaFiado parcela = parcelaRepository.findById(idNumerico(id))
+                    .filter(p -> p.getVenda().getCliente().getId().equals(cliente.getId()))
+                    .orElseThrow(() -> new RegraNegocioException("Parcela não encontrada: " + id));
+            BigDecimal aberto = parcela.getValorAberto();
+            validarValor(aloc.valor(), aberto, id);
+            parcela.setValorAberto(aberto.subtract(aloc.valor()));
+            String desc = "Venda nº " + parcela.getVenda().getId()
+                    + " — " + parcela.getNumero() + "/" + parcela.getVenda().getParcelas().size();
+            detalhe.add(desc);
+            return new ReciboRecebimento.Item(desc, parcela.getVenda().getId(),
+                    parcela.getVencimento(), aloc.valor(), parcela.getValorAberto());
+        }
+        throw new RegraNegocioException("Parcela inválida: " + id);
+    }
+
+    private void validarValor(BigDecimal valor, BigDecimal aberto, String id) {
+        if (aberto == null || aberto.signum() <= 0) {
+            throw new RegraNegocioException("Parcela " + id + " já está quitada");
+        }
+        if (valor.compareTo(aberto) > 0) {
+            throw new RegraNegocioException(
+                    "Valor maior que o que resta da parcela (R$ " + aberto + ")");
+        }
+    }
+
+    private long idNumerico(String id) {
+        try {
+            return Long.parseLong(id.substring(1));
+        } catch (NumberFormatException e) {
+            throw new RegraNegocioException("Parcela inválida: " + id);
+        }
+    }
+
+    /** Parcelas com valor_aberto > 0 (carnê SET + vendas fiado), mais antigas primeiro. */
+    private List<CarneDTO.Parcela> parcelasAbertas(Long clienteId) {
+        LocalDate hoje = LocalDate.now(FUSO);
+        List<CarneDTO.Parcela> abertas = new ArrayList<>();
 
         for (PagamentoFiado p : pagamentoRepository
                 .findByClienteIdAndTipoOrderByDataAsc(clienteId, TipoPagamentoFiado.DEBITO_INICIAL)) {
-            debitos.add(new Debito("L" + p.getId(), "Carnê SET",
-                    LocalDate.ofInstant(p.getData(), FUSO), p.getValor().negate()));
+            if (p.getValorAberto() == null || p.getValorAberto().signum() <= 0) continue;
+            LocalDate venc = LocalDate.ofInstant(p.getData(), FUSO);
+            abertas.add(new CarneDTO.Parcela("L" + p.getId(), "Carnê SET", null, null,
+                    venc, p.getValor().negate(), p.getValorAberto(),
+                    ChronoUnit.DAYS.between(venc, hoje)));
         }
         for (ParcelaFiado p : parcelaRepository.doCliente(clienteId)) {
-            int total = p.getVenda().getParcelas().size();
-            debitos.add(new Debito("V" + p.getId(),
-                    "Venda nº " + p.getVenda().getId() + " — " + p.getNumero() + "/" + total,
-                    p.getVencimento(), p.getValor()));
+            if (p.getValorAberto().signum() <= 0) continue;
+            Venda venda = p.getVenda();
+            abertas.add(new CarneDTO.Parcela("V" + p.getId(),
+                    "Venda nº " + venda.getId() + " — " + p.getNumero() + "/" + venda.getParcelas().size(),
+                    venda.getId(), venda.getObservacao(),
+                    p.getVencimento(), p.getValor(), p.getValorAberto(),
+                    ChronoUnit.DAYS.between(p.getVencimento(), hoje)));
         }
-        debitos.sort(java.util.Comparator.comparing(Debito::vencimento));
-
-        LocalDate hoje = LocalDate.now(FUSO);
-        List<CarneDTO.Parcela> abertas = new ArrayList<>();
-        BigDecimal restante = credito;
-        for (Debito d : debitos) {
-            BigDecimal coberto = restante.min(d.valor()).max(BigDecimal.ZERO);
-            restante = restante.subtract(coberto);
-            BigDecimal aberto = d.valor().subtract(coberto);
-            if (aberto.signum() > 0) {
-                long atraso = Math.max(0, ChronoUnit.DAYS.between(d.vencimento(), hoje));
-                abertas.add(new CarneDTO.Parcela(d.id(), d.descricao(), d.vencimento(),
-                        d.valor(), aberto, atraso));
-            }
-        }
+        abertas.sort(java.util.Comparator.comparing(CarneDTO.Parcela::vencimento));
         return abertas;
     }
 

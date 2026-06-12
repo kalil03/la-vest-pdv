@@ -42,4 +42,10 @@ public class ClienteController {
     public ScoreCliente score(@PathVariable Long id) {
         return clienteService.score(id);
     }
+
+    /** Busca por nº da notinha: devolve o cliente daquela venda. */
+    @GetMapping("/por-venda/{vendaId}")
+    public ClienteDTO porVenda(@PathVariable Long vendaId) {
+        return clienteService.porVenda(vendaId);
+    }
 }

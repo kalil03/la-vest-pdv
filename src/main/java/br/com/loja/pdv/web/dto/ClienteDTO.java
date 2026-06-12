@@ -26,6 +26,12 @@ public record ClienteDTO(
         BigDecimal pfisRendaConj,
         String anotacoes) {
 
+    /** Atalho: os campos extras saem todos do próprio Cliente. */
+    public static ClienteDTO de(Cliente c, BigDecimal saldoDevedor) {
+        return de(c, saldoDevedor, c.getTipo(), c.getRg(), c.getDataNasc(), c.getLimiteCred(),
+                c.getBloqueado(), c.getPfisProfissao(), c.getPfisRendaConj(), c.getAnotacoes());
+    }
+
     public static ClienteDTO de(Cliente c, BigDecimal saldoDevedor,
         String tipo,
         String rg,

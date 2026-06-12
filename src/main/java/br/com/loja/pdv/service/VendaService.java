@@ -49,10 +49,16 @@ public class VendaService {
             throw new RegraNegocioException("Venda fiado precisa de um cliente");
         }
 
+        if (req.vendedorId() == null) {
+            throw new RegraNegocioException("Selecione o vendedor antes de fechar a venda");
+        }
+
         Venda venda = new Venda();
         venda.setCliente(cliente);
         venda.setFormaPagamento(req.formaPagamento());
         venda.setVendedor(resolverVendedor(req.vendedorId()));
+        venda.setObservacao(req.observacao() != null && !req.observacao().isBlank()
+                ? req.observacao().trim() : null);
         if (req.formaPagamento() == FormaPagamento.CARTAO) {
             venda.setParcelasCartao(req.parcelasCartao());
         }
@@ -136,6 +142,7 @@ public class VendaService {
             ParcelaFiado parcela = new ParcelaFiado();
             parcela.setNumero(p.numero());
             parcela.setValor(p.valor());
+            parcela.setValorAberto(p.valor()); // parcela nasce 100% em aberto
             parcela.setVencimento(p.vencimento());
             venda.adicionarParcela(parcela);
             soma = soma.add(p.valor());
@@ -201,8 +208,34 @@ public class VendaService {
                 cliente != null ? cliente.getNome() : null,
                 venda.getVendedor() != null ? venda.getVendedor().getNome() : null,
                 venda.getParcelasCartao(),
+                venda.getObservacao(),
                 entrada != null && entrada.signum() > 0 ? entrada : null,
                 saldoDevedor, itens, parcelas);
+    }
+
+    /**
+     * Cancela a venda inteira: devolve o estoque, apaga entrada/parcelas e a
+     * própria venda — tudo numa transação. Recusado se alguma parcela do
+     * fiado já recebeu pagamento (o carnê já andou; cancelar bagunçaria o caixa).
+     */
+    @Transactional
+    public void cancelar(Long id) {
+        Venda venda = vendaRepository.findById(id)
+                .orElseThrow(() -> new RegraNegocioException("Venda não encontrada (id " + id + ")"));
+
+        boolean carneAndou = venda.getParcelas().stream()
+                .anyMatch(p -> p.getValorAberto().compareTo(p.getValor()) < 0);
+        if (carneAndou) {
+            throw new RegraNegocioException(
+                    "Esta venda já tem parcela recebida no carnê — não dá mais para cancelar");
+        }
+
+        for (ItemVenda item : venda.getItens()) {
+            variacaoRepository.devolverEstoque(item.getVariacao().getId(), item.getQuantidade());
+        }
+        // entrada de fiado registrada junto da venda some com ela
+        pagamentoFiadoRepository.deleteAll(pagamentoFiadoRepository.findByVendaId(id));
+        vendaRepository.delete(venda); // itens e parcelas caem em cascata
     }
 
     private String descricao(Variacao v) {

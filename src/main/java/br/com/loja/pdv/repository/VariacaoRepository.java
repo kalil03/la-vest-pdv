@@ -20,4 +20,9 @@ public interface VariacaoRepository extends JpaRepository<Variacao, Long> {
     @Modifying
     @Query("UPDATE Variacao v SET v.estoque = v.estoque - :quantidade WHERE v.id = :id")
     int baixarEstoque(@Param("id") Long id, @Param("quantidade") int quantidade);
+
+    /** Cancelamento de venda: devolve o que a venda tinha baixado. */
+    @Modifying
+    @Query("UPDATE Variacao v SET v.estoque = v.estoque + :quantidade WHERE v.id = :id")
+    int devolverEstoque(@Param("id") Long id, @Param("quantidade") int quantidade);
 }

@@ -28,6 +28,14 @@ public class ParcelaFiado {
     @Column(nullable = false)
     private BigDecimal valor;
 
+    /**
+     * Quanto desta parcela ainda falta pagar. É rateio de recebimento
+     * (por ordem de seleção no balcão), não saldo: a dívida total continua
+     * sendo sempre calculada. Invariante: SUM(valor_aberto) == saldo devedor.
+     */
+    @Column(name = "valor_aberto", nullable = false)
+    private BigDecimal valorAberto;
+
     @Column(nullable = false)
     private LocalDate vencimento;
 
@@ -38,6 +46,8 @@ public class ParcelaFiado {
     public void setNumero(int numero) { this.numero = numero; }
     public BigDecimal getValor() { return valor; }
     public void setValor(BigDecimal valor) { this.valor = valor; }
+    public BigDecimal getValorAberto() { return valorAberto; }
+    public void setValorAberto(BigDecimal valorAberto) { this.valorAberto = valorAberto; }
     public LocalDate getVencimento() { return vencimento; }
     public void setVencimento(LocalDate vencimento) { this.vencimento = vencimento; }
 }

@@ -5,7 +5,6 @@ import br.com.loja.pdv.domain.Produto;
 import br.com.loja.pdv.domain.Variacao;
 import br.com.loja.pdv.repository.ClienteRepository;
 import br.com.loja.pdv.repository.ProdutoRepository;
-import br.com.loja.pdv.repository.VariacaoRepository;
 import br.com.loja.pdv.repository.VendaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,14 +16,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Testes de integração do endpoint de fechar venda, cobrindo as regras de ouro:
- * atomicidade (tudo ou nada) e baixa de estoque na mesma transação.
+ * Testes de integração do fechar/cancelar venda, cobrindo as regras de ouro:
+ * atomicidade (tudo ou nada) e baixa/devolução de estoque na mesma transação.
  * Roda contra o banco pdv_test (PostgreSQL real, mesmas migrations do Flyway).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -33,12 +33,12 @@ class VendaApiTest {
     @Autowired TestRestTemplate http;
     @Autowired JdbcTemplate jdbc;
     @Autowired ProdutoRepository produtoRepository;
-    @Autowired VariacaoRepository variacaoRepository;
     @Autowired VendaRepository vendaRepository;
     @Autowired ClienteRepository clienteRepository;
 
     Long variacaoTenis38;
     Long variacaoPerfume;
+    Long vendedorId;
 
     @BeforeEach
     void limparEPopular() {
@@ -46,6 +46,9 @@ class VendaApiTest {
                 TRUNCATE item_venda, parcela_fiado, pagamento_fiado, venda,
                          variacao, produto, marca, vendedor, cliente
                 RESTART IDENTITY CASCADE""");
+
+        vendedorId = jdbc.queryForObject(
+                "INSERT INTO vendedor (nome) VALUES ('Rosana') RETURNING id", Long.class);
 
         Produto tenis = new Produto();
         tenis.setCodigo("T100");
@@ -69,9 +72,19 @@ class VendaApiTest {
         variacaoPerfume = perfume.getVariacoes().get(0).getId();
     }
 
+    /** Pedido base já com vendedor (obrigatório em qualquer venda). */
+    private Map<String, Object> pedido(Object... chavesEValores) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("vendedorId", vendedorId);
+        for (int i = 0; i < chavesEValores.length; i += 2) {
+            m.put((String) chavesEValores[i], chavesEValores[i + 1]);
+        }
+        return m;
+    }
+
     @Test
     void vendaAVistaGravaVendaEBaixaEstoqueNaMesmaOperacao() {
-        var req = Map.of(
+        var req = pedido(
                 "formaPagamento", "DINHEIRO",
                 "itens", List.of(
                         Map.of("variacaoId", variacaoTenis38, "quantidade", 2, "precoUnit", "150.00"),
@@ -87,9 +100,22 @@ class VendaApiTest {
     }
 
     @Test
+    void vendaSemVendedorERecusada() {
+        var req = Map.of(
+                "formaPagamento", "DINHEIRO",
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1)));
+
+        ResponseEntity<Map> resp = http.postForEntity("/api/vendas", req, Map.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(vendaRepository.count()).isZero();
+        assertThat(estoque(variacaoTenis38)).isEqualTo(10);
+    }
+
+    @Test
     void falhaEmUmItemDesfazAVendaInteira_atomicidade() {
         long variacaoInexistente = 99999L;
-        var req = Map.of(
+        var req = pedido(
                 "formaPagamento", "PIX",
                 "itens", List.of(
                         Map.of("variacaoId", variacaoTenis38, "quantidade", 3),
@@ -105,7 +131,7 @@ class VendaApiTest {
 
     @Test
     void fiadoSemClienteERecusado() {
-        var req = Map.of(
+        var req = pedido(
                 "formaPagamento", "FIADO",
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1)));
 
@@ -118,15 +144,17 @@ class VendaApiTest {
 
     @Test
     void fiadoComClienteNovoCriaClienteELancaNoCarne() {
-        var req = Map.of(
+        var req = pedido(
                 "clienteNome", "Maria da Silva",
                 "formaPagamento", "FIADO",
+                "observacao", "comprou no nome da avó",
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
 
         ResponseEntity<Map> resp = http.postForEntity("/api/vendas", req, Map.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(resp.getBody().get("clienteNome")).isEqualTo("Maria da Silva");
+        assertThat(resp.getBody().get("observacao")).isEqualTo("comprou no nome da avó");
         // A dívida é calculada (venda FIADO - pagamentos), nunca armazenada
         assertThat(resp.getBody().get("saldoDevedor")).isEqualTo(150.00);
 
@@ -137,7 +165,7 @@ class VendaApiTest {
 
     @Test
     void descontoReduzOTotalEFicaRegistrado() {
-        var req = Map.of(
+        var req = pedido(
                 "formaPagamento", "PIX",
                 "desconto", "30.00",
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 2, "precoUnit", "150.00")));
@@ -152,7 +180,7 @@ class VendaApiTest {
 
     @Test
     void descontoMaiorQueAVendaERecusado() {
-        var req = Map.of(
+        var req = pedido(
                 "formaPagamento", "PIX",
                 "desconto", "500.00",
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
@@ -166,7 +194,7 @@ class VendaApiTest {
     @Test
     void fiadoParceladoComEntradaCriaParcelasEPagamentoDaEntrada() {
         // Tênis R$ 150 x 2 = 300; entrada de 60 em dinheiro; 3x de 80
-        var req = Map.of(
+        var req = pedido(
                 "clienteNome", "Carlos Souza",
                 "formaPagamento", "FIADO",
                 "fiado", Map.of(
@@ -186,15 +214,17 @@ class VendaApiTest {
         assertThat(resp.getBody().get("saldoDevedor")).isEqualTo(240.00);
         assertThat((List<?>) resp.getBody().get("parcelas")).hasSize(3);
 
-        Integer parcelas = jdbc.queryForObject("SELECT COUNT(*) FROM parcela_fiado", Integer.class);
-        assertThat(parcelas).isEqualTo(3);
-        assertThat(jdbc.queryForObject("SELECT SUM(valor) FROM pagamento_fiado", java.math.BigDecimal.class))
+        // parcelas nascem 100% em aberto (valor_aberto == valor)
+        assertThat(jdbc.queryForObject(
+                "SELECT SUM(valor_aberto) FROM parcela_fiado", BigDecimal.class))
+                .isEqualByComparingTo("240.00");
+        assertThat(jdbc.queryForObject("SELECT SUM(valor) FROM pagamento_fiado", BigDecimal.class))
                 .isEqualByComparingTo("60.00");
     }
 
     @Test
     void parcelasQueNaoFechamComOTotalDerrubamAVendaInteira() {
-        var req = Map.of(
+        var req = pedido(
                 "clienteNome", "Ana Lima",
                 "formaPagamento", "FIADO",
                 "fiado", Map.of(
@@ -205,7 +235,6 @@ class VendaApiTest {
         ResponseEntity<Map> resp = http.postForEntity("/api/vendas", req, Map.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        // rollback total: nem venda, nem parcela, nem cliente afetados
         assertThat(vendaRepository.count()).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM parcela_fiado", Integer.class)).isZero();
         assertThat(estoque(variacaoTenis38)).isEqualTo(10);
@@ -213,12 +242,62 @@ class VendaApiTest {
 
     @Test
     void vendaSemItensERecusada() {
-        var req = Map.of("formaPagamento", "DINHEIRO", "itens", List.of());
+        var req = pedido("formaPagamento", "DINHEIRO", "itens", List.of());
 
         ResponseEntity<Map> resp = http.postForEntity("/api/vendas", req, Map.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(vendaRepository.count()).isZero();
+    }
+
+    @Test
+    void cancelarVendaDevolveEstoqueEApagaLancamentos() {
+        var req = pedido(
+                "clienteNome", "Beatriz Rocha",
+                "formaPagamento", "FIADO",
+                "fiado", Map.of(
+                        "entradaValor", "50.00", "entradaTipo", "PIX",
+                        "parcelas", List.of(Map.of("numero", 1, "valor", "100.00", "vencimento", "2026-07-11"))),
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
+        Long vendaId = ((Number) http.postForEntity("/api/vendas", req, Map.class)
+                .getBody().get("id")).longValue();
+        assertThat(estoque(variacaoTenis38)).isEqualTo(9);
+
+        http.delete("/api/vendas/" + vendaId);
+
+        assertThat(vendaRepository.count()).isZero();
+        assertThat(estoque(variacaoTenis38)).isEqualTo(10); // estoque de volta
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM parcela_fiado", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pagamento_fiado", Integer.class)).isZero();
+        Cliente bia = clienteRepository.buscar("Beatriz").get(0);
+        assertThat(clienteRepository.saldoDevedor(bia.getId())).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void cancelarVendaComParcelaJaRecebidaERecusado() {
+        var req = pedido(
+                "clienteNome", "Diego Brito",
+                "formaPagamento", "FIADO",
+                "fiado", Map.of("parcelas", List.of(
+                        Map.of("numero", 1, "valor", "150.00", "vencimento", "2026-07-11"))),
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
+        var venda = http.postForEntity("/api/vendas", req, Map.class).getBody();
+        Long vendaId = ((Number) venda.get("id")).longValue();
+        Long clienteId = clienteRepository.buscar("Diego").get(0).getId();
+        Long parcelaId = jdbc.queryForObject("SELECT id FROM parcela_fiado LIMIT 1", Long.class);
+
+        // recebe 50 da parcela pelo carnê
+        var recebimento = Map.of(
+                "clienteId", clienteId, "valor", "50.00", "tipo", "DINHEIRO", "vendedorId", vendedorId,
+                "alocacoes", List.of(Map.of("parcelaId", "V" + parcelaId, "valor", "50.00")));
+        assertThat(http.postForEntity("/api/recebimentos", recebimento, Map.class).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+
+        ResponseEntity<Map> resp = http.exchange("/api/vendas/" + vendaId,
+                org.springframework.http.HttpMethod.DELETE, null, Map.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(vendaRepository.count()).isEqualTo(1); // venda continua lá
     }
 
     private int estoque(Long variacaoId) {
