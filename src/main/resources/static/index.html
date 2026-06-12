@@ -1,15 +1,20 @@
 <!DOCTYPE html>
 <html lang="pt-BR" class="antialiased">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PDV — Venda (Caixa)</title>
-  
+
+  <script src="/js/auth.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/js/moeda.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="/css/pdv.css">
-  
+
   <style>
     :root {
       --background: #ffffff;
@@ -25,7 +30,7 @@
       --destructive: #d4183d;
       --destructive-foreground: #ffffff;
       --border: rgba(0, 0, 0, 0.1);
-      
+
       --sidebar: oklch(0.985 0 0);
       --sidebar-foreground: oklch(0.145 0 0);
       --sidebar-primary: #030213;
@@ -34,63 +39,230 @@
       --sidebar-accent-foreground: oklch(0.205 0 0);
       --sidebar-border: oklch(0.922 0 0);
     }
-    
-    body { font-family: 'Inter', system-ui, sans-serif; margin: 0; }
-    [hidden] { display: none !important; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      margin: 0;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
 
     /* Override css/pdv.css base styles para não quebrar o layout */
-    .topo, .fechamento { all: unset; display: flex; }
-    
+    .topo,
+    .fechamento {
+      all: unset;
+      display: flex;
+    }
+
     /* Venda UI */
-    .venda-container { display: flex; flex-direction: column; height: 100%; background: var(--secondary); }
+    .venda-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      background: var(--secondary);
+    }
+
     .busca-caixa {
-      padding: 24px 32px; background: var(--background); border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
+      padding: 24px 32px;
+      background: var(--background);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
+
     .busca-caixa input {
-      width: 100%; max-width: 700px; padding: 16px 24px; font-size: 20px; font-weight: 500;
-      border: 2px solid var(--border); border-radius: 12px; background: var(--secondary);
-      transition: all 0.2s; text-align: center; font-family: 'JetBrains Mono', monospace;
+      width: 100%;
+      max-width: 700px;
+      padding: 16px 24px;
+      font-size: 20px;
+      font-weight: 500;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      background: var(--secondary);
+      transition: all 0.2s;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
     }
-    .busca-caixa input:focus { border-color: var(--primary); outline: none; background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
-    
-    .itens-lista { flex: 1; overflow-y: auto; padding: 32px; }
-    .tabela-pdv { width: 100%; max-width: 900px; margin: 0 auto; background: var(--background); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.02); border: 1px solid var(--border); border-collapse: separate; border-spacing: 0; }
-    .tabela-pdv th { padding: 16px 20px; background: var(--secondary); color: var(--muted-foreground); font-size: 12px; text-transform: uppercase; font-weight: 600; text-align: left; border-bottom: 1px solid var(--border); }
-    .tabela-pdv th.num { text-align: right; }
-    .tabela-pdv td { padding: 16px 20px; font-size: 15px; font-weight: 500; color: var(--foreground); border-bottom: 1px solid var(--border); vertical-align: middle; }
-    .tabela-pdv .num { text-align: right; font-family: 'JetBrains Mono', monospace; }
-    .tabela-pdv .qtd-input { width: 60px; padding: 6px; text-align: center; border: 1px solid var(--border); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-weight: 600; background: var(--secondary); }
-    
+
+    .busca-caixa input:focus {
+      border-color: var(--primary);
+      outline: none;
+      background: #fff;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    .itens-lista {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px;
+    }
+
+    .tabela-pdv {
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--background);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+      border: 1px solid var(--border);
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .tabela-pdv th {
+      padding: 16px 20px;
+      background: var(--secondary);
+      color: var(--muted-foreground);
+      font-size: 12px;
+      text-transform: uppercase;
+      font-weight: 600;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tabela-pdv th.num {
+      text-align: right;
+    }
+
+    .tabela-pdv td {
+      padding: 16px 20px;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--foreground);
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .tabela-pdv .num {
+      text-align: right;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .tabela-pdv .qtd-input {
+      width: 60px;
+      padding: 6px;
+      text-align: center;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      background: var(--secondary);
+    }
+
     .rodape-caixa {
-      background: var(--background); border-top: 1px solid var(--border); padding: 24px 32px;
-      display: flex; justify-content: space-between; align-items: center; gap: 32px;
+      background: var(--background);
+      border-top: 1px solid var(--border);
+      padding: 24px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 32px;
     }
-    .rodape-cliente { flex: 1; max-width: 400px; }
-    .rodape-cliente input { width: 100%; padding: 12px 16px 12px 36px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: var(--secondary); }
-    
-    .rodape-total { text-align: right; }
-    .rodape-total .valor { font-size: 42px; font-weight: 700; color: var(--primary); font-family: 'JetBrains Mono', monospace; line-height: 1; margin-bottom: 16px; }
-    
-    .formas-pagamento { display: flex; gap: 12px; margin-bottom: 16px; justify-content: flex-end; }
+
+    .rodape-cliente {
+      flex: 1;
+      max-width: 400px;
+    }
+
+    .rodape-cliente input {
+      width: 100%;
+      padding: 12px 16px 12px 36px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      background: var(--secondary);
+    }
+
+    .rodape-total {
+      text-align: right;
+    }
+
+    .rodape-total .valor {
+      font-size: 42px;
+      font-weight: 700;
+      color: var(--primary);
+      font-family: 'JetBrains Mono', monospace;
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+
+    .formas-pagamento {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      justify-content: flex-end;
+    }
+
     .formas-pagamento button {
-      padding: 12px 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--background);
-      font-size: 14px; font-weight: 600; color: var(--muted-foreground); cursor: pointer; transition: all 0.2s;
-      display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 100px;
+      padding: 12px 20px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--background);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted-foreground);
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      min-width: 100px;
     }
-    .formas-pagamento button kbd { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--muted-foreground); background: var(--secondary); padding: 2px 6px; border-radius: 4px; }
-    .formas-pagamento button.ativa { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
-    .formas-pagamento button.ativa kbd { background: rgba(255,255,255,0.2); color: #fff; }
-    
+
+    .formas-pagamento button kbd {
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--muted-foreground);
+      background: var(--secondary);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .formas-pagamento button.ativa {
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border-color: var(--primary);
+    }
+
+    .formas-pagamento button.ativa kbd {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
     .btn-fechar {
-      width: 100%; padding: 20px; background: var(--primary); color: var(--primary-foreground);
-      border-radius: 12px; font-size: 18px; font-weight: 600; display: flex; justify-content: center; align-items: center; gap: 12px;
-      cursor: pointer; transition: opacity 0.2s;
+      width: 100%;
+      padding: 20px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: opacity 0.2s;
     }
-    .btn-fechar:hover { opacity: 0.9; }
-    .btn-fechar kbd { font-size: 12px; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
+
+    .btn-fechar:hover {
+      opacity: 0.9;
+    }
+
+    .btn-fechar kbd {
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
   </style>
-  
+
   <script>
     tailwind.config = {
       theme: {
@@ -114,6 +286,7 @@
     }
   </script>
 </head>
+
 <body class="bg-background overflow-hidden text-foreground">
 
   <div class="flex h-screen overflow-hidden">
@@ -128,34 +301,51 @@
           <p class="text-sidebar-foreground mt-1 text-[11px]">Sistema de Gestão</p>
         </div>
       </div>
-      
+
       <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        <p class="text-sidebar-foreground px-2 mb-2 uppercase font-semibold text-[10px] tracking-widest">Menu Principal</p>
-        <a href="/" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group bg-sidebar-accent text-sidebar-accent-foreground text-[13px]">
+        <p class="text-sidebar-foreground px-2 mb-2 uppercase font-semibold text-[10px] tracking-widest">Menu Principal
+        </p>
+        <a href="/"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group bg-sidebar-accent text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="layout-dashboard" class="w-[15px] h-[15px] text-primary"></i>
           <span class="flex-1 font-medium">Venda (Caixa)</span>
           <i data-lucide="chevron-right" class="w-3 h-3 text-primary"></i>
         </a>
-        <a href="/carne.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground text-[13px]">
-          <i data-lucide="wallet" class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
+        <a href="/carne.html"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="wallet"
+            class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
           <span class="flex-1">Carnê</span>
         </a>
-        <a href="/produtos.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground text-[13px]">
-          <i data-lucide="package" class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
+        <a href="/produtos.html"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="package"
+            class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
           <span class="flex-1">Produtos</span>
         </a>
-        <a href="/clientes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground text-[13px]">
-          <i data-lucide="users" class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
+        <a href="/clientes.html"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="users"
+            class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
           <span class="flex-1">Clientes</span>
         </a>
+        <a href="/ajustes.html"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="settings"
+            class="w-[15px] h-[15px] text-sidebar-foreground group-hover:text-sidebar-accent-foreground"></i>
+          <span class="flex-1">Ajustes</span>
+        </a>
       </nav>
-      
+
       <div class="px-4 py-3 border-t border-sidebar-border">
         <div class="flex items-center gap-2.5">
-          <div class="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[11px] font-semibold text-primary">AD</div>
+          <div id="usuario-avatar"
+            class="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[11px] font-semibold text-primary">
+          </div>
           <div class="flex-1 min-w-0">
-            <p class="text-sidebar-accent-foreground truncate text-[12px] font-medium">Admin</p>
-            <p class="text-sidebar-foreground truncate text-[11px]">Gerente</p>
+            <p id="usuario-nome" class="text-sidebar-accent-foreground truncate text-[12px] font-medium"></p>
+            <button id="sair" type="button"
+              class="text-sidebar-foreground text-[11px] hover:underline bg-transparent border-0 p-0 cursor-pointer text-left focus:outline-none">Sair</button>
           </div>
         </div>
       </div>
@@ -163,12 +353,32 @@
 
     <!-- MAIN CAIXA -->
     <main class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+
+      <!-- BARRA ÚLTIMA VENDA -->
+      <div id="ultima-venda" hidden
+        class="bg-sidebar-accent border-b border-border px-8 py-3 flex items-center justify-between shadow-sm z-30">
+        <span id="ultima-venda-rotulo" class="text-[13px] font-semibold text-sidebar-accent-foreground"></span>
+        <div class="flex gap-2">
+          <button id="uv-reimprimir"
+            class="px-3 py-1.5 rounded bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors flex items-center gap-1.5"><i
+              data-lucide="printer" class="w-3.5 h-3.5"></i> Recibo</button>
+          <button id="uv-reabrir"
+            class="px-3 py-1.5 rounded bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors flex items-center gap-1.5"><i
+              data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reabrir</button>
+          <button id="uv-cancelar"
+            class="px-3 py-1.5 rounded bg-destructive/10 text-destructive border border-destructive/20 text-[11px] font-medium hover:bg-destructive hover:text-white transition-colors flex items-center gap-1.5"><i
+              data-lucide="x-circle" class="w-3.5 h-3.5"></i> Cancelar</button>
+        </div>
+      </div>
+
       <div class="venda-container">
-        
+
         <!-- BUSCA -->
         <section class="busca-caixa relative z-50">
-          <input id="busca" type="text" autocomplete="off" autofocus placeholder="Código, cód. de barras ou nome do produto (Enter adiciona)">
-          <ul id="busca-resultados" class="dropdown !absolute !top-[100%] !left-1/2 !-translate-x-1/2 !w-[700px] shadow-2xl" hidden></ul>
+          <input id="busca" type="text" autocomplete="off" autofocus
+            placeholder="Código, cód. de barras ou nome do produto (Enter adiciona)">
+          <ul id="busca-resultados"
+            class="dropdown !absolute !top-[100%] !left-1/2 !-translate-x-1/2 !w-[700px] shadow-2xl" hidden></ul>
         </section>
 
         <!-- ITENS DA VENDA -->
@@ -186,7 +396,8 @@
             </thead>
             <tbody id="itens"></tbody>
           </table>
-          <p id="itens-vazio" class="text-center text-muted-foreground mt-12 text-[15px] font-medium flex flex-col items-center gap-4">
+          <p id="itens-vazio"
+            class="text-center text-muted-foreground mt-12 text-[15px] font-medium flex flex-col items-center gap-4">
             <i data-lucide="shopping-cart" class="w-12 h-12 text-border"></i>
             Nenhum item. Busque um produto acima para começar.
           </p>
@@ -194,31 +405,49 @@
 
         <!-- RODAPÉ DE FECHAMENTO -->
         <footer class="rodape-caixa">
-          <div class="rodape-cliente relative">
-            <label for="cliente" class="block text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Cliente <span class="normal-case tracking-normal font-normal opacity-70">(opcional, obrigatório no fiado)</span>
-            </label>
-            <div class="relative w-full">
-              <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10"></i>
-              <input id="cliente" type="text" autocomplete="off" placeholder="Nome, CPF ou telefone" class="!w-full !pl-10 !pr-8 !py-3 !font-medium !text-[14px] !bg-secondary !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
-              <button id="cliente-limpar" type="button" title="Limpar cliente" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground z-10" hidden>&times;</button>
+          <div class="rodape-cliente relative flex flex-col gap-3 justify-center">
+            <div>
+              <label for="cliente"
+                class="block text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Cliente <span class="normal-case tracking-normal font-normal opacity-70">(opcional, obrigatório no fiado)</span>
+              </label>
+              <div class="relative w-full">
+                <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10"></i>
+                <input id="cliente" type="text" autocomplete="off" placeholder="Buscar por Nome, CPF ou telefone..."
+                  class="!w-full !pl-10 !pr-8 !py-3 !font-medium !text-[14px] !bg-secondary !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
+                <button id="cliente-limpar" type="button" title="Limpar cliente" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground z-10" hidden>&times;</button>
+              </div>
+              <ul id="cliente-resultados" class="dropdown !absolute !bottom-[100%] !mb-2 !left-0 !w-[400px] shadow-2xl" hidden></ul>
+              <span id="cliente-badge" class="badge mt-2 inline-block bg-primary text-primary-foreground px-2 py-1 rounded text-[11px] font-bold" hidden></span>
+              <span id="cliente-novo-aviso" class="aviso text-[11px] text-destructive font-medium mt-1 block" hidden>Cliente novo — será cadastrado ao fechar</span>
             </div>
-            <ul id="cliente-resultados" class="dropdown !absolute !bottom-[100%] !mb-2 !left-0 !w-[400px] shadow-2xl" hidden></ul>
-            <span id="cliente-badge" class="badge mt-2 inline-block bg-primary text-primary-foreground px-2 py-1 rounded text-[11px] font-bold" hidden></span>
-            <span id="cliente-novo-aviso" class="aviso text-[11px] text-destructive font-medium mt-1 block" hidden>Cliente novo — será cadastrado ao fechar a venda</span>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="c-vendedor" class="block text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Vendedor <span class="text-destructive">*</span></label>
+                <select id="c-vendedor" class="!w-full !px-3 !py-3 !font-medium !text-[14px] !bg-secondary !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
+                  <option value="">Selecione...</option>
+                </select>
+              </div>
+              <div>
+                <label for="c-observacao" class="block text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Observação na nota</label>
+                <input id="c-observacao" type="text" placeholder="Ex: Compra p/ Maria" class="!w-full !px-3 !py-3 !font-medium !text-[14px] !bg-secondary !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
+              </div>
+            </div>
           </div>
 
           <div class="rodape-total">
-            <div class="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Total a Pagar</div>
+            <div class="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Total a Pagar
+            </div>
             <div class="valor" id="total">R$ 0,00</div>
-            
+
             <div class="formas-pagamento" id="formas">
               <button type="button" data-forma="DINHEIRO" class="ativa">Dinheiro <kbd>F2</kbd></button>
               <button type="button" data-forma="PIX">PIX <kbd>F3</kbd></button>
               <button type="button" data-forma="CARTAO">Cartão <kbd>F4</kbd></button>
               <button type="button" data-forma="FIADO">Fiado <kbd>F6</kbd></button>
             </div>
-            
+
             <button id="avancar" type="button" class="btn-fechar">
               Revisar e Fechar Venda <kbd>F10</kbd>
             </button>
@@ -228,15 +457,20 @@
 
       <!-- MODAL CONFIRMAÇÃO (REUTILIZANDO ESTILO CSS ORIGINAL MAS MELHORANDO) -->
       <div id="modal-overlay" class="modal-overlay" hidden>
-        <div class="modal !bg-background !border-border !border !rounded-xl !shadow-2xl" role="dialog" aria-labelledby="modal-titulo">
-          <h2 id="modal-titulo" class="!text-foreground !text-xl !font-bold !mb-6 !pb-4 !border-b !border-border flex items-center justify-between">
+        <div class="modal !bg-background !border-border !border !rounded-xl !shadow-2xl" role="dialog"
+          aria-labelledby="modal-titulo">
+          <h2 id="modal-titulo"
+            class="!text-foreground !text-xl !font-bold !mb-6 !pb-4 !border-b !border-border flex items-center justify-between">
             Confirmar Venda
-            <button onclick="document.getElementById('m-cancelar').click()" class="text-muted-foreground hover:text-foreground">
+            <button onclick="document.getElementById('m-cancelar').click()"
+              class="text-muted-foreground hover:text-foreground">
               <i data-lucide="x" class="w-5 h-5"></i>
             </button>
           </h2>
 
-          <div id="m-itens" class="m-itens !text-foreground !font-mono !text-[13px] !bg-secondary !p-4 !rounded-lg !border !border-border"></div>
+          <div id="m-itens"
+            class="m-itens !text-foreground !font-mono !text-[13px] !bg-secondary !p-4 !rounded-lg !border !border-border">
+          </div>
 
           <div class="flex justify-between items-center my-4 py-3 border-b border-t border-border">
             <span class="text-muted-foreground font-semibold text-[13px] uppercase">Subtotal</span>
@@ -244,44 +478,47 @@
           </div>
 
           <div class="grid grid-cols-2 gap-4 mb-6">
-            <div>
-              <label for="m-desconto" class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Desconto</label>
+            <div class="col-span-2">
+              <label for="m-desconto"
+                class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Desconto</label>
               <div class="flex">
-                <select id="m-desconto-modo" class="bg-secondary border border-border border-r-0 rounded-l-md px-2 text-[13px] text-foreground font-medium outline-none">
+                <select id="m-desconto-modo"
+                  class="bg-secondary border border-border border-r-0 rounded-l-md px-2 text-[13px] text-foreground font-medium outline-none">
                   <option value="R$">R$</option>
                   <option value="%">%</option>
                 </select>
-                <input id="m-desconto" type="number" min="0" step="0.01" value="0" class="flex-1 w-full bg-background border border-border rounded-r-md px-3 py-2 text-[14px] font-mono focus:border-primary outline-none">
+                <input id="m-desconto" type="number" min="0" step="0.01" value="0"
+                  class="flex-1 w-full bg-background border border-border rounded-r-md px-3 py-2 text-[14px] font-mono focus:border-primary outline-none">
               </div>
             </div>
 
-            <div>
-              <label for="m-vendedor" class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Vendedor</label>
-              <select id="m-vendedor" class="w-full bg-background border border-border rounded-md px-3 py-2 text-[13px] text-foreground font-medium outline-none">
-                <option value="">— Sem vendedor —</option>
-              </select>
-            </div>
-            
             <div class="col-span-2">
-              <label for="m-forma" class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Forma de Pagamento</label>
+              <label for="m-forma" class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Forma
+                de Pagamento</label>
               <div class="flex gap-3">
-                <select id="m-forma" class="flex-1 w-full bg-secondary border border-border rounded-md px-3 py-2 text-[14px] font-bold text-primary outline-none">
+                <select id="m-forma"
+                  class="flex-1 w-full bg-secondary border border-border rounded-md px-3 py-2 text-[14px] font-bold text-primary outline-none">
                   <option value="DINHEIRO">Dinheiro</option>
                   <option value="PIX">PIX</option>
                   <option value="CARTAO">Cartão de Crédito/Débito</option>
                   <option value="FIADO">Fiado / Crediário Próprio</option>
                 </select>
-                <select id="m-parcelas-cartao" hidden class="w-1/3 bg-background border border-border rounded-md px-3 py-2 text-[13px] text-foreground font-medium outline-none"></select>
+                <select id="m-parcelas-cartao" hidden
+                  class="w-1/3 bg-background border border-border rounded-md px-3 py-2 text-[13px] text-foreground font-medium outline-none"></select>
               </div>
             </div>
-            
-            <div id="m-fiado" hidden class="col-span-2 bg-secondary/50 rounded-lg p-3 border border-border space-y-3 mt-2">
+
+            <div id="m-fiado" hidden
+              class="col-span-2 bg-secondary/50 rounded-lg p-3 border border-border space-y-3 mt-2">
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <label for="m-entrada" class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Entrada (R$)</label>
+                  <label for="m-entrada"
+                    class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Entrada (R$)</label>
                   <div class="flex">
-                    <input id="m-entrada" type="number" min="0" step="0.01" value="0" class="w-2/3 bg-background border border-border rounded-l-md px-2 py-1.5 text-[13px] font-mono focus:border-primary outline-none border-r-0">
-                    <select id="m-entrada-tipo" class="w-1/3 bg-background border border-border rounded-r-md px-1 py-1.5 text-[11px] font-medium outline-none">
+                    <input id="m-entrada" type="number" min="0" step="0.01" value="0"
+                      class="w-2/3 bg-background border border-border rounded-l-md px-2 py-1.5 text-[13px] font-mono focus:border-primary outline-none border-r-0">
+                    <select id="m-entrada-tipo"
+                      class="w-1/3 bg-background border border-border rounded-r-md px-1 py-1.5 text-[11px] font-medium outline-none">
                       <option value="DINHEIRO">Din.</option>
                       <option value="PIX">PIX</option>
                       <option value="CARTAO">Cartão</option>
@@ -290,12 +527,16 @@
                 </div>
                 <div class="flex gap-2">
                   <div class="w-1/3">
-                    <label for="m-num-parcelas" class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Parcelas</label>
-                    <input id="m-num-parcelas" type="number" min="1" max="24" value="1" class="w-full bg-background border border-border rounded-md px-2 py-1.5 text-[13px] font-mono focus:border-primary outline-none text-center">
+                    <label for="m-num-parcelas"
+                      class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Parcelas</label>
+                    <input id="m-num-parcelas" type="number" min="1" max="24" value="1"
+                      class="w-full bg-background border border-border rounded-md px-2 py-1.5 text-[13px] font-mono focus:border-primary outline-none text-center">
                   </div>
                   <div class="flex-1">
-                    <label for="m-primeiro-venc" class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">1º Vencimento</label>
-                    <input id="m-primeiro-venc" type="date" class="w-full bg-background border border-border rounded-md px-2 py-1.5 text-[12px] font-medium focus:border-primary outline-none">
+                    <label for="m-primeiro-venc"
+                      class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">1º Vencimento</label>
+                    <input id="m-primeiro-venc" type="date"
+                      class="w-full bg-background border border-border rounded-md px-2 py-1.5 text-[12px] font-medium focus:border-primary outline-none">
                   </div>
                 </div>
               </div>
@@ -308,12 +549,16 @@
 
             <div id="m-div-recebido" class="col-span-2 grid grid-cols-2 gap-4 border-t border-border pt-4 mt-2">
               <div>
-                <label for="m-recebido" class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Valor Recebido</label>
-                <input id="m-recebido" type="number" min="0" step="0.01" value="" class="w-full bg-background border border-border rounded-md px-3 py-2 text-[16px] font-mono font-bold text-primary focus:border-primary outline-none">
+                <label for="m-recebido"
+                  class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Valor Recebido</label>
+                <input id="m-recebido" type="number" min="0" step="0.01" value=""
+                  class="w-full bg-background border border-border rounded-md px-3 py-2 text-[16px] font-mono font-bold text-primary focus:border-primary outline-none">
               </div>
               <div>
                 <span class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Troco</span>
-                <strong id="m-troco" class="block w-full bg-secondary border border-border rounded-md px-3 py-2 text-[16px] font-mono font-bold text-foreground">R$ 0,00</strong>
+                <strong id="m-troco"
+                  class="block w-full bg-secondary border border-border rounded-md px-3 py-2 text-[16px] font-mono font-bold text-foreground">R$
+                  0,00</strong>
               </div>
             </div>
           </div>
@@ -326,8 +571,12 @@
           <p id="m-erro" class="text-destructive font-medium text-[13px] mb-4 text-center" hidden></p>
 
           <div class="m-acoes flex gap-3">
-            <button type="button" id="m-cancelar" class="px-5 py-3 rounded-lg border border-border bg-background text-foreground font-semibold text-[14px] hover:bg-muted transition-colors">Voltar <kbd class="ml-2 text-[10px] font-mono bg-secondary px-1.5 rounded">Esc</kbd></button>
-            <button type="button" id="m-confirmar" class="flex-1 px-5 py-3 rounded-lg bg-primary text-primary-foreground font-bold text-[16px] shadow-lg hover:opacity-90 transition-opacity">Confirmar Venda <kbd class="ml-2 text-[11px] font-mono bg-white/20 px-2 rounded">Enter</kbd></button>
+            <button type="button" id="m-cancelar"
+              class="px-5 py-3 rounded-lg border border-border bg-background text-foreground font-semibold text-[14px] hover:bg-muted transition-colors">Voltar
+              <kbd class="ml-2 text-[10px] font-mono bg-secondary px-1.5 rounded">Esc</kbd></button>
+            <button type="button" id="m-confirmar"
+              class="flex-1 px-5 py-3 rounded-lg bg-primary text-primary-foreground font-bold text-[16px] shadow-lg hover:opacity-90 transition-opacity">Confirmar
+              Venda <kbd class="ml-2 text-[11px] font-mono bg-white/20 px-2 rounded">Enter</kbd></button>
           </div>
         </div>
       </div>
@@ -339,4 +588,5 @@
   <script src="/js/recibo.js"></script>
   <script src="/js/venda.js"></script>
 </body>
+
 </html>
