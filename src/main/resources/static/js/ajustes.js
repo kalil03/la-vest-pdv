@@ -2,14 +2,35 @@
 
 const $ = (id) => document.getElementById(id);
 
-// ---------- tema ----------
-const $tema = $('tema-switch');
-$tema.addEventListener('click', alternarTema);
-$tema.addEventListener('keydown', (e) => {
-  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); alternarTema(); }
+// ---------- tema (cartões de pré-visualização) ----------
+function marcarTema() {
+  const escuro = document.documentElement.classList.contains('dark');
+  $('tema-claro').classList.toggle('sel', !escuro);
+  $('tema-escuro').classList.toggle('sel', escuro);
+}
+
+$('tema-claro').addEventListener('click', () => {
+  if (document.documentElement.classList.contains('dark')) alternarTema();
+  marcarTema();
 });
+$('tema-escuro').addEventListener('click', () => {
+  if (!document.documentElement.classList.contains('dark')) alternarTema();
+  marcarTema();
+});
+marcarTema();
 
 // ---------- helpers ----------
+function iniciais(nome) {
+  const p = nome.trim().split(/\s+/);
+  return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase();
+}
+
+function corAvatar(nome) {
+  let h = 0;
+  for (const c of nome) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${h}, 55%, 45%)`;
+}
+
 async function enviar(url, body) {
   const resp = await fetch(url, {
     method: 'POST',
@@ -21,6 +42,14 @@ async function enviar(url, body) {
     throw new Error(erro.erro || 'Erro ao salvar');
   }
   return resp.json();
+}
+
+function linhaPessoa(nome, sub) {
+  return `<div class="linha">
+    <span class="mini-avatar" style="background:${corAvatar(nome)}">${iniciais(nome)}</span>
+    <span class="flex-1" style="flex:1">${nome}</span>
+    <span class="mono">${sub || ''}</span>
+  </div>`;
 }
 
 let toastTimer = null;
@@ -36,8 +65,10 @@ function toast(msg, tipo = '') {
 // ---------- operadores (logins) ----------
 async function carregarUsuarios() {
   const usuarios = await (await fetch('/api/usuarios')).json();
-  $('lista-usuarios').innerHTML = usuarios.map((u) => `
-    <div class="linha"><span class="flex-1">${u.nome}</span><span class="mono">${u.login}</span></div>`).join('');
+  $('qtd-usuarios').textContent = usuarios.length;
+  $('lista-usuarios').innerHTML = usuarios.length
+    ? usuarios.map((u) => linhaPessoa(u.nome, u.login)).join('')
+    : '<div class="vazio-lista">Nenhum registro</div>';
 }
 
 $('form-usuario').addEventListener('submit', async (e) => {
@@ -48,6 +79,7 @@ $('form-usuario').addEventListener('submit', async (e) => {
     });
     toast('Operador criado', 'ok');
     e.target.reset();
+    $('u-nome').focus();
     carregarUsuarios();
   } catch (erro) { toast(erro.message); }
 });
@@ -55,8 +87,10 @@ $('form-usuario').addEventListener('submit', async (e) => {
 // ---------- vendedores ----------
 async function carregarVendedores() {
   const vendedores = await (await fetch('/api/vendedores')).json();
-  $('lista-vendedores').innerHTML = vendedores.map((v) => `
-    <div class="linha"><span class="flex-1">${v.nome}</span><span class="mono">${v.cpf ?? ''}</span></div>`).join('');
+  $('qtd-vendedores').textContent = vendedores.length;
+  $('lista-vendedores').innerHTML = vendedores.length
+    ? vendedores.map((v) => linhaPessoa(v.nome, v.cpf)).join('')
+    : '<div class="vazio-lista">Nenhum registro</div>';
 }
 
 $('form-vendedor').addEventListener('submit', async (e) => {
@@ -67,6 +101,7 @@ $('form-vendedor').addEventListener('submit', async (e) => {
     });
     toast('Vendedor adicionado', 'ok');
     e.target.reset();
+    $('v-nome').focus();
     carregarVendedores();
   } catch (erro) { toast(erro.message); }
 });
@@ -76,16 +111,19 @@ let marcas = [];
 
 async function carregarMarcas() {
   marcas = await (await fetch('/api/marcas')).json();
+  $('qtd-marcas').textContent = marcas.length.toLocaleString('pt-BR');
   renderMarcas();
 }
 
 function renderMarcas() {
   const filtro = $('m-filtro').value.trim().toLowerCase();
-  const visiveis = filtro ? marcas.filter((m) => m.nome.toLowerCase().includes(filtro)) : marcas.slice(0, 60);
-  $('lista-marcas').innerHTML = visiveis.map((m) => `
-    <div class="linha"><span class="flex-1">${m.nome}</span><span class="mono">#${m.id}</span></div>`).join('')
-    + (!filtro && marcas.length > 60
-        ? `<div class="linha" style="color: var(--muted-foreground)">… e mais ${marcas.length - 60} — use o filtro</div>` : '');
+  const filtradas = filtro ? marcas.filter((m) => m.nome.toLowerCase().includes(filtro)) : marcas;
+  const visiveis = filtradas.slice(0, 80);
+  $('lista-marcas').innerHTML =
+    visiveis.map((m) => `<span class="chip-marca">${m.nome}</span>`).join('')
+    + (filtradas.length > 80
+        ? `<span class="chip-mais">+${(filtradas.length - 80).toLocaleString('pt-BR')} marcas — refine o filtro</span>`
+        : (filtradas.length === 0 ? '<span class="chip-mais">Nenhuma marca encontrada</span>' : ''));
 }
 
 $('m-filtro').addEventListener('input', renderMarcas);
@@ -95,6 +133,7 @@ $('form-marca').addEventListener('submit', async (e) => {
   try {
     await enviar('/api/marcas', { nome: $('m-nome').value.trim() });
     toast('Marca criada', 'ok');
+    $('m-filtro').value = $('m-nome').value.trim(); // mostra a recém-criada
     $('m-nome').value = '';
     carregarMarcas();
   } catch (erro) { toast(erro.message); }
