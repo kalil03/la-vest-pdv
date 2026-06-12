@@ -169,69 +169,70 @@
     .rodape-caixa {
       background: var(--background);
       border-top: 1px solid var(--border);
-      padding: 24px 32px;
+      padding: 20px 32px;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 32px;
+      align-items: stretch;
+      gap: 28px;
     }
 
     .rodape-cliente {
       flex: 1;
-      max-width: 400px;
+      max-width: 620px;
+      min-width: 0;
     }
 
-    .rodape-cliente input {
-      width: 100%;
-      padding: 12px 16px 12px 36px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 14px;
-      background: var(--secondary);
-    }
+    .rodape-divisor { width: 1px; background: var(--border); }
 
     .rodape-total {
-      text-align: right;
-    }
-
-    .rodape-total .valor {
-      font-size: 52px;
-      font-weight: 800;
-      color: var(--primary);
-      font-family: 'JetBrains Mono', monospace;
-      line-height: 1;
-      margin-bottom: 16px;
-      letter-spacing: -2px;
-    }
-
-    .formas-pagamento {
+      width: 440px;
+      flex-shrink: 0;
       display: flex;
-      gap: 16px;
-      margin-bottom: 24px;
+      flex-direction: column;
       justify-content: flex-end;
     }
 
+    .total-linha-caixa {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 14px;
+    }
+
+    .rodape-total .valor {
+      font-size: 38px;
+      font-weight: 700;
+      color: var(--foreground);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      letter-spacing: -0.5px;
+    }
+
+    .formas-pagamento {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
     .formas-pagamento button {
-      padding: 16px 20px;
+      padding: 11px 8px;
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 10px;
       background: var(--background);
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 600;
       color: var(--muted-foreground);
       cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s;
       display: flex;
-      flex-direction: column;
       align-items: center;
+      justify-content: center;
       gap: 6px;
-      min-width: 100px;
     }
 
     .formas-pagamento button:hover {
       background: var(--secondary);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      border-color: var(--muted-foreground);
     }
 
     .formas-pagamento button kbd {
@@ -247,8 +248,6 @@
       background: var(--primary);
       color: var(--primary-foreground);
       border-color: var(--primary);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-      transform: translateY(-2px);
     }
 
     .formas-pagamento button.ativa kbd {
@@ -258,11 +257,11 @@
 
     .btn-fechar {
       width: 100%;
-      padding: 24px;
-      background: linear-gradient(135deg, var(--primary) 0%, #1a1a2e 100%);
+      padding: 17px;
+      background: var(--primary);
       color: var(--primary-foreground);
-      border-radius: 16px;
-      font-size: 20px;
+      border-radius: 12px;
+      font-size: 17px;
       font-weight: 700;
       display: flex;
       justify-content: center;
@@ -303,8 +302,8 @@
     }
     /* cifrão menor no total — número é o protagonista */
     .rodape-total .valor .cifrao {
-      font-size: 22px; font-weight: 600; color: var(--muted-foreground);
-      margin-right: 4px; vertical-align: 10px; letter-spacing: 0;
+      font-size: 17px; font-weight: 600; color: var(--muted-foreground);
+      margin-right: 3px; vertical-align: 8px; letter-spacing: 0;
     }
   </style>
 
@@ -453,13 +452,13 @@
           <div class="rodape-cliente relative flex flex-col gap-3 justify-center">
             <div>
               <label for="cliente"
-                class="block text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                 Cliente <span class="normal-case tracking-normal font-normal opacity-70">(opcional, obrigatório no fiado)</span>
               </label>
               <div class="relative w-full">
                 <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10"></i>
-                <input id="cliente" type="text" autocomplete="off" placeholder="Buscar por Nome, CPF ou telefone..."
-                  class="!w-full !pl-10 !pr-8 !py-3 !font-medium !text-[14px] !bg-secondary !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
+                <input id="cliente" type="text" autocomplete="off" placeholder="Buscar por nome, CPF ou telefone"
+                  class="!w-full !pl-10 !pr-8 !py-2.5 !font-medium !text-[14px] !bg-background !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
                 <button id="cliente-limpar" type="button" title="Limpar cliente" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground z-10" hidden>&times;</button>
               </div>
               <ul id="cliente-resultados" class="dropdown !absolute !bottom-[100%] !mb-2 !left-0 !w-[400px] shadow-2xl" hidden></ul>
@@ -467,24 +466,28 @@
               <span id="cliente-novo-aviso" class="aviso text-[11px] text-destructive font-medium mt-1 block" hidden>Cliente novo — será cadastrado ao fechar</span>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label for="c-vendedor" class="block text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Vendedor <span class="text-destructive">*</span></label>
-                <select id="c-vendedor" class="!w-full !px-3 !py-3 !font-medium !text-[14px] !bg-secondary !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
+            <div class="flex gap-3">
+              <div class="w-[220px] flex-shrink-0">
+                <label for="c-vendedor" class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Vendedor <span class="text-destructive">*</span></label>
+                <select id="c-vendedor" class="!w-full !px-3 !py-2.5 !font-medium !text-[14px] !bg-background !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
                   <option value="">Selecione...</option>
                 </select>
               </div>
-              <div>
-                <label for="c-observacao" class="block text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Observação na nota</label>
-                <input id="c-observacao" type="text" placeholder="Ex: Compra p/ Maria" class="!w-full !px-3 !py-3 !font-medium !text-[14px] !bg-secondary !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
+              <div class="flex-1 min-w-0">
+                <label for="c-observacao" class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Observação na nota</label>
+                <input id="c-observacao" type="text" placeholder="Ex: compra no nome da avó"
+                  class="!w-full !px-3 !py-2.5 !font-medium !text-[14px] !bg-background !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
               </div>
             </div>
           </div>
 
+          <div class="rodape-divisor"></div>
+
           <div class="rodape-total">
-            <div class="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Total a Pagar
+            <div class="total-linha-caixa">
+              <span class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total a pagar</span>
+              <span class="valor" id="total">R$ 0,00</span>
             </div>
-            <div class="valor" id="total">R$ 0,00</div>
 
             <div class="formas-pagamento" id="formas">
               <button type="button" data-forma="DINHEIRO" class="ativa">Dinheiro <kbd>F2</kbd></button>
