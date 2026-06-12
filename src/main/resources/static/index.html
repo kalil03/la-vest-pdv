@@ -64,49 +64,73 @@
       background: var(--secondary);
     }
 
-    .busca-caixa {
-      padding: 24px 32px;
+    .caixa-header {
       background: var(--background);
       border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      justify-content: center;
+      gap: 16px;
+    }
+    .caixa-header h1 { margin: 0; font-size: 21px; font-weight: 700; }
+    .caixa-header .sub { margin: 3px 0 0; font-size: 13px; color: var(--muted-foreground); }
+    .atalhos { display: flex; gap: 8px; flex-wrap: wrap; }
+    .atalhos span {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600;
+      color: var(--muted-foreground); background: var(--secondary);
+      border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px;
     }
 
-    .busca-caixa input {
+    .caixa-corpo {
+      flex: 1;
+      display: flex;
+      gap: 24px;
+      padding: 24px 32px;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .caixa-esquerda {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .busca-caixa { position: relative; }
+    .busca-caixa #busca {
       width: 100%;
-      max-width: 800px;
-      padding: 20px 28px;
-      font-size: 22px;
+      padding: 14px 18px 14px 46px;
+      font-size: 16px;
       font-weight: 500;
       border: 1px solid var(--border);
-      border-radius: 16px;
-      background: var(--secondary);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      text-align: center;
+      border-radius: 12px;
+      background: var(--background);
+      transition: border-color 0.15s, box-shadow 0.15s;
       font-family: 'JetBrains Mono', monospace;
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
       color: var(--foreground);
     }
-
-    .busca-caixa input:focus {
+    .busca-caixa #busca:focus {
       border-color: var(--primary);
       outline: none;
-      background: var(--background);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
-      transform: translateY(-2px);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+    .busca-caixa .lupa {
+      position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+      width: 18px; height: 18px; color: var(--muted-foreground); z-index: 10;
+      pointer-events: none;
     }
 
     .itens-lista {
       flex: 1;
       overflow-y: auto;
-      padding: 32px;
+      min-height: 0;
     }
 
     .tabela-pdv {
       width: 100%;
-      max-width: 960px;
-      margin: 0 auto;
+      margin: 0;
       background: var(--background);
       border-radius: 16px;
       overflow: hidden;
@@ -166,30 +190,21 @@
       background: var(--secondary);
     }
 
-    .rodape-caixa {
-      background: var(--background);
-      border-top: 1px solid var(--border);
-      padding: 20px 32px;
-      display: flex;
-      align-items: stretch;
-      gap: 28px;
-    }
-
-    .rodape-cliente {
-      flex: 1;
-      max-width: 620px;
-      min-width: 0;
-    }
-
-    .rodape-divisor { width: 1px; background: var(--border); }
-
-    .rodape-total {
-      width: 440px;
+    .painel-venda {
+      width: 340px;
       flex-shrink: 0;
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
-      justify-content: flex-end;
+      gap: 14px;
+      overflow-y: auto;
+      align-self: flex-start;
+      max-height: 100%;
     }
+    .painel-divisor { height: 1px; background: var(--border); margin: 2px 0; }
 
     .total-linha-caixa {
       display: flex;
@@ -198,8 +213,8 @@
       margin-bottom: 14px;
     }
 
-    .rodape-total .valor {
-      font-size: 38px;
+    .painel-venda .valor {
+      font-size: 32px;
       font-weight: 700;
       color: var(--foreground);
       font-variant-numeric: tabular-nums;
@@ -209,25 +224,24 @@
 
     .formas-pagamento {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin-bottom: 10px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
     }
 
     .formas-pagamento button {
-      padding: 11px 8px;
+      padding: 13px 8px;
       border: 1px solid var(--border);
       border-radius: 10px;
       background: var(--background);
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--muted-foreground);
       cursor: pointer;
       transition: all 0.15s;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 6px;
+      gap: 5px;
     }
 
     .formas-pagamento button:hover {
@@ -301,7 +315,7 @@
       background: transparent; border: 1px solid currentColor; color: inherit; opacity: .65;
     }
     /* cifrão menor no total — número é o protagonista */
-    .rodape-total .valor .cifrao {
+    .painel-venda .valor .cifrao {
       font-size: 17px; font-weight: 600; color: var(--muted-foreground);
       margin-right: 3px; vertical-align: 8px; letter-spacing: 0;
     }
@@ -417,43 +431,55 @@
 
       <div class="venda-container">
 
-        <!-- BUSCA -->
-        <section class="busca-caixa relative z-50">
-          <input id="busca" type="text" autocomplete="off" autofocus
-            placeholder="Código, cód. de barras ou nome do produto (Enter adiciona)">
-          <ul id="busca-resultados"
-            class="dropdown !absolute !top-[100%] !left-1/2 !-translate-x-1/2 !w-[700px] shadow-2xl" hidden></ul>
-        </section>
+        <!-- CABEÇALHO DO CAIXA -->
+        <header class="caixa-header">
+          <div>
+            <h1>Caixa Aberto</h1>
+            <p class="sub">Operador: <span id="caixa-operador">—</span></p>
+          </div>
+          <div class="atalhos">
+            <span>F2 DINHEIRO</span><span>F3 PIX</span><span>F4 CARTÃO</span><span>F6 FIADO</span><span>F10 FINALIZAR</span>
+          </div>
+        </header>
 
-        <!-- ITENS DA VENDA -->
-        <section class="itens-lista">
-          <table id="tabela-itens" class="tabela-pdv">
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Produto</th>
-                <th class="num">Qtd</th>
-                <th class="num">Preço</th>
-                <th class="num">Subtotal</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="itens"></tbody>
-          </table>
-          <p id="itens-vazio"
-            class="text-center text-muted-foreground mt-12 text-[15px] font-medium flex flex-col items-center gap-4">
-            <i data-lucide="shopping-cart" class="w-12 h-12 text-border"></i>
-            Nenhum item. Busque um produto acima para começar.
-          </p>
-        </section>
+        <div class="caixa-corpo">
+          <!-- ESQUERDA: BUSCA + ITENS -->
+          <div class="caixa-esquerda">
+            <section class="busca-caixa z-50">
+              <i data-lucide="search" class="lupa"></i>
+              <input id="busca" type="text" autocomplete="off" autofocus
+                placeholder="Código, cód. de barras ou nome do produto (Enter adiciona)">
+              <ul id="busca-resultados" class="dropdown !absolute !top-full !mt-2 !left-0 !right-0 shadow-2xl" hidden></ul>
+            </section>
 
-        <!-- RODAPÉ DE FECHAMENTO -->
-        <footer class="rodape-caixa">
-          <div class="rodape-cliente relative flex flex-col gap-3 justify-center">
-            <div>
+            <section class="itens-lista">
+              <table id="tabela-itens" class="tabela-pdv">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Produto</th>
+                    <th class="num">Qtd</th>
+                    <th class="num">Preço</th>
+                    <th class="num">Subtotal</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="itens"></tbody>
+              </table>
+              <p id="itens-vazio"
+                class="text-center text-muted-foreground mt-12 text-[15px] font-medium flex flex-col items-center gap-4">
+                <i data-lucide="shopping-cart" class="w-12 h-12 text-border"></i>
+                Nenhum item. Busque um produto acima para começar.
+              </p>
+            </section>
+          </div>
+
+          <!-- DIREITA: PAINEL DA VENDA -->
+          <aside class="painel-venda">
+            <div class="relative">
               <label for="cliente"
                 class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Cliente <span class="normal-case tracking-normal font-normal opacity-70">(opcional, obrigatório no fiado)</span>
+                Cliente <span class="normal-case tracking-normal font-normal opacity-70">(opcional)</span>
               </label>
               <div class="relative w-full">
                 <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10"></i>
@@ -461,30 +487,27 @@
                   class="!w-full !pl-10 !pr-8 !py-2.5 !font-medium !text-[14px] !bg-background !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
                 <button id="cliente-limpar" type="button" title="Limpar cliente" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground z-10" hidden>&times;</button>
               </div>
-              <ul id="cliente-resultados" class="dropdown !absolute !bottom-[100%] !mb-2 !left-0 !w-[400px] shadow-2xl" hidden></ul>
+              <ul id="cliente-resultados" class="dropdown !absolute !top-full !mt-1 !left-0 !right-0 shadow-2xl !z-50" hidden></ul>
               <span id="cliente-badge" class="badge mt-2 inline-block bg-primary text-primary-foreground px-2 py-1 rounded text-[11px] font-bold" hidden></span>
               <span id="cliente-novo-aviso" class="aviso text-[11px] text-destructive font-medium mt-1 block" hidden>Cliente novo — será cadastrado ao fechar</span>
             </div>
 
-            <div class="flex gap-3">
-              <div class="w-[220px] flex-shrink-0">
-                <label for="c-vendedor" class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Vendedor <span class="text-destructive">*</span></label>
-                <select id="c-vendedor" class="!w-full !px-3 !py-2.5 !font-medium !text-[14px] !bg-background !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
-                  <option value="">Selecione...</option>
-                </select>
-              </div>
-              <div class="flex-1 min-w-0">
-                <label for="c-observacao" class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Observação na nota</label>
-                <input id="c-observacao" type="text" placeholder="Ex: compra no nome da avó"
-                  class="!w-full !px-3 !py-2.5 !font-medium !text-[14px] !bg-background !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
-              </div>
+            <div>
+              <label for="c-vendedor" class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Vendedor <span class="text-destructive">*</span></label>
+              <select id="c-vendedor" class="!w-full !px-3 !py-2.5 !font-medium !text-[14px] !bg-background !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
+                <option value="">Selecione...</option>
+              </select>
             </div>
-          </div>
 
-          <div class="rodape-divisor"></div>
+            <div>
+              <label for="c-observacao" class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Observação</label>
+              <input id="c-observacao" type="text" placeholder="Ex: compra no nome da avó"
+                class="!w-full !px-3 !py-2.5 !font-medium !text-[14px] !bg-background !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
+            </div>
 
-          <div class="rodape-total">
-            <div class="total-linha-caixa">
+            <div class="painel-divisor"></div>
+
+            <div class="total-linha-caixa !mb-0">
               <span class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total a pagar</span>
               <span class="valor" id="total">R$ 0,00</span>
             </div>
@@ -499,8 +522,8 @@
             <button id="avancar" type="button" class="btn-fechar">
               Revisar e Fechar Venda <kbd>F10</kbd>
             </button>
-          </div>
-        </footer>
+          </aside>
+        </div>
       </div>
 
       <!-- MODAL CONFIRMAÇÃO (REUTILIZANDO ESTILO CSS ORIGINAL MAS MELHORANDO) -->

@@ -19,6 +19,12 @@ let parcelas = [];         // [{numero, valor, vencimento(yyyy-mm-dd)}] no modal
 
 fetch('/api/config').then((r) => r.json()).then((c) => { loja = c; });
 
+// operador logado no cabeçalho do caixa
+document.addEventListener('DOMContentLoaded', () => {
+  const op = document.getElementById('caixa-operador');
+  if (op && window.usuarioLogado) op.textContent = window.usuarioLogado.nome;
+});
+
 // ---------- elementos ----------
 const $ = (id) => document.getElementById(id);
 const $busca = $('busca');
