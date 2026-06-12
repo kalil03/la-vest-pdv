@@ -47,6 +47,23 @@
       background: var(--background); color: var(--foreground);
     }
     .filtros-bar input:focus, .filtros-bar select:focus { outline: none; border-color: var(--primary); }
+    .abas { display: inline-flex; gap: 4px; background: var(--muted); padding: 4px; border-radius: 10px; }
+    .abas button {
+      padding: 7px 18px; font-size: 13px; font-weight: 600; border: none; border-radius: 8px;
+      background: transparent; color: var(--muted-foreground); cursor: pointer; transition: all .15s;
+    }
+    .abas button.ativa { background: var(--background); color: var(--foreground); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+    .chip.forma { background: var(--muted); color: var(--foreground); }
+    .acao-btn {
+      padding: 5px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--background);
+      font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .acao-btn:hover:not(:disabled) { background: var(--secondary); }
+    .acao-btn.perigo { color: var(--destructive); }
+    .acao-btn.perigo:hover:not(:disabled) { background: var(--destructive); color: #fff; }
+    .acao-btn:disabled { opacity: .35; cursor: not-allowed; }
+
     .pag-btn { padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); font-size: 13px; font-weight: 500; cursor: pointer; }
     .pag-btn:hover:not(:disabled) { background: var(--secondary); }
     .pag-btn:disabled { opacity: .4; cursor: default; }
@@ -136,6 +153,13 @@
             <div class="kpi"><div class="rotulo">Recebido no mês</div><div id="k-recebido" class="valor" style="color: var(--ok)">—</div></div>
           </div>
 
+          <!-- ABAS -->
+          <div class="abas">
+            <button id="aba-parcelas" class="ativa" type="button">Parcelas</button>
+            <button id="aba-vendas" type="button">Vendas</button>
+          </div>
+
+          <div id="painel-parcelas" class="flex flex-col gap-5">
           <!-- FILTROS -->
           <div class="filtros-bar flex flex-wrap gap-2 items-center bg-background border border-border rounded-xl p-3">
             <div class="relative flex-1 min-w-[220px]">
@@ -175,13 +199,58 @@
               </div>
             </div>
           </div>
-          <p class="text-[11px] text-muted-foreground m-0">Clique numa parcela para abrir o carnê do cliente. Histórico já pago no sistema antigo não foi migrado.</p>
+          <p class="text-[11px] text-muted-foreground m-0">Clique numa parcela para abrir o carnê do cliente.</p>
+          </div>
+
+          <!-- ABA VENDAS: conferência, estorno e edição -->
+          <div id="painel-vendas" class="flex flex-col gap-5" hidden>
+            <div class="filtros-bar flex flex-wrap gap-2 items-center bg-background border border-border rounded-xl p-3">
+              <div class="relative flex-1 min-w-[220px]">
+                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"></i>
+                <input id="v-q" placeholder="Nº da venda ou cliente" class="!pl-8 w-full">
+              </div>
+              <select id="v-forma">
+                <option value="">Todas as formas</option>
+                <option value="DINHEIRO">Dinheiro</option>
+                <option value="PIX">PIX</option>
+                <option value="CARTAO">Cartão</option>
+                <option value="FIADO">Fiado</option>
+              </select>
+              <input id="v-de" type="date" title="Data a partir de">
+              <input id="v-ate" type="date" title="Data até">
+              <button id="v-limpar" class="pag-btn">Limpar</button>
+            </div>
+
+            <div class="bg-background border border-border rounded-xl overflow-hidden">
+              <div class="max-h-[55vh] overflow-y-auto">
+                <table class="tab-contas">
+                  <thead>
+                    <tr>
+                      <th>Nº</th><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Forma</th>
+                      <th class="num">Total</th><th style="width:240px">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="v-lista"></tbody>
+                </table>
+              </div>
+              <div class="flex items-center justify-between px-4 py-3 bg-secondary border-t border-border">
+                <span id="v-pag-info" class="text-[12px] text-muted-foreground font-medium">—</span>
+                <div class="flex items-center gap-3">
+                  <span id="v-soma" class="mono text-[13px] font-bold"></span>
+                  <button id="v-pag-ant" class="pag-btn" disabled>‹ Anterior</button>
+                  <button id="v-pag-prox" class="pag-btn" disabled>Próxima ›</button>
+                </div>
+              </div>
+            </div>
+            <p class="text-[11px] text-muted-foreground m-0">Estornar devolve o estoque e desfaz o fiado. Editar reabre a venda no caixa para corrigir e fechar de novo. Venda fiado com parcela já recebida não pode ser alterada.</p>
+          </div>
         </div>
       </div>
     </main>
   </div>
 
   <div id="toast" class="toast" hidden></div>
+  <script src="/js/recibo.js"></script>
   <script src="/js/contas.js"></script>
   <script>lucide.createIcons();</script>
 </body>

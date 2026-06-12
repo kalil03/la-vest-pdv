@@ -325,7 +325,7 @@ $formas.addEventListener('click', (e) => {
 // Modal de confirmação: revisão, desconto, vendedor, parcelas
 // ============================================================
 
-fetch('/api/vendedores').then((r) => r.json()).then((vs) => {
+const vendedoresProntos = fetch('/api/vendedores').then((r) => r.json()).then((vs) => {
   vendedores = vs;
   const sel = $('c-vendedor');
   vs.forEach((v) => {
@@ -766,3 +766,51 @@ function calcularTroco() {
 
 resetarVenda();
 
+
+// ============================================================
+// /?editar=ID — venda aberta a partir do Contas a Receber:
+// desfaz no servidor (estoque volta) e recoloca tudo no carrinho
+// para corrigir e fechar de novo.
+// ============================================================
+(async function () {
+  const editarId = new URLSearchParams(location.search).get('editar');
+  if (!editarId) return;
+  history.replaceState({}, '', '/'); // F5 não repete a edição
+
+  try {
+    const resp = await fetch(`/api/vendas/${editarId}`);
+    if (!resp.ok) {
+      const erro = await resp.json().catch(() => ({}));
+      toast(erro.erro || `Venda nº ${editarId} não encontrada`, 'erro');
+      return;
+    }
+    const venda = await resp.json();
+
+    const del = await fetch(`/api/vendas/${editarId}`, { method: 'DELETE' });
+    if (!del.ok) {
+      const erro = await del.json().catch(() => ({}));
+      toast(erro.erro || 'Não foi possível abrir esta venda para edição', 'erro');
+      return;
+    }
+
+    itens = venda.itens.map((i) => ({
+      variacaoId: i.variacaoId,
+      codigo: i.codigo,
+      descricao: i.descricao,
+      qtd: i.quantidade,
+      preco: Number(i.precoUnit),
+    }));
+    if (venda.clienteId) selecionarCliente({ id: venda.clienteId, nome: venda.clienteNome });
+    await vendedoresProntos;
+    if (venda.vendedorId) $('c-vendedor').value = venda.vendedorId;
+    $('c-observacao').value = venda.observacao || '';
+    $('v-data').value = new Date(venda.data).toLocaleDateString('sv-SE');
+    selecionarForma(venda.formaPagamento);
+    renderItens();
+    if (typeof atualizarAvancar === 'function') atualizarAvancar();
+    toast(`Venda nº ${editarId} aberta para edição — ajuste e feche de novo`, 'ok');
+    $busca.focus();
+  } catch {
+    toast('Sem conexão com o servidor', 'erro');
+  }
+})();
