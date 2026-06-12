@@ -125,7 +125,7 @@ public class CarneService {
             validarValor(aloc.valor(), aberto, id);
             debito.setValorAberto(aberto.subtract(aloc.valor()));
             LocalDate venc = LocalDate.ofInstant(debito.getData(), FUSO);
-            String desc = "Carnê SET " + DATA_BR.format(venc);
+            String desc = descricaoLegada(debito) + " " + DATA_BR.format(venc);
             detalhe.add(desc);
             return new ReciboRecebimento.Item(desc, null, venc, aloc.valor(), debito.getValorAberto());
         }
@@ -172,7 +172,7 @@ public class CarneService {
                 .findByClienteIdAndTipoOrderByDataAsc(clienteId, TipoPagamentoFiado.DEBITO_INICIAL)) {
             if (p.getValorAberto() == null || p.getValorAberto().signum() <= 0) continue;
             LocalDate venc = LocalDate.ofInstant(p.getData(), FUSO);
-            abertas.add(new CarneDTO.Parcela("L" + p.getId(), "Carnê SET", null, null,
+            abertas.add(new CarneDTO.Parcela("L" + p.getId(), descricaoLegada(p), null, null,
                     venc, p.getValor().negate(), p.getValorAberto(),
                     ChronoUnit.DAYS.between(venc, hoje)));
         }
@@ -187,6 +187,11 @@ public class CarneService {
         }
         abertas.sort(java.util.Comparator.comparing(CarneDTO.Parcela::vencimento));
         return abertas;
+    }
+
+    /** "Carnê SET nº 66/01" — o nº que a loja conhece do sistema antigo. */
+    private String descricaoLegada(PagamentoFiado p) {
+        return p.getDocumento() != null ? "Carnê SET nº " + p.getDocumento() : "Carnê SET";
     }
 
     private Cliente buscarCliente(Long id) {
