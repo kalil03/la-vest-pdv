@@ -20,7 +20,6 @@ public class ClienteController {
         this.clienteService = clienteService;
     }
 
-    /** Filtro único: nome, CPF ou telefone. Retorna saldo devedor calculado. */
     @GetMapping
     public List<ClienteDTO> buscar(@RequestParam(defaultValue = "") String q) {
         return clienteService.buscar(q);
@@ -37,13 +36,11 @@ public class ClienteController {
         return clienteService.atualizar(id, req);
     }
 
-    /** "Score da casa": saldo devedor calculado + prazo médio de pagamento. */
     @GetMapping("/{id}/score")
     public ScoreCliente score(@PathVariable Long id) {
         return clienteService.score(id);
     }
 
-    /** Busca por nº da notinha: devolve o cliente daquela venda. */
     @GetMapping("/por-venda/{vendaId}")
     public ClienteDTO porVenda(@PathVariable Long vendaId) {
         return clienteService.porVenda(vendaId);

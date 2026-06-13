@@ -23,7 +23,6 @@ public class VendaController {
         this.estornoRepository = estornoRepository;
     }
 
-    /** Listagem para conferência/estorno: nº ou cliente, forma e período. */
     @GetMapping
     public br.com.loja.pdv.service.VendaConsultaService.Pagina listar(
             @RequestParam(defaultValue = "") String q,
@@ -43,7 +42,6 @@ public class VendaController {
         return vendaService.fechar(req);
     }
 
-    /** Reimpressão da notinha. */
     @GetMapping("/{id}")
     public VendaResumo resumo(@PathVariable Long id) {
         return vendaService.buscarResumo(id);
@@ -58,7 +56,6 @@ public class VendaController {
         vendaService.cancelar(id, operador.isBlank() ? null : operador, motivo);
     }
 
-    /** Fechamento de caixa: vendas e recebimentos de um dia. */
     @GetMapping("/caixa-dia")
     public br.com.loja.pdv.service.VendaConsultaService.CaixaDia caixaDia(
             @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
