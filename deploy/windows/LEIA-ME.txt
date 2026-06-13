@@ -1,0 +1,44 @@
+============================================================
+  La Vest PDV - Instalacao no Windows 10
+============================================================
+
+O QUE VOCE PRECISA FAZER (uma vez so):
+
+1) INSTALAR O POSTGRESQL
+   - Baixe em: https://www.postgresql.org/download/windows/
+     (botao "Download the installer", versao 16)
+   - Rode o instalador. Quando pedir a SENHA do usuario "postgres",
+     ANOTE essa senha - voce vai precisar dela no passo 2.
+   - Pode aceitar tudo o mais como esta (porta 5432, etc).
+
+2) INSTALAR O LA VEST
+   - Clique com o BOTAO DIREITO em "Instalar-LaVest.bat"
+     e escolha "Executar como administrador".
+   - Quando aparecer "Password for user postgres:", digite a senha
+     que voce anotou no passo 1 e tecle Enter (pode pedir 2 vezes).
+   - Espere terminar. Vai criar um atalho "La Vest" na area de trabalho.
+
+3) USAR
+   - Espere uns 10 segundos depois da instalacao (o sistema esta subindo).
+   - Clique no atalho "La Vest" na area de trabalho.
+   - Entre com:  usuario = admin    senha = admin
+   - Troque essa senha depois, em Ajustes.
+
+============================================================
+PRONTO. O sistema sobe sozinho toda vez que o computador liga.
+============================================================
+
+IMPRESSORA:
+  A nota sai direto na impressora termica, sem perguntar (ja vem
+  configurado). Deixe a impressora termica como IMPRESSORA PADRAO do
+  Windows (Configuracoes > Impressoras) para a nota sair nela.
+
+BACKUP (IMPORTANTE):
+  Os dados (clientes, fiado, vendas) ficam neste computador. Faca
+  copia de seguranca com frequencia - peca ajuda de quem instalou.
+
+PROBLEMAS:
+  - "La Vest" abre tela preta/erro: espere 30s e tente de novo (o
+    sistema ainda estava ligando).
+  - Nao abre de jeito nenhum: reinicie o computador e tente.
+  - Continua sem abrir: chame o suporte de quem montou o sistema.

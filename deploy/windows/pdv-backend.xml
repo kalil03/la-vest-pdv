@@ -1,0 +1,22 @@
+<!-- Servico do Windows via WinSW. O .exe do WinSW deve se chamar
+     pdv-backend.exe e ficar nesta mesma pasta (ao lado deste .xml).
+     %BASE% = pasta onde estao o exe e o jar. -->
+<service>
+  <id>pdv-backend</id>
+  <name>La Vest PDV</name>
+  <description>Sistema de PDV e gestao - La Vest</description>
+
+  <!-- JRE embutido na pasta jre\ (a loja nao instala Java separado) -->
+  <executable>%BASE%\jre\bin\java.exe</executable>
+  <arguments>-jar "%BASE%\pdv.jar"</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+
+  <!-- sobe sozinho quando o Windows liga -->
+  <startmode>Automatic</startmode>
+  <onfailure action="restart" delay="10 sec"/>
+
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+</service>
