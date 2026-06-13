@@ -27,12 +27,19 @@ if ! docker ps --format '{{.Names}}' | grep -q '^pdv-postgres$'; then
 fi
 
 # 2) backend (so se ainda nao estiver no ar)
+# usa systemd --user: o sistema vira um servico que sobrevive a fechar a
+# janela e e gerenciavel (systemctl --user status/stop/restart pdv-backend).
 if ! esta_no_ar; then
     echo "iniciando o sistema..."
-    # setsid: nova sessao, o backend sobrevive ao fechar a janela/terminal
-    setsid "$JAVA" -jar "$JAR" > "$LOGDIR/app.log" 2>&1 < /dev/null &
+    systemctl --user reset-failed pdv-backend 2>/dev/null || true
+    systemd-run --user --unit=pdv-backend \
+        --setenv=JAVA_HOME="$HOME/tools/jdk-21.0.11+10" \
+        "$JAVA" -jar "$JAR" >/dev/null 2>&1
     for _ in $(seq 1 60); do esta_no_ar && break; sleep 1; done
-    esta_no_ar || { echo "ERRO: o sistema nao subiu — veja $LOGDIR/app.log" >&2; exit 1; }
+    esta_no_ar || {
+        echo "ERRO: o sistema nao subiu. Veja: journalctl --user -u pdv-backend" >&2
+        exit 1
+    }
 fi
 
 # 3) janela do aplicativo
