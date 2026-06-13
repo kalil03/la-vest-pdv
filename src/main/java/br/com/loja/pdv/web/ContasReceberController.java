@@ -17,7 +17,6 @@ public class ContasReceberController {
         this.service = service;
     }
 
-    /** Todas as notinhas/parcelas do crediário com filtros e paginação. */
     @GetMapping("/api/contas-receber")
     public ContasReceberService.Pagina listar(
             @RequestParam(defaultValue = "") String q,

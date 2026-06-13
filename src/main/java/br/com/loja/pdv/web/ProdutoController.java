@@ -21,7 +21,6 @@ public class ProdutoController {
         this.produtoService = produtoService;
     }
 
-    /** Busca com filtros: texto (código/barras/nome), marca, categoria e data de cadastro. */
     @GetMapping
     public List<ProdutoDTO> buscar(@RequestParam(defaultValue = "") String q,
                                    @RequestParam(required = false) Long marcaId,
