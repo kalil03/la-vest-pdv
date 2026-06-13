@@ -29,10 +29,17 @@ else
     echo "logo nao encontrada — usando icone provisorio. Salve a sua em tools/la-vest-logo.png e rode de novo."
 fi
 
-# empacota o jar se faltar ou se a logo mudou
+# empacota o jar se faltar ou se a logo mudou.
+# para o servico antes: sobrescrever o jar com a JVM rodando quebra o
+# classloading do fat jar (ClassNotFoundException). Religa depois.
 if [ ! -f "$RAIZ/target/pdv-0.0.1-SNAPSHOT.jar" ] || [ "$PRECISA_EMPACOTAR" = 1 ]; then
+    RODAVA=0
+    systemctl --user is-active --quiet pdv-backend && RODAVA=1 && systemctl --user stop pdv-backend
     echo "empacotando o sistema..."
     ( cd "$RAIZ" && JAVA_HOME="$HOME/tools/jdk-21.0.11+10" ./mvnw -q -DskipTests package )
+    [ "$RODAVA" = 1 ] && { systemctl --user reset-failed pdv-backend 2>/dev/null || true
+        systemd-run --user --unit=pdv-backend --setenv=JAVA_HOME="$HOME/tools/jdk-21.0.11+10" \
+            "$HOME/tools/jdk-21.0.11+10/bin/java" -jar "$RAIZ/target/pdv-0.0.1-SNAPSHOT.jar" >/dev/null 2>&1; }
 fi
 
 # remove o atalho antigo, se existir
