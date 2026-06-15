@@ -1,22 +1,15 @@
-# PDV - Loja da Família
+# La Vest PDV
 
-Sistema de Ponto de Venda (PDV) e Gestão para loja de roupas, calçados e perfumes.
-O sistema tem foco em agilidade, utilizando operação por teclado para registrar a venda, baixar o estoque, gerenciar crediário (fiado) e imprimir o recibo em uma única ação.
+Sistema de PDV e gestão para loja de roupas, calçados e perfumes. Registra a venda, baixa o estoque, gerencia crediário e imprime o recibo em uma única ação.
 
 ## Pré-requisitos
 
-Para rodar este projeto na sua máquina de desenvolvimento, você precisará de:
+- **Java 21** — ex: `~/tools/jdk-21.0.11+10` (ajuste para o caminho real na sua máquina)
+- **Docker**
 
-1. **Java 21** instalado (`JDK 21`).
-2. **Docker** para subir o banco de dados local.
+## Rodar em desenvolvimento
 
-## Como rodar o projeto localmente
-
-### 1. Subir o Banco de Dados (PostgreSQL)
-
-O projeto usa o PostgreSQL rodando em um container Docker, mapeado na porta **5433** (para não conflitar com um PG local na 5432). O script de inicialização do Spring Boot via Flyway criará o schema automaticamente se os bancos existirem.
-
-Rode o seguinte comando no terminal para subir o container do PostgreSQL já configurado:
+### 1. Subir o banco
 
 ```bash
 docker run -d --name pdv-postgres \
@@ -24,53 +17,86 @@ docker run -d --name pdv-postgres \
   -e POSTGRES_PASSWORD=pdv \
   -p 5433:5432 \
   postgres:latest
-```
 
-Após o container subir, crie os bancos de dados de `dev` e `test`:
-
-```bash
-docker exec -it pdv-postgres psql -U pdv -c "CREATE DATABASE pdv;"
+# o banco "pdv" já é criado automaticamente pelo postgres (POSTGRES_USER=pdv)
+# só precisa criar o banco de testes:
 docker exec -it pdv-postgres psql -U pdv -c "CREATE DATABASE pdv_test;"
 ```
 
-### 2. Configurar o Java (se necessário)
-
-Certifique-se de que o seu `JAVA_HOME` aponta para o JDK 21. Se não estiver configurado globalmente, você pode exportar a variável no terminal antes de rodar o projeto:
+### 2. Exportar o JAVA_HOME
 
 ```bash
-# Exemplo de export no Linux:
-export JAVA_HOME=~/tools/jdk-21.0.11+10
+export JAVA_HOME=~/tools/jdk-21.0.11+10   # ajuste para o caminho real
 ```
 
-### 3. Rodar a aplicação
-
-O projeto utiliza o Maven Wrapper, então não é necessário ter o Maven instalado globalmente. Na pasta raiz do projeto, execute:
+### 3. Subir a aplicação
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-Se tudo estiver correto, o backend subirá na porta **8080**.
+Acesse em **http://localhost:8080**. Login inicial: `admin` / `admin`.
 
-### 4. Acessar o Sistema
-
-Abra o seu navegador e acesse:
- **[http://localhost:8080](http://localhost:8080)**
-
----
-
-## Como rodar os Testes
-
-Os testes de integração utilizam o banco de dados `pdv_test` (que configuramos no passo 1) para validar toda a regra do sistema, de ponta a ponta.
-
-Para rodar os testes, execute o comando:
+### 4. Rodar os testes
 
 ```bash
 ./mvnw test
 ```
 
-## Arquitetura Básica
-- **Backend:** Java 21, Spring Boot 3, Spring Data JPA, Hibernate, PostgreSQL, Flyway.
-- **Frontend:** HTML, CSS e JavaScript Vanilla (servidos no `/src/main/resources/static`).
+---
 
-*Para entender mais sobre o banco de dados, regras do modelo ou os motivos de arquitetura, consulte a documentação técnica (artifacts/documentacao_arquitetura.md) gerada neste repositório.*
+## Produção (loja)
+
+### Empacotar e reiniciar após mudanças no código
+
+Toda alteração em arquivos estáticos (HTML, JS, CSS) ou Java exige reempacotar e reiniciar o backend para ter efeito:
+
+```bash
+# 1. Reempacotar (ajuste o JAVA_HOME para o caminho real do JDK 21 na sua máquina)
+JAVA_HOME=~/.vscode/extensions/redhat.java-1.54.0-linux-x64/jre/21.0.10-linux-x86_64 \
+PATH=$JAVA_HOME/bin:$PATH \
+./mvnw package -DskipTests
+
+# 2. Reiniciar o backend (matar o processo Java atual e subir de novo via atalho do app)
+pkill -f pdv-0.0.1-SNAPSHOT.jar
+```
+
+Depois abra o atalho "Loja La Vest PDV" normalmente — ele sobe o backend do JAR novo.
+
+### Instalar o atalho no desktop (Linux)
+
+```bash
+bash tools/instalar-app.sh
+```
+
+Cria o atalho "Loja La Vest PDV" no menu do sistema. Ao abrir, sobe o banco + backend e abre o Chrome em modo aplicativo (`--kiosk-printing` para imprimir direto na térmica).
+
+### Pacote Windows 10
+
+Gerado por `tools/montar-pacote-windows.sh`. Inclui Edge `--app --kiosk-printing`, PostgreSQL nativo, backend como serviço (WinSW) e JRE embutido. Os arquivos ficam em `deploy/windows/`.
+
+---
+
+## Backup e restauração
+
+Backup automático diário às 21h via cron (`~/backups/pdv-AAAA-MM-DD.dump`, mantém 30 dias):
+
+```bash
+bash tools/backup-pdv.sh
+```
+
+Restaurar:
+
+```bash
+docker exec -i pdv-postgres pg_restore -U pdv -d pdv --clean --if-exists < ~/backups/pdv-ultimo.dump
+```
+
+**Copie `~/backups/` para fora do PC com frequência.**
+
+---
+
+## Stack
+
+- **Backend:** Java 21 · Spring Boot 3 · Spring Data JPA · Hibernate · PostgreSQL · Flyway
+- **Frontend:** HTML/CSS/JS puro servido pelo Spring Boot (sem frameworks)
+- **Impressão:** página HTML formatada para bobina 80mm via `window.print()`
