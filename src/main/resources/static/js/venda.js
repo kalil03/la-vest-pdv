@@ -823,7 +823,7 @@ resetarVenda();
     await vendedoresProntos;
     if (venda.vendedorId) $('c-vendedor').value = venda.vendedorId;
     $('c-observacao').value = venda.observacao || '';
-    $('v-data').value = new Date(venda.data).toLocaleDateString('sv-SE');
+    $('v-data').value = new Date(venda.data).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
     selecionarForma(venda.formaPagamento);
     renderItens();
     if (typeof atualizarAvancar === 'function') atualizarAvancar();
