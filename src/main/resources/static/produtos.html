@@ -60,6 +60,20 @@
     }
     .toast.ok { background: var(--primary); }
 
+    .combobox-wrap { position: relative; display: block; }
+    .combobox-wrap .cb-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--muted-foreground); pointer-events: none; z-index: 1; }
+    .combobox-dropdown {
+      position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+      z-index: 100; max-height: 210px; overflow-y: auto; padding: 4px 0;
+    }
+    .combobox-dropdown li {
+      padding: 7px 12px; font-size: 13px; cursor: pointer; list-style: none; color: var(--foreground);
+    }
+    .combobox-dropdown li:hover, .combobox-dropdown li.active { background: var(--muted); }
+    .combobox-dropdown .cb-empty { padding: 8px 12px; font-size: 12px; color: var(--muted-foreground); cursor: default; }
+
     /* Estilos dinâmicos do JS */
     #lista tr { cursor: pointer; transition: background 0.2s; border-bottom: 1px solid var(--border); }
     #lista tr:hover { background: rgba(0,0,0,0.03); }
@@ -247,13 +261,19 @@
                 <div class="grid grid-cols-2 gap-3">
                   <div>
                     <label for="marca" class="block text-muted-foreground text-[11px] font-medium mb-1.5">Marca</label>
-                    <div class="relative w-full">
-                      <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground"></i>
-                      <select id="marca" required class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"><option value="">Selecione...</option></select></div>
+                    <div class="combobox-wrap">
+                      <svg class="cb-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                      <input id="marca" type="text" autocomplete="off" placeholder="Buscar marca..." class="w-full bg-secondary border border-border rounded-md pl-8 pr-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                      <ul id="marca-dropdown" class="combobox-dropdown" hidden></ul>
+                    </div>
                   </div>
                   <div>
                     <label for="categoria" class="block text-muted-foreground text-[11px] font-medium mb-1.5">Categoria</label>
-                    <select id="categoria" class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"><option value="">Selecione...</option></select>
+                    <div class="combobox-wrap">
+                      <svg class="cb-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                      <input id="categoria" type="text" autocomplete="off" placeholder="Buscar categoria..." class="w-full bg-secondary border border-border rounded-md pl-8 pr-3 py-2 text-[13px] text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                      <ul id="categoria-dropdown" class="combobox-dropdown" hidden></ul>
+                    </div>
                   </div>
                 </div>
               </div>

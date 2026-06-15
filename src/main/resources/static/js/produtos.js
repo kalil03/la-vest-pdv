@@ -12,6 +12,60 @@ const $toast = $('toast');
 
 let produtosCache = []; // último resultado da busca, para preencher edição
 
+// ---------- combobox genérico ----------
+function initCombobox(inputId, dropdownId, getOptions) {
+  const input = $(inputId);
+  const dropdown = $(dropdownId);
+  let activeIdx = -1;
+
+  function renderOptions(q) {
+    const opts = getOptions().filter((o) => !q || o.toLowerCase().includes(q.toLowerCase()));
+    if (opts.length === 0) {
+      dropdown.innerHTML = '<li class="cb-empty">Nenhum resultado</li>';
+    } else {
+      dropdown.innerHTML = opts.slice(0, 80).map((o, i) =>
+        `<li data-val="${o.replace(/"/g, '&quot;')}" data-idx="${i}">${o}</li>`).join('');
+    }
+    activeIdx = -1;
+    dropdown.querySelectorAll('li[data-val]').forEach((li) => {
+      li.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        input.value = li.dataset.val;
+        dropdown.hidden = true;
+      });
+    });
+  }
+
+  input.addEventListener('focus', () => { renderOptions(input.value); dropdown.hidden = false; });
+  input.addEventListener('input', () => { renderOptions(input.value); dropdown.hidden = false; });
+  input.addEventListener('blur', () => setTimeout(() => { dropdown.hidden = true; }, 150));
+  input.addEventListener('keydown', (e) => {
+    const items = [...dropdown.querySelectorAll('li[data-val]')];
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      input.value = items[activeIdx].dataset.val;
+      dropdown.hidden = true;
+      return;
+    } else if (e.key === 'Escape') {
+      dropdown.hidden = true;
+      return;
+    }
+    items.forEach((li, i) => li.classList.toggle('active', i === activeIdx));
+    if (activeIdx >= 0) items[activeIdx].scrollIntoView({ block: 'nearest' });
+  });
+}
+
+let _marcasOpts = [];
+let _categoriasOpts = [];
+initCombobox('marca', 'marca-dropdown', () => _marcasOpts);
+initCombobox('categoria', 'categoria-dropdown', () => _categoriasOpts);
+
 // ---------- grade ----------
 $temGrade.addEventListener('change', () => {
   $comGrade.hidden = !$temGrade.checked;
@@ -144,12 +198,7 @@ function editarProduto(p) {
 // ---------- filtros e listagem ----------
 async function carregarMarcas() {
   const marcas = await (await fetch('/api/marcas')).json();
-  // select do formulário (marca é obrigatória no cadastro)
-  const form = $('marca');
-  const valorForm = form.value;
-  form.innerHTML = '<option value="">Selecione...</option>' +
-    marcas.map((m) => `<option value="${m.nome}">${m.nome}</option>`).join('');
-  form.value = valorForm;
+  _marcasOpts = marcas.map((m) => m.nome);
   // select do filtro da lista
   const sel = $('f-marca');
   const atual = sel.value;
@@ -160,16 +209,12 @@ async function carregarMarcas() {
 
 async function carregarCategorias() {
   const cats = await (await fetch('/api/produtos/categorias')).json();
-  const optionsHtml = cats.map((c) => `<option value="${c}">${c}</option>`).join('');
-  // select do formulário
-  const form = $('categoria');
-  const valorForm = form.value;
-  form.innerHTML = '<option value="">Selecione...</option>' + optionsHtml;
-  form.value = valorForm;
+  _categoriasOpts = cats;
   // select do filtro da lista
   const sel = $('f-categoria');
   const atual = sel.value;
-  sel.innerHTML = '<option value="">Todas as categorias</option>' + optionsHtml;
+  sel.innerHTML = '<option value="">Todas as categorias</option>' +
+    cats.map((c) => `<option value="${c}">${c}</option>`).join('');
   sel.value = atual;
 }
 
