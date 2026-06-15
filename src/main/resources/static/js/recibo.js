@@ -6,7 +6,7 @@
 
 function reciboHTML(venda, loja) {
   const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const dataHora = new Date(venda.data).toLocaleString('pt-BR');
+  const dataHora = new Date(venda.data).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const dataBr = (iso) => {
     const [a, m, d] = iso.split('-');
     return `${d}/${m}/${a}`;
@@ -152,7 +152,7 @@ function imprimirHTML(html) {
 /** Recibo térmico (80mm) do recebimento de carnê. */
 function reciboCarneHTML(r, loja) {
   const fmtR = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const dataHora = new Date(r.data).toLocaleString('pt-BR');
+  const dataHora = new Date(r.data).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const dataBr = (iso) => { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; };
 
   const linhas = (r.parcelasQuitadas || []).map((p) => `

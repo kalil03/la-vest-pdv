@@ -241,7 +241,7 @@ async function carregarLista() {
       <td class="px-4 py-2.5 text-[13px]">${p.ncm || ''}</td>
       <td class="px-4 py-2.5 text-[13px]">${fmt(p.custo || 0)}</td>
       <td class="px-4 py-2.5 text-[13px] text-primary font-semibold">${fmt(p.preco || 0)}</td>
-      <td class="px-4 py-2.5 text-[13px]">${new Date(p.dataCriacao).toLocaleDateString('pt-BR')}</td>`;
+      <td class="px-4 py-2.5 text-[13px]">${new Date(p.dataCriacao).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</td>`;
     tr.addEventListener('click', () => editarProduto(p));
     $lista.appendChild(tr);
   });

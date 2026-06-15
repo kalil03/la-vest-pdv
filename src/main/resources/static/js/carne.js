@@ -210,7 +210,7 @@ function renderCarne() {
   // nº da nota na frente: o detalhe diz o que o pagamento quitou ("Venda nº 12 (2/3)")
   $('ultimos-lista').innerHTML = us.map((p) => `
     <span class="chip prazo" title="${p.vendedorNome ? 'Recebido por ' + p.vendedorNome : ''}">
-      ${p.detalhe ? `<b>${p.detalhe.split(';')[0].trim()}</b> · ` : ''}${new Date(p.data).toLocaleDateString('pt-BR')} · ${fmt(p.valor)} · ${rotuloTipo(p.tipo)}
+      ${p.detalhe ? `<b>${p.detalhe.split(';')[0].trim()}</b> · ` : ''}${new Date(p.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} · ${fmt(p.valor)} · ${rotuloTipo(p.tipo)}
     </span>`).join('');
 
   renderParcelas();
