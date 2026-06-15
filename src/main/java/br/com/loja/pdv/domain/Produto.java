@@ -45,6 +45,9 @@ public class Produto {
     @Column(nullable = false)
     private Integer origem = 0;    // 0=nacional, 1/2=estrangeira
 
+    private String csosn;          // null = usa o padrão da loja (fiscal.csosn-padrao)
+    private String cfop;           // null = usa o padrão da loja (fiscal.cfop-padrao)
+
     @OneToMany(mappedBy = "produto", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Variacao> variacoes = new ArrayList<>();
 
@@ -202,5 +205,9 @@ public Long getId() { return id; }
     public void setCodigoBarras(String codigoBarras) { this.codigoBarras = codigoBarras; }
     public Integer getOrigem() { return origem; }
     public void setOrigem(Integer origem) { this.origem = origem; }
+    public String getCsosn() { return csosn; }
+    public void setCsosn(String csosn) { this.csosn = csosn; }
+    public String getCfop() { return cfop; }
+    public void setCfop(String cfop) { this.cfop = cfop; }
     public List<Variacao> getVariacoes() { return variacoes; }
 }
