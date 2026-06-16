@@ -15,7 +15,7 @@ public record NovoProdutoRequest(
         String categoria,
         String marcaNome,   // marca criada na hora se ainda não existir
         @NotNull(message = "Preço é obrigatório") @PositiveOrZero BigDecimal preco,
-        String ncm,
+        @NotBlank(message = "NCM é obrigatório") String ncm,
         String cest,
         String unidade,
         String codigoBarras,
