@@ -692,6 +692,27 @@ $('vf-recibo').addEventListener('click', () => {
   if (vendaFechada) imprimirRecibo(vendaFechada, loja);
 });
 
+// Emitir NFC-e da venda fechada. Hoje monta o XML na SEFAZ-PR (fundação grátis);
+// quando o certificado A1 + CSC estiverem configurados, passa a assinar/transmitir.
+$('vf-nfce').addEventListener('click', async () => {
+  if (!vendaFechada) return;
+  const btn = $('vf-nfce');
+  btn.disabled = true;
+  try {
+    const resp = await fetch(`/api/vendas/${vendaFechada.id}/nfce`, { method: 'POST' });
+    const r = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      toast(r.erro || r.mensagem || 'Falha ao emitir NFC-e', 'erro');
+      return;
+    }
+    toast(r.mensagem || 'NFC-e processada', r.status === 'AUTORIZADA' ? 'ok' : 'erro');
+  } catch {
+    toast('Falha de conexão ao emitir NFC-e', 'erro');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 function novaVenda() {
   if (!vendaFechada) {
     toast(itens.length
