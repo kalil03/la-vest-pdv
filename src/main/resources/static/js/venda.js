@@ -624,6 +624,9 @@ function aplicarEstado() {
   $('v-codigo').value = fechada ? `Nº ${vendaFechada.id}` : '';
   $('acoes-fechada').hidden = !fechada;
   $avancar.hidden = fechada;
+  // venda fechada: a forma já está definida — esconde os botões de forma para
+  // o painel caber na tela sem rolar (e dá lugar às ações pós-venda)
+  $formas.hidden = fechada;
   $('nova-venda').classList.toggle('inativa', !fechada);
   $busca.disabled = fechada;
   $busca.placeholder = fechada
