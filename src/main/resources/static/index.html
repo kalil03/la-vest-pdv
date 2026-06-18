@@ -219,8 +219,8 @@
 
     .acoes-fechada { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .acoes-fechada button {
-      padding: 12px 8px;
-      font-size: 13px;
+      padding: 10px 8px;
+      font-size: 12.5px;
       font-weight: 600;
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -228,8 +228,12 @@
       cursor: pointer;
       transition: all 0.15s;
       display: flex; align-items: center; justify-content: center; gap: 6px;
+      white-space: nowrap;
     }
     .acoes-fechada button:hover { background: var(--secondary); }
+    /* NFC-e é a ação principal pós-venda — destaque na cor primária */
+    .acoes-fechada .destaque { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+    .acoes-fechada .destaque:hover { background: color-mix(in srgb, var(--primary) 88%, #000); }
     .acoes-fechada .destrutivo { color: var(--destructive); border-color: color-mix(in srgb, var(--destructive) 35%, transparent); }
     .acoes-fechada .destrutivo:hover { background: var(--destructive); color: #fff; }
     .acoes-fechada .largo { grid-column: 1 / -1; }
@@ -556,9 +560,10 @@
             </button>
 
             <div id="acoes-fechada" class="acoes-fechada" hidden>
+              <button id="vf-nfce" type="button" class="destaque"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> Emitir NFC-e</button>
+              <button id="vf-recibo" type="button"><i data-lucide="printer" class="w-3.5 h-3.5"></i> Reimprimir recibo</button>
               <button id="vf-editar" type="button"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Editar venda</button>
               <button id="vf-cancelar" type="button" class="destrutivo"><i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Cancelar venda</button>
-              <button id="vf-recibo" type="button" class="largo"><i data-lucide="printer" class="w-3.5 h-3.5"></i> Reimprimir recibo</button>
             </div>
 
             <button id="nova-venda" type="button" class="btn-nova inativa">Nova venda <kbd>F10</kbd></button>
