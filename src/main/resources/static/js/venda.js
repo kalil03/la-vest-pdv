@@ -257,7 +257,28 @@ function renderItens() {
   $itensVazio.hidden = itens.length > 0;
   $total.innerHTML = fmt(subtotalVenda()).replace('R$\u00a0', '<span class="cifrao">R$</span>');
   if (typeof atualizarAvancar === 'function') atualizarAvancar();
+  agendarRascunhoVenda();
 }
+
+// ---------- mem\u00f3ria de rascunho da venda (volta ao reabrir o caixa) ----------
+function coletarRascunhoVenda() {
+  return {
+    itens,
+    clienteId: cliente?.id || null,
+    clienteNome: cliente?.nome || $cliente.value.trim() || null,
+    vendedorId: $('c-vendedor').value || null,
+    observacao: $('c-observacao').value,
+    data: $('v-data').value,
+    forma: formaPagamento,
+  };
+}
+
+const _agendaVenda = (typeof Rascunho !== 'undefined')
+  ? Rascunho.autoSave('venda', coletarRascunhoVenda, (d) => Array.isArray(d.itens) && d.itens.length > 0)
+  : function () {};
+
+// n\u00e3o persiste enquanto h\u00e1 venda fechada travada na tela (j\u00e1 virou hist\u00f3rico)
+function agendarRascunhoVenda() { if (!vendaFechada) _agendaVenda(); }
 
 // ---------- cliente ----------
 criarAutocomplete(
@@ -287,6 +308,7 @@ async function selecionarCliente(c) {
     $clienteBadge.className = 'badge em-dia';
   }
   $clienteBadge.hidden = false;
+  agendarRascunhoVenda();
 }
 
 function limparCliente() {
@@ -295,6 +317,7 @@ function limparCliente() {
   $clienteBadge.hidden = true;
   $clienteLimpar.hidden = true;
   $clienteNovoAviso.hidden = true;
+  agendarRascunhoVenda();
 }
 
 $clienteLimpar.addEventListener('click', () => { limparCliente(); $cliente.focus(); });
@@ -314,6 +337,7 @@ $cliente.addEventListener('input', () => {
 function selecionarForma(forma) {
   formaPagamento = forma;
   [...$formas.children].forEach((b) => b.classList.toggle('ativa', b.dataset.forma === forma));
+  agendarRascunhoVenda();
 }
 
 $formas.addEventListener('click', (e) => {
@@ -593,6 +617,7 @@ async function confirmarVenda() {
     // a venda fica na tela, travada: dá para cancelar/editar ou abrir uma nova
     vendaFechada = venda;
     localStorage.removeItem('pdv.recuperacao');
+    if (typeof Rascunho !== 'undefined') Rascunho.limpar('venda');
     fecharModal();
     aplicarEstado();
   } catch {
@@ -724,6 +749,7 @@ function novaVenda() {
     return;
   }
   vendaFechada = null;
+  if (typeof Rascunho !== 'undefined') Rascunho.limpar('venda');
   resetarVenda();
   $busca.focus();
 }
@@ -893,4 +919,49 @@ resetarVenda();
     }
   }, 100);
   setTimeout(() => clearInterval(limparAoRecusar), 3000);
+})();
+
+// ============================================================
+// Rascunho do caixa: cliente/vendedor/observação/data também
+// disparam o auto-save; ao reabrir a aba, o carrinho volta.
+// (edição via ?editar= e a recuperação de estorno têm prioridade)
+// ============================================================
+['c-observacao', 'c-vendedor', 'v-data', 'cliente'].forEach((id) => {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('input', agendarRascunhoVenda);
+  el.addEventListener('change', agendarRascunhoVenda);
+});
+
+(function () {
+  if (typeof Rascunho === 'undefined') return;
+  if (new URLSearchParams(location.search).get('editar')) return;
+  let rec = null;
+  try { rec = JSON.parse(localStorage.getItem('pdv.recuperacao') || 'null'); } catch (e) { /* corrompido */ }
+  if (rec && Array.isArray(rec.itens) && rec.itens.length) return; // recuperação tem prioridade
+
+  const d = Rascunho.carregar('venda');
+  if (!d || !Array.isArray(d.itens) || !d.itens.length) return;
+
+  itens = d.itens;
+  if (d.clienteId) selecionarCliente({ id: d.clienteId, nome: d.clienteNome });
+  else if (d.clienteNome) { $cliente.value = d.clienteNome; $cliente.dispatchEvent(new Event('input')); }
+  vendedoresProntos.then(() => {
+    if (d.vendedorId) $('c-vendedor').value = d.vendedorId;
+    if (typeof atualizarAvancar === 'function') atualizarAvancar();
+  });
+  if (d.observacao) $('c-observacao').value = d.observacao;
+  if (d.data) $('v-data').value = d.data;
+  selecionarForma(d.forma || 'DINHEIRO');
+  renderItens();
+
+  Rascunho.aviso('Rascunho de venda recuperado', () => {
+    Rascunho.limpar('venda');
+    itens = [];
+    limparCliente();
+    $('c-observacao').value = '';
+    selecionarForma('DINHEIRO');
+    renderItens();
+    $busca.focus();
+  });
 })();
