@@ -74,7 +74,7 @@ $temGrade.addEventListener('change', () => {
 
 function adicionarLinhaVariacao(tamanho = '', cor = '') {
   const row = document.createElement('div');
-  row.className = 'flex items-end gap-2 mb-2';
+  row.className = 'variacao-row flex items-end gap-2 mb-2';
   row.innerHTML = `
     <div class="flex-1"><label class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Tamanho</label><input class="v-tamanho w-full bg-background border border-border rounded-md px-2 py-1.5 text-[12px] focus:border-primary outline-none" type="text" value="${tamanho}"></div>
     <div class="flex-1"><label class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Cor</label><input class="v-cor w-full bg-background border border-border rounded-md px-2 py-1.5 text-[12px] focus:border-primary outline-none" type="text" value="${cor}"></div>
@@ -141,6 +141,7 @@ $form.addEventListener('submit', async (e) => {
   }
   const produto = await resp.json();
   toast(id ? `Produto ${produto.codigo} atualizado` : `Produto salvo — código ${produto.codigo}`, 'ok');
+  if (typeof Rascunho !== 'undefined') Rascunho.limpar('produto');
   limparFormulario();
   carregarMarcas();
   carregarCategorias();
@@ -278,4 +279,54 @@ window.novoCadastro = () => {
   document.getElementById('detalhe-produto').hidden = false;
   $('nome').focus();
 };
+
+// ---------- memória de rascunho do cadastro (produto novo volta ao reabrir) ----------
+const CAMPOS_PRODUTO = ['codigo', 'nome', 'marca', 'categoria', 'preco', 'ncm', 'cest', 'unidade',
+  'codigo-barras', 'origem', 'pCusto', 'pLucro', 'pAtacado', 'pLucroAtacado', 'estoque', 'estMinimo', 'tributado'];
+
+function coletarRascunhoProduto() {
+  const f = {};
+  CAMPOS_PRODUTO.forEach((id) => { const el = $(id); if (el) f[id] = el.value; });
+  f._grade = $temGrade.checked;
+  f._variacoes = [...$variacoes.children].map((r) => ({
+    tamanho: r.querySelector('.v-tamanho')?.value || '',
+    cor: r.querySelector('.v-cor')?.value || '',
+  }));
+  return f;
+}
+
+function temConteudoProduto(f) {
+  return !!((f.nome && f.nome.trim()) || (f.codigo && f.codigo.trim()) || (f.preco && String(f.preco).trim()));
+}
+
+const _agendaProduto = (typeof Rascunho !== 'undefined')
+  ? Rascunho.autoSave('produto', coletarRascunhoProduto, temConteudoProduto)
+  : function () {};
+
+// só guarda rascunho de PRODUTO NOVO (a edição é carregada do servidor)
+function agendarRascunhoProduto() { if (!$('produto-id').value) _agendaProduto(); }
+
+$form.addEventListener('input', agendarRascunhoProduto);
+$form.addEventListener('change', agendarRascunhoProduto);
+$('cancelar-edicao').addEventListener('click', () => { if (typeof Rascunho !== 'undefined') Rascunho.limpar('produto'); });
+
+function restaurarRascunhoProduto() {
+  if (typeof Rascunho === 'undefined') return;
+  const f = Rascunho.carregar('produto');
+  if (!f || !temConteudoProduto(f)) return;
+  if (typeof window.novoCadastro === 'function') window.novoCadastro(); // abre o painel limpo
+  CAMPOS_PRODUTO.forEach((id) => { const el = $(id); if (el && f[id] != null) el.value = f[id]; });
+  if (f._grade) {
+    $temGrade.checked = true;
+    $comGrade.hidden = false;
+    $variacoes.innerHTML = '';
+    (f._variacoes || []).forEach((v) => adicionarLinhaVariacao(v.tamanho, v.cor));
+    if ($variacoes.children.length === 0) adicionarLinhaVariacao();
+  }
+  Rascunho.salvar('produto', coletarRascunhoProduto()); // mantém o rascunho vivo (preenchi via JS)
+  Rascunho.aviso('Rascunho de produto recuperado', () => { Rascunho.limpar('produto'); limparFormulario(); });
+}
+
+// roda depois do window.onload do produtos.html (que define novoCadastro/abrirPainel)
+window.addEventListener('load', () => setTimeout(restaurarRascunhoProduto, 0));
 
