@@ -4,7 +4,7 @@ Sistema de PDV e gestão para loja de roupas, calçados e perfumes. Registra a v
 
 ## Pré-requisitos
 
-- **Java 21** — ex: `~/tools/jdk-21.0.11+10` (ajuste para o caminho real na sua máquina)
+- **Java 21** — `~/tools/jdk-21.0.11+10` (o sistema só tem Java 17)
 - **Docker**
 
 ## Rodar em desenvolvimento
@@ -18,15 +18,14 @@ docker run -d --name pdv-postgres \
   -p 5433:5432 \
   postgres:latest
 
-# o banco "pdv" já é criado automaticamente pelo postgres (POSTGRES_USER=pdv)
-# só precisa criar o banco de testes:
+docker exec -it pdv-postgres psql -U pdv -c "CREATE DATABASE pdv;"
 docker exec -it pdv-postgres psql -U pdv -c "CREATE DATABASE pdv_test;"
 ```
 
 ### 2. Exportar o JAVA_HOME
 
 ```bash
-export JAVA_HOME=~/tools/jdk-21.0.11+10   # ajuste para o caminho real
+export JAVA_HOME=~/tools/jdk-21.0.11+10
 ```
 
 ### 3. Subir a aplicação
@@ -47,26 +46,17 @@ Acesse em **http://localhost:8080**. Login inicial: `admin` / `admin`.
 
 ## Produção (loja)
 
-### Empacotar e reiniciar após mudanças no código
-
-Toda alteração em arquivos estáticos (HTML, JS, CSS) ou Java exige reempacotar e reiniciar o backend para ter efeito:
+### Empacotar após mudanças no código
 
 ```bash
-# 1. Reempacotar (ajuste o JAVA_HOME para o caminho real do JDK 21 na sua máquina)
-JAVA_HOME=~/.vscode/extensions/redhat.java-1.54.0-linux-x64/jre/21.0.10-linux-x86_64 \
-PATH=$JAVA_HOME/bin:$PATH \
-./mvnw package -DskipTests
-
-# 2. Reiniciar o backend (matar o processo Java atual e subir de novo via atalho do app)
-pkill -f pdv-0.0.1-SNAPSHOT.jar
+./mvnw package
 ```
-
-Depois abra o atalho "Loja La Vest PDV" normalmente — ele sobe o backend do JAR novo.
 
 ### Instalar o atalho no desktop (Linux)
 
 ```bash
 bash tools/instalar-app.sh
+
 ```
 
 Cria o atalho "Loja La Vest PDV" no menu do sistema. Ao abrir, sobe o banco + backend e abre o Chrome em modo aplicativo (`--kiosk-printing` para imprimir direto na térmica).

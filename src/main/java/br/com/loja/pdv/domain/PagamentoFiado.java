@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
+
 @Table(name = "pagamento_fiado")
 public class PagamentoFiado {
 
