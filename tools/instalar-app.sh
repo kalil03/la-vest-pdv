@@ -12,17 +12,24 @@ mkdir -p "$APPS" "$ICONE_PNG" "$ICONE_SVG"
 
 chmod +x "$RAIZ/tools/pdv-app.sh"
 
-# icone: prefere a logo da loja (tools/la-vest-logo.png); senao usa o placeholder SVG.
-# a logo tambem vira o favicon = icone da janela do Chrome em modo aplicativo.
+# icone: prefere a logo da loja (tools/la-vest-logo.png), redimensionada p/ 256px.
+# a logo tambem vira o favicon = icone da janela do Chrome/Edge em modo aplicativo.
+# redimensionar evita carregar a master (2048px/MBs) em toda pagina.
 PRECISA_EMPACOTAR=0
 rm -f "$ICONE_PNG/la-vest.png" "$ICONE_SVG/la-vest.svg"
+gerar_icone() { # origem destino -> 256x256 via ImageMagick; sem ele, copia cru
+    if command -v convert >/dev/null 2>&1; then convert "$1" -resize 256x256 "$2"; else cp "$1" "$2"; fi
+}
 if [ -f "$RAIZ/tools/la-vest-logo.png" ]; then
-    cp "$RAIZ/tools/la-vest-logo.png" "$ICONE_PNG/la-vest.png"
+    gerar_icone "$RAIZ/tools/la-vest-logo.png" "$ICONE_PNG/la-vest.png"
     # favicon (janela do app): so re-empacota se a logo mudou
-    if ! cmp -s "$RAIZ/tools/la-vest-logo.png" "$RAIZ/src/main/resources/static/favicon.png" 2>/dev/null; then
-        cp "$RAIZ/tools/la-vest-logo.png" "$RAIZ/src/main/resources/static/favicon.png"
+    TMPFAV="$(mktemp --suffix=.png)"
+    gerar_icone "$RAIZ/tools/la-vest-logo.png" "$TMPFAV"
+    if ! cmp -s "$TMPFAV" "$RAIZ/src/main/resources/static/favicon.png" 2>/dev/null; then
+        cp "$TMPFAV" "$RAIZ/src/main/resources/static/favicon.png"
         PRECISA_EMPACOTAR=1
     fi
+    rm -f "$TMPFAV"
     echo "usando a logo La Vest (tools/la-vest-logo.png)"
 else
     cp "$RAIZ/tools/pdv-icon.svg" "$ICONE_SVG/la-vest.svg"
