@@ -28,6 +28,7 @@ $form.addEventListener('submit', async (e) => {
     return;
   }
   toast(id ? 'Cliente atualizado' : 'Cliente cadastrado', 'ok');
+  if (typeof Rascunho !== 'undefined') Rascunho.limpar('cliente');
   limparFormulario();
   carregarLista();
 });
@@ -105,3 +106,37 @@ window.novoCadastro = () => {
   document.getElementById('detalhe-produto').hidden = false;
   $('nome').focus();
 };
+
+// ---------- memória de rascunho do cadastro (cliente novo volta ao reabrir) ----------
+function coletarRascunhoCliente() {
+  const f = {};
+  CAMPOS.forEach((c) => { const el = $(c); if (el) f[c] = el.value; });
+  return f;
+}
+
+function temConteudoCliente(f) {
+  return !!((f.nome && f.nome.trim()) || (f.cpf && f.cpf.trim()) || (f.telefone && f.telefone.trim()));
+}
+
+const _agendaCliente = (typeof Rascunho !== 'undefined')
+  ? Rascunho.autoSave('cliente', coletarRascunhoCliente, temConteudoCliente)
+  : function () {};
+
+// só guarda rascunho de CLIENTE NOVO (a edição é carregada do servidor)
+function agendarRascunhoCliente() { if (!$('cliente-id').value) _agendaCliente(); }
+
+$form.addEventListener('input', agendarRascunhoCliente);
+$form.addEventListener('change', agendarRascunhoCliente);
+$('cancelar-edicao').addEventListener('click', () => { if (typeof Rascunho !== 'undefined') Rascunho.limpar('cliente'); });
+
+function restaurarRascunhoCliente() {
+  if (typeof Rascunho === 'undefined') return;
+  const f = Rascunho.carregar('cliente');
+  if (!f || !temConteudoCliente(f)) return;
+  if (typeof window.novoCadastro === 'function') window.novoCadastro(); // abre o painel limpo
+  CAMPOS.forEach((c) => { const el = $(c); if (el && f[c] != null) el.value = f[c]; });
+  Rascunho.salvar('cliente', coletarRascunhoCliente()); // mantém o rascunho vivo (preenchi via JS)
+  Rascunho.aviso('Rascunho de cliente recuperado', () => { Rascunho.limpar('cliente'); limparFormulario(); });
+}
+
+window.addEventListener('load', () => setTimeout(restaurarRascunhoCliente, 0));
