@@ -920,6 +920,7 @@ resetarVenda();
     await vendedoresProntos;
     if (c.vendedorId) $('c-vendedor').value = c.vendedorId;
     if (c.observacao) $('c-observacao').value = c.observacao;
+    selecionarForma('FIADO'); // condicional é loja de crediário: já vem fiado (cai no carnê); troca p/ à vista se for o caso
     condicionalEmFechamento = Number(condId);
     renderItens();
     if (typeof atualizarAvancar === 'function') atualizarAvancar();
