@@ -79,7 +79,7 @@ async function carregar() {
   $('lista').innerHTML = devedores.map((d, i) => {
     const temWhats = !!telParaWhats(d.telefone);
     return `
-    <tr>
+    <tr data-i="${i}" tabindex="0">
       <td class="font-medium">${d.nome}<div class="text-[11px] text-muted-foreground font-normal">em aberto ${fmt(d.totalAberto)}</div></td>
       <td class="mono text-[12px]">${d.telefone || '<span class="text-muted-foreground">sem telefone</span>'}</td>
       <td>${chipAtraso(d.diasAtraso)}<div class="text-[11px] text-muted-foreground mt-0.5">desde ${dataBr(d.vencimentoMaisAntigo)}</div></td>
@@ -88,11 +88,11 @@ async function carregar() {
       <td>${celulaContato(d)}</td>
       <td>
         <div class="flex flex-wrap gap-1.5">
-          <button class="acao-btn" data-acao="contato" data-i="${i}" title="Registrar contato"><i data-lucide="phone-call" class="w-3.5 h-3.5"></i> Contato</button>
-          <button class="acao-btn zap" data-acao="zap" data-i="${i}" ${temWhats ? '' : 'disabled title="Sem telefone com DDD"'}><i data-lucide="message-circle" class="w-3.5 h-3.5"></i></button>
-          <button class="acao-btn" data-acao="copiar" data-i="${i}" title="Copiar a mensagem de cobrança"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
-          <button class="acao-btn" data-acao="imprimir" data-i="${i}" title="Imprimir lembrete na térmica"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
-          <button class="acao-btn" data-acao="carne" data-i="${i}" title="Abrir o carnê para receber"><i data-lucide="wallet" class="w-3.5 h-3.5"></i></button>
+          <button class="acao-btn" data-acao="contato" data-i="${i}" tabindex="-1" title="Registrar contato"><i data-lucide="phone-call" class="w-3.5 h-3.5"></i> Contato</button>
+          <button class="acao-btn zap" data-acao="zap" data-i="${i}" tabindex="-1" ${temWhats ? '' : 'disabled title="Sem telefone com DDD"'}><i data-lucide="message-circle" class="w-3.5 h-3.5"></i></button>
+          <button class="acao-btn" data-acao="copiar" data-i="${i}" tabindex="-1" title="Copiar a mensagem de cobrança"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
+          <button class="acao-btn" data-acao="imprimir" data-i="${i}" tabindex="-1" title="Imprimir lembrete na térmica"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
+          <button class="acao-btn" data-acao="carne" data-i="${i}" tabindex="-1" title="Abrir o carnê para receber"><i data-lucide="wallet" class="w-3.5 h-3.5"></i></button>
         </div>
       </td>
     </tr>`;
@@ -234,6 +234,31 @@ $('modal-contato').addEventListener('click', (e) => { if (e.target.id === 'modal
 let timer = null;
 $('f-q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(carregar, 250); });
 $('f-ordenar').addEventListener('change', carregar);
+
+// Enter no campo de nome = abre o primeiro da lista (igual ao carnê)
+$('f-q').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  clearTimeout(timer);
+  carregar().then(() => {
+    if (devedores.length) abrirModalContato(devedores[0]);
+    else toast('Nenhum cliente em atraso com esse nome', 'erro');
+  });
+});
+
+// navegação por teclado na lista: Tab/setas movem, Enter/Espaço abre o contato
+$('lista').addEventListener('keydown', (e) => {
+  const tr = e.target.closest('tr[data-i]');
+  if (!tr) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    abrirModalContato(devedores[Number(tr.dataset.i)]);
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault(); tr.nextElementSibling?.focus();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault(); tr.previousElementSibling?.focus();
+  }
+});
 
 let toastTimer = null;
 function toast(msg, tipo = '') {
