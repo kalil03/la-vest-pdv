@@ -70,9 +70,17 @@ public class ContasReceberService {
                   AND (CAST(:ate AS date) IS NULL OR t.vencimento <= :ate)
                 """ + condicaoStatus(status);
 
+        // numa busca por nome/notinha, as parcelas em aberto vêm primeiro (são as
+        // acionáveis); o histórico já quitado fica embaixo. Sem busca, mantém a
+        // ordem cronológica por vencimento.
+        boolean temBusca = q != null && !q.trim().isEmpty();
+        String ordem = temBusca
+                ? " ORDER BY (t.valor_aberto > 0) DESC, t.vencimento, t.id "
+                : " ORDER BY t.vencimento, t.id ";
+
         List<Conta> contas = jdbc.query(
                 "SELECT * FROM (" + FONTE + ") t " + filtro
-                        + " ORDER BY t.vencimento, t.id LIMIT :limite OFFSET :offset",
+                        + ordem + "LIMIT :limite OFFSET :offset",
                 params,
                 (rs, i) -> {
                     BigDecimal valor = rs.getBigDecimal("valor");
