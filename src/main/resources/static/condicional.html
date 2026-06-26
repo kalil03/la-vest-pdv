@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="antialiased">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <title>PDV — Condicional</title>
+  <script src="/js/auth.js"></script>
+  <script src="/vendor/tailwind.js"></script>
+  <script src="/js/moeda.js"></script>
+  <script src="/vendor/lucide.js"></script>
+  <link rel="stylesheet" href="/vendor/fonts.css">
+  <link rel="stylesheet" href="/css/pdv.css">
+  <style>
+    :root {
+      --background: #ffffff; --foreground: oklch(0.145 0 0);
+      --primary: #030213; --primary-foreground: oklch(1 0 0);
+      --secondary: oklch(0.95 0.0058 264.53); --muted: #ececf0; --muted-foreground: #717182;
+      --destructive: #d4183d; --border: rgba(0, 0, 0, 0.1);
+      --sidebar: oklch(0.985 0 0); --sidebar-foreground: oklch(0.145 0 0);
+      --sidebar-primary: #030213; --sidebar-accent: oklch(0.97 0 0);
+      --sidebar-accent-foreground: oklch(0.205 0 0); --sidebar-border: oklch(0.922 0 0);
+      --ok: #16a34a; --ok-bg: #f0fdf4; --warn: #d97706; --warn-bg: #fffbeb;
+      --bad: #d4183d; --bad-bg: #fef2f2;
+    }
+    body { font-family: 'Inter', system-ui, sans-serif; margin: 0; background: var(--background); color: var(--foreground); }
+    [hidden] { display: none !important; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    .chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .chip.aberta { background: var(--warn-bg); color: var(--warn); }
+    .chip.fechada { background: var(--ok-bg); color: var(--ok); }
+    .chip.cancelada { background: var(--muted); color: var(--muted-foreground); }
+
+    .tab-c { width: 100%; border-collapse: collapse; }
+    .tab-c th { padding: 10px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; color: var(--muted-foreground); text-align: left; border-bottom: 1px solid var(--border); background: var(--secondary); }
+    .tab-c td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .tab-c tbody tr:hover { background: var(--secondary); }
+    .tab-c .num { text-align: right; font-family: 'JetBrains Mono', monospace; }
+
+    .inp { font-size: 14px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--background); color: var(--foreground); width: 100%; outline: none; }
+    .inp:focus { border-color: var(--primary); }
+    .acao-btn { padding: 5px 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--background); font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+    .acao-btn:hover { background: var(--secondary); }
+    .acao-btn.perigo { color: var(--destructive); }
+    .acao-btn.primario { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+
+    .dropdown { list-style: none; margin: 0; padding: 4px; background: var(--background); border: 1px solid var(--border); border-radius: 10px; max-height: 280px; overflow-y: auto; z-index: 50; }
+    .dropdown li { padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+    .dropdown li.ativo, .dropdown li:hover { background: var(--secondary); }
+    .dropdown .cod { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted-foreground); }
+    .vbtn { padding: 5px 10px; margin: 2px; border: 1px solid var(--border); border-radius: 7px; background: var(--background); font-size: 12px; cursor: pointer; }
+    .vbtn:hover { background: var(--primary); color: #fff; }
+  </style>
+  <script>
+    tailwind.config = { theme: { extend: { colors: {
+      background: 'var(--background)', foreground: 'var(--foreground)',
+      primary: { DEFAULT: 'var(--primary)', foreground: 'var(--primary-foreground)' },
+      secondary: { DEFAULT: 'var(--secondary)', foreground: 'var(--secondary-foreground)' },
+      muted: { DEFAULT: 'var(--muted)', foreground: 'var(--muted-foreground)' },
+      destructive: { DEFAULT: 'var(--destructive)' }, border: 'var(--border)',
+      sidebar: { DEFAULT: 'var(--sidebar)', foreground: 'var(--sidebar-foreground)',
+        primary: 'var(--sidebar-primary)', accent: 'var(--sidebar-accent)',
+        'accent-foreground': 'var(--sidebar-accent-foreground)', border: 'var(--sidebar-border)' } } } } }
+  </script>
+</head>
+<body class="bg-background overflow-hidden text-foreground">
+  <div class="flex h-screen overflow-hidden">
+    <!-- SIDEBAR -->
+    <aside class="w-56 flex-shrink-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border z-20 relative">
+      <div class="flex items-center gap-2.5 px-5 py-4 border-b border-sidebar-border">
+        <div class="w-7 h-7 rounded-md overflow-hidden flex items-center justify-center">
+          <img src="/favicon.png" alt="La Vest" class="w-full h-full object-cover">
+        </div>
+        <div>
+          <p class="text-sidebar-accent-foreground leading-none font-semibold text-[13px]">La Vest</p>
+          <p class="text-sidebar-foreground mt-1 text-[11px]">Sistema de Gestão</p>
+        </div>
+      </div>
+      <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <p class="text-sidebar-foreground px-2 mb-2 uppercase font-semibold text-[10px] tracking-widest">Menu Principal</p>
+        <a href="/" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="layout-dashboard" class="w-[15px] h-[15px]"></i><span class="flex-1">Venda (Caixa)</span>
+        </a>
+        <a href="/condicional.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group bg-sidebar-accent text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="shirt" class="w-[15px] h-[15px] text-primary"></i>
+          <span class="flex-1 font-medium">Condicional</span>
+          <i data-lucide="chevron-right" class="w-3 h-3 text-primary"></i>
+        </a>
+        <a href="/carne.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="wallet" class="w-[15px] h-[15px]"></i><span class="flex-1">Carnê</span>
+        </a>
+        <a href="/contas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="receipt" class="w-[15px] h-[15px]"></i><span class="flex-1">A Receber</span>
+        </a>
+        <a href="/cobranca.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="phone-outgoing" class="w-[15px] h-[15px]"></i><span class="flex-1">Cobrança</span>
+        </a>
+        <a href="/produtos.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="package" class="w-[15px] h-[15px]"></i><span class="flex-1">Produtos</span>
+        </a>
+        <a href="/etiquetas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="tags" class="w-[15px] h-[15px]"></i><span class="flex-1">Etiquetas</span>
+        </a>
+        <a href="/clientes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="users" class="w-[15px] h-[15px]"></i><span class="flex-1">Clientes</span>
+        </a>
+        <a href="/ajustes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="settings" class="w-[15px] h-[15px]"></i><span class="flex-1">Ajustes</span>
+        </a>
+      </nav>
+      <div class="px-4 py-3 border-t border-sidebar-border">
+        <div class="flex items-center gap-2.5">
+          <div id="usuario-avatar" class="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[11px] font-semibold text-primary"></div>
+          <div class="flex-1 min-w-0">
+            <p id="usuario-nome" class="text-sidebar-accent-foreground truncate text-[12px] font-medium"></p>
+            <button id="sair" class="text-sidebar-foreground text-[11px] hover:underline bg-transparent border-0 p-0 cursor-pointer">Sair</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden" style="background: #f3f3f5">
+      <header class="bg-background border-b border-border px-8 py-4 flex items-center justify-between">
+        <div>
+          <h1 class="text-lg font-bold flex items-center gap-2 m-0"><i data-lucide="shirt" class="w-5 h-5"></i> Condicional</h1>
+          <p class="text-[12px] text-muted-foreground m-0 mt-1">Peças que a cliente leva para provar em casa — fecha virando venda do que ela ficar</p>
+        </div>
+        <button id="btn-nova" class="acao-btn primario !px-4 !py-2 !text-[14px]"><i data-lucide="plus" class="w-4 h-4"></i> Nova condicional</button>
+      </header>
+
+      <div class="flex-1 overflow-y-auto p-8">
+        <div class="max-w-5xl mx-auto w-full flex flex-col gap-5">
+
+          <!-- LISTA -->
+          <div id="view-lista" class="flex flex-col gap-4">
+            <div class="flex items-center gap-2">
+              <label class="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">Mostrar</label>
+              <select id="f-status" class="inp !w-auto !py-2">
+                <option value="ABERTA">Abertas</option>
+                <option value="FECHADA">Fechadas</option>
+                <option value="CANCELADA">Canceladas</option>
+                <option value="TODAS">Todas</option>
+              </select>
+            </div>
+            <div class="bg-background border border-border rounded-xl overflow-hidden">
+              <div class="max-h-[65vh] overflow-y-auto">
+                <table class="tab-c">
+                  <thead><tr>
+                    <th>Nº</th><th>Cliente</th><th>Saída</th><th class="num">Peças</th>
+                    <th class="num">Valor</th><th>Status</th><th style="width:230px">Ações</th>
+                  </tr></thead>
+                  <tbody id="lista"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- NOVA -->
+          <div id="view-nova" class="flex-col gap-5" hidden>
+            <div class="bg-background border border-border rounded-xl p-5 flex flex-col gap-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="relative">
+                  <label class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Cliente <span class="text-destructive">*</span></label>
+                  <input id="n-cliente" class="inp" autocomplete="off" placeholder="Buscar por nome, CPF ou telefone">
+                  <ul id="n-cliente-res" class="dropdown absolute left-0 right-0 mt-1 shadow-xl" hidden></ul>
+                  <span id="n-cliente-badge" class="chip aberta mt-2 inline-block" hidden></span>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Vendedor</label>
+                  <select id="n-vendedor" class="inp"><option value="">Selecione...</option></select>
+                </div>
+              </div>
+              <div class="relative">
+                <label class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Adicionar peça</label>
+                <input id="n-busca" class="inp mono" autocomplete="off" placeholder="Código, cód. de barras ou nome do produto (Enter adiciona)">
+                <ul id="n-busca-res" class="dropdown absolute left-0 right-0 mt-1 shadow-xl" hidden></ul>
+              </div>
+              <table class="tab-c">
+                <thead><tr><th>Código</th><th>Produto</th><th class="num" style="width:90px">Qtd</th><th class="num" style="width:130px">Preço</th><th class="num">Subtotal</th><th></th></tr></thead>
+                <tbody id="n-itens"></tbody>
+              </table>
+              <p id="n-vazio" class="text-center text-muted-foreground py-6 text-[14px]">Nenhuma peça ainda — busque um produto acima.</p>
+              <div>
+                <label class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Observação</label>
+                <input id="n-obs" class="inp" placeholder="Ex: levou 2 vestidos e 1 sapato; volta sábado">
+              </div>
+              <div class="flex items-center justify-between border-t border-border pt-4">
+                <div class="text-[14px]"><span class="text-muted-foreground">Total das peças:</span> <strong id="n-total" class="mono text-[18px]">R$ 0,00</strong></div>
+                <div class="flex gap-3">
+                  <button id="n-cancelar" class="acao-btn !px-4 !py-2 !text-[14px]">Voltar</button>
+                  <button id="n-salvar" class="acao-btn primario !px-5 !py-2 !text-[14px]"><i data-lucide="printer" class="w-4 h-4"></i> Salvar e imprimir comprovante</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/js/recibo.js"></script>
+  <script src="/js/condicional.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>
