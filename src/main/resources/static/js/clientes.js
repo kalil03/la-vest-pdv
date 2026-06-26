@@ -69,7 +69,7 @@ async function carregarLista() {
     tr.className = 'cursor-pointer hover:bg-muted transition-colors';
     tr.innerHTML = `
       <td>${c.nome}</td>
-      <td>${c.cpf ?? '<small class="text-muted-foreground">falta</small>'}</td>
+      <td>${c.cpf ?? '<span class="text-muted-foreground">—</span>'}</td>
       <td>${c.cidade ?? ''}</td>
       <td class="num text-right ${deve ? 'neg' : ''}">${deve ? fmt(c.saldoDevedor) : '—'}</td>`;
     tr.addEventListener('click', () => editarCliente(c));
