@@ -80,4 +80,32 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
               AND p.venda_id IS NULL -- entrada nasce junto da venda: contaria "pagou em 0 dias"
             """, nativeQuery = true)
     Double prazoMedioPagamentoDias(@Param("id") Long id);
+
+    /**
+     * Parcelas vencidas em aberto do cliente — alerta de risco no caixa antes de
+     * vender mais fiado. Junta as duas origens (carnê migrado do SET + parcelas
+     * das vendas), igual à régua de cobrança. Calculado de valor_aberto.
+     */
+    @Query(value = """
+            SELECT COALESCE(SUM(valor_aberto), 0) AS valor, COUNT(*) AS qtd
+            FROM (
+                SELECT COALESCE(p.valor_aberto, 0) AS valor_aberto
+                FROM pagamento_fiado p
+                WHERE p.cliente_id = :id AND p.tipo = 'DEBITO_INICIAL'
+                  AND COALESCE(p.valor_aberto, 0) > 0
+                  AND CAST(p.data AT TIME ZONE 'America/Sao_Paulo' AS date) < CURRENT_DATE
+                UNION ALL
+                SELECT pf.valor_aberto
+                FROM parcela_fiado pf JOIN venda v ON v.id = pf.venda_id
+                WHERE v.cliente_id = :id
+                  AND COALESCE(pf.valor_aberto, 0) > 0
+                  AND pf.vencimento < CURRENT_DATE
+            ) t
+            """, nativeQuery = true)
+    Vencido vencidas(@Param("id") Long id);
+
+    interface Vencido {
+        BigDecimal getValor();
+        long getQtd();
+    }
 }
