@@ -76,7 +76,9 @@ public class ContasReceberService {
         boolean temBusca = q != null && !q.trim().isEmpty();
         String ordem = temBusca
                 ? " ORDER BY (t.valor_aberto > 0) DESC, t.vencimento, t.id "
-                : " ORDER BY t.vencimento, t.id ";
+                // sem busca: cronológico, mas datas corrompidas do legado (ano < 2000)
+                // vão para o fim em vez de poluir o topo da tela
+                : " ORDER BY (t.vencimento < DATE '2000-01-01') ASC, t.vencimento, t.id ";
 
         List<Conta> contas = jdbc.query(
                 "SELECT * FROM (" + FONTE + ") t " + filtro
