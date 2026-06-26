@@ -93,9 +93,11 @@ public class ClienteService {
 
     @Transactional(readOnly = true)
     public ScoreCliente score(Long clienteId) {
+        var vencidas = clienteRepository.vencidas(clienteId);
         return new ScoreCliente(
                 clienteRepository.saldoDevedor(clienteId),
-                clienteRepository.prazoMedioPagamentoDias(clienteId));
+                clienteRepository.prazoMedioPagamentoDias(clienteId),
+                vencidas.getValor(), vencidas.getQtd());
     }
 
     private static String limpar(String s) {

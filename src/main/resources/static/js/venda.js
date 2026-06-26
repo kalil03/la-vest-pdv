@@ -299,10 +299,14 @@ async function selecionarCliente(c) {
   // "Score da casa": quanto deve e em quantos dias costuma pagar
   const score = await (await fetch(`/api/clientes/${c.id}/score`)).json();
   const deve = Number(score.saldoDevedor);
+  const vencidas = Number(score.parcelasVencidas) || 0;
   if (deve > 0) {
     const prazo = score.prazoMedioDias != null ? ` · paga em ~${Math.round(score.prazoMedioDias)} dias` : '';
-    $clienteBadge.textContent = `Deve ${fmt(deve)}${prazo}`;
-    $clienteBadge.className = 'badge';
+    const atraso = vencidas > 0
+      ? ` · ⚠ ${vencidas} vencida${vencidas > 1 ? 's' : ''} (${fmt(score.valorVencido)})`
+      : '';
+    $clienteBadge.textContent = `Deve ${fmt(deve)}${atraso}${prazo}`;
+    $clienteBadge.className = vencidas > 0 ? 'badge atrasado' : 'badge';
   } else {
     $clienteBadge.textContent = 'Em dia';
     $clienteBadge.className = 'badge em-dia';
