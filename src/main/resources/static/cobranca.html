@@ -154,6 +154,7 @@
             <select id="f-ordenar">
               <option value="valor">Maior valor vencido</option>
               <option value="atraso">Mais antigo (mais urgente)</option>
+              <option value="promessa">Promessa de pagamento</option>
               <option value="nome">Nome (A–Z)</option>
             </select>
           </div>
@@ -165,7 +166,7 @@
                 <thead>
                   <tr>
                     <th>Cliente</th><th>Telefone</th><th>Atraso</th><th class="num">Parc. vencidas</th>
-                    <th class="num">Vencido</th><th class="num">Total em aberto</th><th style="width:260px">Ações</th>
+                    <th class="num">Vencido</th><th>Último contato</th><th style="width:300px">Ações</th>
                   </tr>
                 </thead>
                 <tbody id="lista"></tbody>
@@ -180,6 +181,57 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- MODAL: registrar contato de cobranca -->
+  <div id="modal-contato" class="fixed inset-0 z-50 items-center justify-center bg-black/40 p-4" style="display:none">
+    <div class="bg-background border border-border rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-border">
+        <h2 class="m-0 text-[15px] font-bold flex items-center gap-2"><i data-lucide="phone-call" class="w-4 h-4"></i> Registrar contato</h2>
+        <button id="mc-fechar" class="text-muted-foreground hover:text-foreground bg-transparent border-0 cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="p-5 flex flex-col gap-4">
+        <div>
+          <p id="mc-nome" class="m-0 font-semibold text-[14px]"></p>
+          <p id="mc-resumo" class="m-0 text-[12px] text-muted-foreground"></p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Canal</label>
+            <select id="mc-canal" class="w-full px-3 py-2 text-[14px] bg-background border border-border rounded-lg outline-none focus:border-primary">
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="LIGACAO">Ligação</option>
+              <option value="PESSOAL">Pessoalmente</option>
+              <option value="OUTRO">Outro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Resultado</label>
+            <select id="mc-resultado" class="w-full px-3 py-2 text-[14px] bg-background border border-border rounded-lg outline-none focus:border-primary">
+              <option value="PROMETEU">Prometeu pagar</option>
+              <option value="NAO_ATENDEU">Não atendeu</option>
+              <option value="CONTESTOU">Contestou a dívida</option>
+              <option value="SEM_CONDICAO">Sem condição agora</option>
+              <option value="PAGOU">Pagou / vai pagar hoje</option>
+              <option value="OUTRO">Outro</option>
+            </select>
+          </div>
+        </div>
+        <div id="mc-promessa-wrap">
+          <label class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Prometeu pagar em</label>
+          <input id="mc-promessa" type="date" class="w-full px-3 py-2 text-[14px] bg-background border border-border rounded-lg outline-none focus:border-primary">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Observação</label>
+          <input id="mc-obs" type="text" placeholder="Ex: filho disse que ela viaja, retornar semana que vem" class="w-full px-3 py-2 text-[14px] bg-background border border-border rounded-lg outline-none focus:border-primary">
+        </div>
+        <div id="mc-historico"></div>
+        <div class="flex gap-3 justify-end">
+          <button id="mc-cancelar" class="px-4 py-2 rounded-lg border border-border bg-background font-semibold text-[14px] hover:bg-muted">Cancelar</button>
+          <button id="mc-salvar" class="px-5 py-2 rounded-lg bg-primary text-primary-foreground font-bold text-[14px] hover:opacity-90">Salvar contato</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="toast" class="toast" hidden></div>
