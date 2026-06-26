@@ -1,38 +1,53 @@
 package br.com.loja.pdv.service;
 
+import br.com.loja.pdv.domain.ContatoCobranca;
+import br.com.loja.pdv.repository.ContatoCobrancaRepository;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
- * Régua de cobrança: a "Contas a Receber" lista parcela a parcela (reativa);
- * aqui a visão é POR CLIENTE em atraso — uma lista de trabalho para ligar/mandar
- * mensagem e cobrar. Tudo calculado de valor_aberto (regra de ouro nº 1): só
- * leitura, nenhuma dívida gravada. Junta as duas origens do crediário (carnê
- * migrado do SET em pagamento_fiado.DEBITO_INICIAL + parcelas das vendas fiado).
+ * Régua de cobrança ATIVA: a "Contas a Receber" lista parcela a parcela
+ * (reativa); aqui a visão é POR CLIENTE em atraso, com o histórico de contatos
+ * e a promessa de pagamento — uma lista de trabalho para cobrar e dar
+ * follow-up em quem prometeu e não cumpriu. Tudo calculado de valor_aberto
+ * (regra de ouro nº 1): a dívida nunca é gravada. Junta as duas origens do
+ * crediário (carnê migrado do SET em pagamento_fiado.DEBITO_INICIAL + parcelas
+ * das vendas fiado).
  */
 @Service
 public class CobrancaService {
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final ContatoCobrancaRepository contatoRepo;
 
-    public CobrancaService(NamedParameterJdbcTemplate jdbc) {
+    public CobrancaService(NamedParameterJdbcTemplate jdbc, ContatoCobrancaRepository contatoRepo) {
         this.jdbc = jdbc;
+        this.contatoRepo = contatoRepo;
     }
 
     public record Devedor(Long clienteId, String nome, String telefone,
                           BigDecimal totalAberto, BigDecimal totalVencido,
-                          long parcelasVencidas, LocalDate vencimentoMaisAntigo, int diasAtraso) {}
+                          long parcelasVencidas, LocalDate vencimentoMaisAntigo, int diasAtraso,
+                          Instant ultimoContato, String ultimoCanal, String ultimoResultado,
+                          LocalDate promessaData) {}
 
     public record Totais(long devedores, BigDecimal totalVencido, BigDecimal totalAberto) {}
 
     public record Resultado(List<Devedor> devedores, Totais totais) {}
+
+    public record Contato(Long id, Instant data, String operador, String canal,
+                          String resultado, LocalDate promessaData, String observacao) {}
+
+    public record RegistrarContatoRequest(Long clienteId, String canal, String resultado,
+                                          LocalDate promessaData, String observacao, String operador) {}
 
     /** Cada parcela em aberto, das duas origens, já com telefone preferido do cliente. */
     private static final String FONTE = """
@@ -69,14 +84,21 @@ public class CobrancaService {
     public Resultado listar(String q, String ordenar) {
         var params = new MapSqlParameterSource().addValue("q", q == null ? "" : q.trim());
 
-        // a mais antiga primeiro = mais urgente; default mostra o maior valor vencido no topo
+        // a mais antiga primeiro = mais urgente; promessa = quem prometeu (vencidas no topo);
+        // default mostra o maior valor vencido no topo
         String ordem = switch (ordenar == null ? "" : ordenar) {
             case "atraso" -> "venc_mais_antigo ASC NULLS LAST";
+            case "promessa" -> "promessa_data ASC NULLS LAST";
             case "nome" -> "cliente_nome ASC";
             default -> "total_vencido DESC";
         };
 
-        String sql = "SELECT * FROM (" + AGRUPADO + ") g "
+        String sql = "SELECT g.*, uc.ultimo_data, uc.ultimo_canal, uc.ultimo_resultado, pr.promessa_data "
+                + "FROM (" + AGRUPADO + ") g "
+                + "LEFT JOIN LATERAL (SELECT data AS ultimo_data, canal AS ultimo_canal, resultado AS ultimo_resultado "
+                + "  FROM contato_cobranca cc WHERE cc.cliente_id = g.cliente_id ORDER BY cc.data DESC LIMIT 1) uc ON true "
+                + "LEFT JOIN LATERAL (SELECT MAX(promessa_data) AS promessa_data "
+                + "  FROM contato_cobranca cc WHERE cc.cliente_id = g.cliente_id AND cc.resultado = 'PROMETEU') pr ON true "
                 + "WHERE (:q = '' OR unaccent(g.cliente_nome) ILIKE unaccent('%' || :q || '%') "
                 + "       OR g.telefone ILIKE '%' || :q || '%') "
                 + "ORDER BY " + ordem + " LIMIT 1000";
@@ -85,10 +107,14 @@ public class CobrancaService {
         List<Devedor> devedores = jdbc.query(sql, params, (rs, i) -> {
             LocalDate venc = rs.getDate("venc_mais_antigo").toLocalDate();
             int dias = (int) ChronoUnit.DAYS.between(venc, hoje);
+            java.sql.Timestamp uc = rs.getTimestamp("ultimo_data");
+            java.sql.Date pr = rs.getDate("promessa_data");
             return new Devedor(rs.getLong("cliente_id"), rs.getString("cliente_nome"),
                     rs.getString("telefone"), rs.getBigDecimal("total_aberto"),
                     rs.getBigDecimal("total_vencido"), rs.getLong("parcelas_vencidas"),
-                    venc, dias);
+                    venc, dias,
+                    uc == null ? null : uc.toInstant(), rs.getString("ultimo_canal"),
+                    rs.getString("ultimo_resultado"), pr == null ? null : pr.toLocalDate());
         });
 
         // totais globais (independem do filtro) — retrato da inadimplência inteira
@@ -100,5 +126,30 @@ public class CobrancaService {
                         rs.getBigDecimal("total_vencido"), rs.getBigDecimal("total_aberto")));
 
         return new Resultado(devedores, totais);
+    }
+
+    @Transactional
+    public void registrarContato(RegistrarContatoRequest req) {
+        if (req.clienteId() == null) throw new RegraNegocioException("Cliente é obrigatório");
+        if (req.canal() == null || req.canal().isBlank()) throw new RegraNegocioException("Canal é obrigatório");
+        if (req.resultado() == null || req.resultado().isBlank()) throw new RegraNegocioException("Resultado é obrigatório");
+
+        ContatoCobranca c = new ContatoCobranca();
+        c.setClienteId(req.clienteId());
+        c.setCanal(req.canal());
+        c.setResultado(req.resultado());
+        // só guarda promessa quando o resultado é "prometeu pagar"
+        c.setPromessaData("PROMETEU".equals(req.resultado()) ? req.promessaData() : null);
+        c.setObservacao(req.observacao() == null || req.observacao().isBlank() ? null : req.observacao().trim());
+        c.setOperador(req.operador());
+        contatoRepo.save(c);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Contato> listarContatos(Long clienteId) {
+        return contatoRepo.findByClienteIdOrderByDataDesc(clienteId).stream()
+                .map(c -> new Contato(c.getId(), c.getData(), c.getOperador(), c.getCanal(),
+                        c.getResultado(), c.getPromessaData(), c.getObservacao()))
+                .toList();
     }
 }

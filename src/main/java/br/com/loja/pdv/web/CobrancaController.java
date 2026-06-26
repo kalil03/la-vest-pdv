@@ -1,9 +1,10 @@
 package br.com.loja.pdv.web;
 
 import br.com.loja.pdv.service.CobrancaService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 public class CobrancaController {
@@ -19,5 +20,16 @@ public class CobrancaController {
             @RequestParam(defaultValue = "") String q,
             @RequestParam(defaultValue = "") String ordenar) {
         return service.listar(q, ordenar);
+    }
+
+    @PostMapping("/api/cobranca/contato")
+    public ResponseEntity<Void> registrarContato(@RequestBody CobrancaService.RegistrarContatoRequest req) {
+        service.registrarContato(req);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/api/cobranca/contatos/{clienteId}")
+    public List<CobrancaService.Contato> contatos(@PathVariable Long clienteId) {
+        return service.listarContatos(clienteId);
     }
 }

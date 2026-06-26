@@ -40,6 +40,30 @@ function chipAtraso(dias) {
   return `<span class="chip ${dias >= 60 ? 'grave' : 'leve'}">${txt}</span>`;
 }
 
+const CANAL = { WHATSAPP: 'WhatsApp', LIGACAO: 'Ligação', PESSOAL: 'Pessoal', OUTRO: 'Outro' };
+const RESULTADO = {
+  PROMETEU: 'Prometeu', NAO_ATENDEU: 'Não atendeu', CONTESTOU: 'Contestou',
+  SEM_CONDICAO: 'Sem condição', PAGOU: 'Pagou', OUTRO: 'Outro',
+};
+const hojeISO = () => new Date().toLocaleDateString('en-CA'); // yyyy-mm-dd local
+const dataCurta = (x) => new Date(x).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+
+function promessaChip(iso) {
+  if (!iso) return '';
+  const vencida = iso < hojeISO();
+  return `<span class="chip ${vencida ? 'grave' : 'leve'}" title="Prometeu pagar em ${dataBr(iso)}">${vencida ? '⏰ ' : ''}promete ${dataBr(iso)}</span>`;
+}
+
+function celulaContato(d) {
+  if (!d.ultimoContato && !d.promessaData) return '<span class="text-muted-foreground text-[12px]">—</span>';
+  const linha = d.ultimoContato
+    ? `<div class="text-[12px]">${CANAL[d.ultimoCanal] || d.ultimoCanal} · ${RESULTADO[d.ultimoResultado] || d.ultimoResultado}</div>`
+      + `<div class="text-[11px] text-muted-foreground">${dataCurta(d.ultimoContato)}</div>`
+    : '';
+  const pr = d.promessaData ? `<div class="mt-1">${promessaChip(d.promessaData)}</div>` : '';
+  return linha + pr;
+}
+
 async function carregar() {
   const params = new URLSearchParams();
   if ($('f-q').value.trim()) params.set('q', $('f-q').value.trim());
@@ -56,15 +80,16 @@ async function carregar() {
     const temWhats = !!telParaWhats(d.telefone);
     return `
     <tr>
-      <td class="font-medium">${d.nome}</td>
+      <td class="font-medium">${d.nome}<div class="text-[11px] text-muted-foreground font-normal">em aberto ${fmt(d.totalAberto)}</div></td>
       <td class="mono text-[12px]">${d.telefone || '<span class="text-muted-foreground">sem telefone</span>'}</td>
       <td>${chipAtraso(d.diasAtraso)}<div class="text-[11px] text-muted-foreground mt-0.5">desde ${dataBr(d.vencimentoMaisAntigo)}</div></td>
       <td class="num">${d.parcelasVencidas}</td>
       <td class="num font-semibold" style="color: var(--bad)">${fmt(d.totalVencido)}</td>
-      <td class="num">${fmt(d.totalAberto)}</td>
+      <td>${celulaContato(d)}</td>
       <td>
         <div class="flex flex-wrap gap-1.5">
-          <button class="acao-btn zap" data-acao="zap" data-i="${i}" ${temWhats ? '' : 'disabled title="Sem telefone com DDD"'}><i data-lucide="message-circle" class="w-3.5 h-3.5"></i> WhatsApp</button>
+          <button class="acao-btn" data-acao="contato" data-i="${i}" title="Registrar contato"><i data-lucide="phone-call" class="w-3.5 h-3.5"></i> Contato</button>
+          <button class="acao-btn zap" data-acao="zap" data-i="${i}" ${temWhats ? '' : 'disabled title="Sem telefone com DDD"'}><i data-lucide="message-circle" class="w-3.5 h-3.5"></i></button>
           <button class="acao-btn" data-acao="copiar" data-i="${i}" title="Copiar a mensagem de cobrança"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
           <button class="acao-btn" data-acao="imprimir" data-i="${i}" title="Imprimir lembrete na térmica"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
           <button class="acao-btn" data-acao="carne" data-i="${i}" title="Abrir o carnê para receber"><i data-lucide="wallet" class="w-3.5 h-3.5"></i></button>
@@ -83,7 +108,9 @@ $('lista').addEventListener('click', (e) => {
   const dev = devedores[Number(btn.dataset.i)];
   const acao = btn.dataset.acao;
 
-  if (acao === 'carne') {
+  if (acao === 'contato') {
+    abrirModalContato(dev);
+  } else if (acao === 'carne') {
     location.href = `/carne.html?cliente=${dev.clienteId}`;
   } else if (acao === 'zap') {
     const fone = telParaWhats(dev.telefone);
@@ -135,6 +162,74 @@ function lembreteHTML(dev, loja) {
   <div class="rodape">Documento sem valor fiscal — apenas lembrete</div>
 </body></html>`;
 }
+
+// ---------- modal de registrar contato ----------
+let contatoAtual = null;
+
+function abrirModalContato(dev) {
+  contatoAtual = dev;
+  $('mc-nome').textContent = dev.nome;
+  $('mc-resumo').textContent = `${dev.parcelasVencidas} parcela(s) vencida(s) · ${fmt(dev.totalVencido)} vencido`;
+  $('mc-canal').value = 'WHATSAPP';
+  $('mc-resultado').value = 'PROMETEU';
+  $('mc-promessa').value = '';
+  $('mc-obs').value = '';
+  togglePromessa();
+  $('mc-historico').innerHTML = '';
+  carregarHistorico(dev.clienteId);
+  $('modal-contato').style.display = 'flex';
+}
+
+function fecharModalContato() {
+  $('modal-contato').style.display = 'none';
+  contatoAtual = null;
+}
+
+function togglePromessa() {
+  $('mc-promessa-wrap').style.display = $('mc-resultado').value === 'PROMETEU' ? 'block' : 'none';
+}
+
+async function carregarHistorico(clienteId) {
+  const cs = await (await fetch(`/api/cobranca/contatos/${clienteId}`)).json();
+  if (!cs.length) { $('mc-historico').innerHTML = ''; return; }
+  $('mc-historico').innerHTML =
+    '<div class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Histórico</div>'
+    + '<div class="flex flex-col gap-1 max-h-32 overflow-y-auto">'
+    + cs.map((c) => `
+      <div class="text-[12px] border border-border rounded-md px-2 py-1.5">
+        <span class="font-medium">${CANAL[c.canal] || c.canal} · ${RESULTADO[c.resultado] || c.resultado}</span>
+        ${c.promessaData ? ` · promete ${dataBr(c.promessaData)}` : ''}
+        <span class="text-muted-foreground"> — ${dataCurta(c.data)}${c.operador ? ' · ' + c.operador : ''}</span>
+        ${c.observacao ? `<div class="text-muted-foreground">${c.observacao}</div>` : ''}
+      </div>`).join('')
+    + '</div>';
+}
+
+async function salvarContato() {
+  if (!contatoAtual) return;
+  const resultado = $('mc-resultado').value;
+  const promessaData = resultado === 'PROMETEU' && $('mc-promessa').value ? $('mc-promessa').value : null;
+  if (resultado === 'PROMETEU' && !promessaData) { toast('Informe a data prometida', 'erro'); return; }
+  const body = {
+    clienteId: contatoAtual.clienteId,
+    canal: $('mc-canal').value,
+    resultado,
+    promessaData,
+    observacao: $('mc-obs').value.trim() || null,
+    operador: (window.usuarioLogado && window.usuarioLogado.nome) || null,
+  };
+  const r = await fetch('/api/cobranca/contato', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (r.ok) { toast('Contato registrado'); fecharModalContato(); carregar(); }
+  else { toast('Erro ao registrar contato', 'erro'); }
+}
+
+$('mc-fechar').addEventListener('click', fecharModalContato);
+$('mc-cancelar').addEventListener('click', fecharModalContato);
+$('mc-resultado').addEventListener('change', togglePromessa);
+$('mc-salvar').addEventListener('click', salvarContato);
+$('modal-contato').addEventListener('click', (e) => { if (e.target.id === 'modal-contato') fecharModalContato(); });
 
 let timer = null;
 $('f-q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(carregar, 250); });
