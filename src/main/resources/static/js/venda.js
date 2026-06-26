@@ -16,6 +16,7 @@ let formaPagamento = 'DINHEIRO';
 let loja = { nome: 'Loja', endereco: '', telefone: '' };
 let vendedores = [];
 let parcelas = [];         // [{numero, valor, vencimento(yyyy-mm-dd)}] no modal
+let condicionalEmFechamento = null; // id da condicional sendo fechada via /?condicional=
 
 fetch('/api/config').then((r) => r.json()).then((c) => { loja = c; });
 
@@ -620,6 +621,13 @@ async function confirmarVenda() {
     toast(`Venda nº ${venda.id} registrada — ${fmt(venda.total)}`, 'ok');
     // a venda fica na tela, travada: dá para cancelar/editar ou abrir uma nova
     vendaFechada = venda;
+    // se a venda veio do fechamento de uma condicional, marca-a FECHADA (liga à venda)
+    if (condicionalEmFechamento) {
+      const cid = condicionalEmFechamento;
+      condicionalEmFechamento = null;
+      fetch(`/api/condicionais/${cid}/fechar?vendaId=${venda.id}`, { method: 'POST' })
+        .then((r) => { if (r.ok) toast(`Condicional nº ${cid} fechada e ligada à venda`, 'ok'); });
+    }
     localStorage.removeItem('pdv.recuperacao');
     if (typeof Rascunho !== 'undefined') Rascunho.limpar('venda');
     fecharModal();
@@ -890,12 +898,46 @@ resetarVenda();
 })();
 
 // ============================================================
+// /?condicional=ID — fechamento de condicional: carrega as peças
+// que saíram no carrinho; a atendente tira o que voltou e fecha a
+// venda normalmente. Ao fechar, a condicional é marcada FECHADA.
+// ============================================================
+(async function () {
+  const condId = new URLSearchParams(location.search).get('condicional');
+  if (!condId) return;
+  history.replaceState({}, '', '/');
+  try {
+    const resp = await fetch(`/api/condicionais/${condId}`);
+    if (!resp.ok) { toast(`Condicional nº ${condId} não encontrada`, 'erro'); return; }
+    const c = await resp.json();
+    if (c.status !== 'ABERTA') { toast(`Condicional nº ${condId} já foi ${c.status.toLowerCase()}`, 'erro'); return; }
+
+    itens = c.itens.map((i) => ({
+      variacaoId: i.variacaoId, codigo: i.codigo, descricao: i.descricao,
+      qtd: i.quantidade, preco: Number(i.precoUnit),
+    }));
+    if (c.clienteId) selecionarCliente({ id: c.clienteId, nome: c.clienteNome });
+    await vendedoresProntos;
+    if (c.vendedorId) $('c-vendedor').value = c.vendedorId;
+    if (c.observacao) $('c-observacao').value = c.observacao;
+    condicionalEmFechamento = Number(condId);
+    renderItens();
+    if (typeof atualizarAvancar === 'function') atualizarAvancar();
+    toast(`Condicional nº ${condId} — tire o que a cliente devolveu e feche a venda`, 'ok');
+    $busca.focus();
+  } catch {
+    toast('Sem conexão com o servidor', 'erro');
+  }
+})();
+
+// ============================================================
 // Recuperação: havia uma venda em edição que não foi refechada
 // (queda de luz/fechou a aba). O registro original já foi
 // estornado — oferecemos remontar o carrinho.
 // ============================================================
 (function () {
   if (new URLSearchParams(location.search).get('editar')) return; // edição nova tem prioridade
+  if (new URLSearchParams(location.search).get('condicional')) return; // fechamento de condicional tem prioridade
   let snap = null;
   try { snap = JSON.parse(localStorage.getItem('pdv.recuperacao') || 'null'); } catch (e) { /* corrompido */ }
   if (!snap || !snap.itens?.length) return;
@@ -940,6 +982,7 @@ resetarVenda();
 (function () {
   if (typeof Rascunho === 'undefined') return;
   if (new URLSearchParams(location.search).get('editar')) return;
+  if (new URLSearchParams(location.search).get('condicional')) return;
   let rec = null;
   try { rec = JSON.parse(localStorage.getItem('pdv.recuperacao') || 'null'); } catch (e) { /* corrompido */ }
   if (rec && Array.isArray(rec.itens) && rec.itens.length) return; // recuperação tem prioridade
