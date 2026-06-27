@@ -18,8 +18,9 @@ public class CobrancaController {
     @GetMapping("/api/cobranca")
     public CobrancaService.Resultado listar(
             @RequestParam(defaultValue = "") String q,
-            @RequestParam(defaultValue = "") String ordenar) {
-        return service.listar(q, ordenar);
+            @RequestParam(defaultValue = "") String ordenar,
+            @RequestParam(defaultValue = "") String tipo) {
+        return service.listar(q, ordenar, tipo);
     }
 
     @PostMapping("/api/cobranca/contato")

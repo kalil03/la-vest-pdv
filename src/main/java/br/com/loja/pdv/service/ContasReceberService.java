@@ -36,16 +36,19 @@ public class ContasReceberService {
     /** Todas as parcelas, das duas origens, já com valor em aberto. */
     private static final String FONTE = """
             SELECT 'L' || p.id AS id, c.id AS cliente_id, c.nome AS cliente_nome,
-                   NULL::bigint AS notinha, p.documento, 'Carnê SET' AS descricao,
+                   NULL::bigint AS notinha, p.documento,
+                   'Carnê SET' || COALESCE(' · ' || p.tipo_notinha, '') AS descricao,
                    CAST(p.data AT TIME ZONE 'America/Sao_Paulo' AS date) AS vencimento,
-                   -p.valor AS valor, COALESCE(p.valor_aberto, 0) AS valor_aberto
+                   -p.valor AS valor, COALESCE(p.valor_aberto, 0) AS valor_aberto,
+                   p.tipo_notinha
             FROM pagamento_fiado p
             JOIN cliente c ON c.id = p.cliente_id
             WHERE p.tipo = 'DEBITO_INICIAL'
             UNION ALL
             SELECT 'V' || pf.id, c.id, c.nome,
                    v.id, NULL AS documento, 'Parcela ' || pf.numero || '/' || cnt.total,
-                   pf.vencimento, pf.valor, pf.valor_aberto
+                   pf.vencimento, pf.valor, pf.valor_aberto,
+                   NULL AS tipo_notinha
             FROM parcela_fiado pf
             JOIN venda v ON v.id = pf.venda_id
             JOIN cliente c ON c.id = v.cliente_id
@@ -53,12 +56,13 @@ public class ContasReceberService {
             """;
 
     @Transactional(readOnly = true)
-    public Pagina listar(String q, String status, LocalDate de, LocalDate ate, int pagina) {
+    public Pagina listar(String q, String status, LocalDate de, LocalDate ate, String tipo, int pagina) {
         int porPagina = 50;
         var params = new MapSqlParameterSource()
                 .addValue("q", q == null ? "" : q.trim())
                 .addValue("de", de)
                 .addValue("ate", ate)
+                .addValue("tipo", tipo == null ? "" : tipo.trim())
                 .addValue("limite", porPagina)
                 .addValue("offset", Math.max(0, pagina - 1) * porPagina);
 
@@ -68,6 +72,7 @@ public class ContasReceberService {
                        OR t.documento = :q OR t.documento LIKE :q || '/%')
                   AND (CAST(:de AS date) IS NULL OR t.vencimento >= :de)
                   AND (CAST(:ate AS date) IS NULL OR t.vencimento <= :ate)
+                  AND (:tipo = '' OR t.tipo_notinha = :tipo)
                 """ + condicaoStatus(status);
 
         // numa busca por nome/notinha, as parcelas em aberto vêm primeiro (são as
@@ -108,7 +113,7 @@ public class ContasReceberService {
                        COALESCE(SUM(t.valor_aberto) FILTER (WHERE t.vencimento < CURRENT_DATE), 0) AS total_vencido,
                        COUNT(*) FILTER (WHERE t.valor_aberto > 0) AS parcelas_abertas,
                        (SELECT COALESCE(SUM(p.valor), 0) FROM pagamento_fiado p
-                        WHERE p.tipo <> 'DEBITO_INICIAL' AND p.valor > 0
+                        WHERE p.tipo NOT IN ('DEBITO_INICIAL', 'BAIXA') AND p.valor > 0
                           AND date_trunc('month', p.data AT TIME ZONE 'America/Sao_Paulo')
                               = date_trunc('month', CURRENT_DATE)) AS recebido_mes
                 FROM (""" + FONTE + ") t WHERE t.valor_aberto > 0",

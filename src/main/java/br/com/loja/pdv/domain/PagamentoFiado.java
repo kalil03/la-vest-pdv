@@ -48,6 +48,10 @@ public class PagamentoFiado {
     /** Nº da notinha no sistema antigo (NDOC, ex. "66/01") — só em registros migrados. */
     private String documento;
 
+    /** Tipo da notinha do carnê SET: "Tênis" ou "Roupa" (coluna GRUPO do contasrec). */
+    @Column(name = "tipo_notinha")
+    private String tipoNotinha;
+
     public Long getId() { return id; }
     public Cliente getCliente() { return cliente; }
     public void setCliente(Cliente cliente) { this.cliente = cliente; }
@@ -64,6 +68,8 @@ public class PagamentoFiado {
     public void setValorAberto(BigDecimal valorAberto) { this.valorAberto = valorAberto; }
     public String getDetalhe() { return detalhe; }
     public void setDetalhe(String detalhe) { this.detalhe = detalhe; }
+    public String getTipoNotinha() { return tipoNotinha; }
+    public void setTipoNotinha(String tipoNotinha) { this.tipoNotinha = tipoNotinha; }
     public String getDocumento() { return documento; }
     public void setDocumento(String documento) { this.documento = documento; }
 }

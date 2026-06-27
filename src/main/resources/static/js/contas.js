@@ -18,6 +18,7 @@ async function carregar() {
   const params = new URLSearchParams({ pagina });
   if ($('f-q').value.trim()) params.set('q', $('f-q').value.trim());
   if ($('f-status').value) params.set('status', $('f-status').value);
+  if ($('f-tipo').value) params.set('tipo', $('f-tipo').value);
   if ($('f-de').value) params.set('de', $('f-de').value);
   if ($('f-ate').value) params.set('ate', $('f-ate').value);
 
@@ -61,11 +62,12 @@ function recarregarComFiltro() {
   timer = setTimeout(() => { pagina = 1; carregar(); }, 250);
 }
 
-['f-q', 'f-status', 'f-de', 'f-ate'].forEach((id) => $(id).addEventListener('input', recarregarComFiltro));
+['f-q', 'f-status', 'f-tipo', 'f-de', 'f-ate'].forEach((id) => $(id).addEventListener('input', recarregarComFiltro));
 
 $('f-limpar').addEventListener('click', () => {
   ['f-q', 'f-de', 'f-ate'].forEach((id) => { $(id).value = ''; });
   $('f-status').value = '';
+  $('f-tipo').value = '';
   pagina = 1;
   carregar();
 });
