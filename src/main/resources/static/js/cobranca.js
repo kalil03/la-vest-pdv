@@ -68,6 +68,7 @@ async function carregar() {
   const params = new URLSearchParams();
   if ($('f-q').value.trim()) params.set('q', $('f-q').value.trim());
   params.set('ordenar', $('f-ordenar').value);
+  if ($('f-tipo').value) params.set('tipo', $('f-tipo').value);
 
   const r = await (await fetch(`/api/cobranca?${params}`)).json();
   devedores = r.devedores;
@@ -234,6 +235,7 @@ $('modal-contato').addEventListener('click', (e) => { if (e.target.id === 'modal
 let timer = null;
 $('f-q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(carregar, 250); });
 $('f-ordenar').addEventListener('change', carregar);
+$('f-tipo').addEventListener('change', carregar);
 
 // Enter no campo de nome = abre o primeiro da lista (igual ao carnê)
 $('f-q').addEventListener('keydown', (e) => {

@@ -59,7 +59,7 @@ public class VendaConsultaService {
         List<Linha> recebimentos = jdbc.query("""
                 SELECT tipo AS rotulo, COUNT(*) AS qtd, COALESCE(SUM(valor), 0) AS total
                 FROM pagamento_fiado
-                WHERE valor > 0 AND documento IS NULL
+                WHERE valor > 0 AND documento IS NULL AND tipo <> 'BAIXA'
                   AND CAST(data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
                 GROUP BY tipo ORDER BY tipo
                 """, params,

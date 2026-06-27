@@ -54,20 +54,20 @@ public class CobrancaService {
             SELECT c.id AS cliente_id, c.nome AS cliente_nome,
                    COALESCE(NULLIF(c.whats_fone1, ''), NULLIF(c.telefone, ''), NULLIF(c.fone2, '')) AS telefone,
                    CAST(p.data AT TIME ZONE 'America/Sao_Paulo' AS date) AS vencimento,
-                   COALESCE(p.valor_aberto, 0) AS valor_aberto
+                   COALESCE(p.valor_aberto, 0) AS valor_aberto, p.tipo_notinha
             FROM pagamento_fiado p
             JOIN cliente c ON c.id = p.cliente_id
             WHERE p.tipo = 'DEBITO_INICIAL'
             UNION ALL
             SELECT c.id, c.nome,
                    COALESCE(NULLIF(c.whats_fone1, ''), NULLIF(c.telefone, ''), NULLIF(c.fone2, '')),
-                   pf.vencimento, pf.valor_aberto
+                   pf.vencimento, pf.valor_aberto, NULL AS tipo_notinha
             FROM parcela_fiado pf
             JOIN venda v ON v.id = pf.venda_id
             JOIN cliente c ON c.id = v.cliente_id
             """;
 
-    /** Agrupa por cliente; só entram os que têm parcela vencida em aberto. */
+    /** Agrupa por cliente; só entram os que têm parcela vencida em aberto. Filtra por tipo da notinha. */
     private static final String AGRUPADO = """
             SELECT cliente_id, cliente_nome, MAX(telefone) AS telefone,
                    SUM(valor_aberto) FILTER (WHERE valor_aberto > 0) AS total_aberto,
@@ -76,13 +76,16 @@ public class CobrancaService {
                    MIN(vencimento) FILTER (WHERE valor_aberto > 0 AND vencimento < CURRENT_DATE) AS venc_mais_antigo
             FROM (""" + FONTE + """
             ) t
+            WHERE (:tipo = '' OR t.tipo_notinha = :tipo)
             GROUP BY cliente_id, cliente_nome
             HAVING SUM(valor_aberto) FILTER (WHERE valor_aberto > 0 AND vencimento < CURRENT_DATE) > 0
             """;
 
     @Transactional(readOnly = true)
-    public Resultado listar(String q, String ordenar) {
-        var params = new MapSqlParameterSource().addValue("q", q == null ? "" : q.trim());
+    public Resultado listar(String q, String ordenar, String tipo) {
+        var params = new MapSqlParameterSource()
+                .addValue("q", q == null ? "" : q.trim())
+                .addValue("tipo", tipo == null ? "" : tipo.trim());
 
         // a mais antiga primeiro = mais urgente; promessa = quem prometeu (vencidas no topo);
         // default mostra o maior valor vencido no topo
@@ -117,11 +120,11 @@ public class CobrancaService {
                     rs.getString("ultimo_resultado"), pr == null ? null : pr.toLocalDate());
         });
 
-        // totais globais (independem do filtro) — retrato da inadimplência inteira
+        // totais (respeitam o tipo selecionado, mas não a busca por nome) — retrato da carteira
         Totais totais = jdbc.queryForObject(
                 "SELECT COUNT(*) AS devedores, COALESCE(SUM(total_vencido), 0) AS total_vencido, "
                         + "COALESCE(SUM(total_aberto), 0) AS total_aberto FROM (" + AGRUPADO + ") g",
-                new MapSqlParameterSource(),
+                new MapSqlParameterSource().addValue("tipo", tipo == null ? "" : tipo.trim()),
                 (rs, i) -> new Totais(rs.getLong("devedores"),
                         rs.getBigDecimal("total_vencido"), rs.getBigDecimal("total_aberto")));
 

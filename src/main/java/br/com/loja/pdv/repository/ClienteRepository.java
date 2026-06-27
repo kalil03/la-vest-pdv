@@ -76,7 +76,7 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
                   AND v.data <= p.data
             ) u ON u.data_venda IS NOT NULL
             WHERE p.cliente_id = :id
-              AND p.tipo <> 'DEBITO_INICIAL' -- dívida migrada não é pagamento
+              AND p.tipo NOT IN ('DEBITO_INICIAL', 'BAIXA') -- dívida migrada e baixa não são pagamento
               AND p.venda_id IS NULL -- entrada nasce junto da venda: contaria "pagou em 0 dias"
             """, nativeQuery = true)
     Double prazoMedioPagamentoDias(@Param("id") Long id);

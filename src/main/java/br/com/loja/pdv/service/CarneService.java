@@ -191,7 +191,8 @@ public class CarneService {
 
     /** "Carnê SET nº 66/01" — o nº que a loja conhece do sistema antigo. */
     private String descricaoLegada(PagamentoFiado p) {
-        return p.getDocumento() != null ? "Carnê SET nº " + p.getDocumento() : "Carnê SET";
+        String base = p.getDocumento() != null ? "Carnê SET nº " + p.getDocumento() : "Carnê SET";
+        return p.getTipoNotinha() != null ? base + " · " + p.getTipoNotinha() : base;
     }
 
     private Cliente buscarCliente(Long id) {
