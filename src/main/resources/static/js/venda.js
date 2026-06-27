@@ -17,6 +17,8 @@ let loja = { nome: 'Loja', endereco: '', telefone: '' };
 let vendedores = [];
 let parcelas = [];         // [{numero, valor, vencimento(yyyy-mm-dd)}] no modal
 let condicionalEmFechamento = null; // id da condicional sendo fechada via /?condicional=
+let tipoNotinha = '';      // "Roupa" | "Tênis" — obrigatório
+let tipoManual = false;    // operador escolheu na mão (não deixa a sugestão sobrescrever)
 
 fetch('/api/config').then((r) => r.json()).then((c) => { loja = c; });
 
@@ -38,6 +40,29 @@ const $clienteLimpar = $('cliente-limpar');
 const $clienteNovoAviso = $('cliente-novo-aviso');
 const $avancar = $('avancar');
 $('c-vendedor').addEventListener('change', atualizarAvancar);
+
+// ---------- tipo da notinha (Roupa/Tênis) — obrigatório ----------
+function pintarTipo() {
+  document.querySelectorAll('#tipo-notinha .tipo-btn').forEach((b) =>
+    b.classList.toggle('ativa', b.dataset.tipo === tipoNotinha));
+}
+function setTipo(t, manual) {
+  tipoNotinha = t;
+  if (manual) tipoManual = true;
+  pintarTipo();
+  agendarRascunhoVenda();
+}
+/** Sugere o tipo pelo carrinho (categoria Calçados => Tênis), sem sobrescrever escolha manual. */
+function sugerirTipo() {
+  if (tipoManual || !itens.length) return;
+  const temCalcado = itens.some((i) => /cal[çc]ad/i.test(i.categoria || ''));
+  setTipo(temCalcado ? 'Tênis' : 'Roupa', false);
+}
+document.getElementById('tipo-notinha').addEventListener('click', (e) => {
+  const b = e.target.closest('.tipo-btn');
+  if (!b || vendaFechada) return;
+  setTipo(b.dataset.tipo, true);
+});
 const $formas = $('formas');
 const $toast = $('toast');
 const $overlay = $('modal-overlay');
@@ -187,8 +212,10 @@ function adicionarItem(produto, variacao, qtd = 1) {
       descricao: produto.nome + (rotuloVar ? ` ${rotuloVar}` : ''),
       qtd,
       preco: Number(produto.preco),
+      categoria: produto.categoria || '',
     });
   }
+  sugerirTipo();
   renderItens();
   $busca.focus();
 }
@@ -271,6 +298,7 @@ function coletarRascunhoVenda() {
     observacao: $('c-observacao').value,
     data: $('v-data').value,
     forma: formaPagamento,
+    tipoNotinha,
   };
 }
 
@@ -385,6 +413,13 @@ function abrirModal() {
     $('c-vendedor').focus();
     $('c-vendedor').classList.add('ring-2', 'ring-destructive');
     setTimeout(() => $('c-vendedor').classList.remove('ring-2', 'ring-destructive'), 2000);
+    return;
+  }
+  if (tipoNotinha !== 'Roupa' && tipoNotinha !== 'Tênis') {
+    toast('Informe o tipo da notinha: Roupa ou Tênis', 'erro');
+    const box = $('tipo-notinha');
+    box.classList.add('ring-2', 'ring-destructive', 'rounded-lg');
+    setTimeout(() => box.classList.remove('ring-2', 'ring-destructive', 'rounded-lg'), 2000);
     return;
   }
 
@@ -563,6 +598,7 @@ async function confirmarVenda() {
   const body = {
     formaPagamento: forma,
     desconto: descontoValor().toFixed(2),
+    tipoNotinha,
     itens: itens.map((i) => ({ variacaoId: i.variacaoId, quantidade: i.qtd, precoUnit: i.preco.toFixed(2) })),
   };
   const vendedorId = $('c-vendedor').value;
@@ -651,6 +687,7 @@ function salvarSnapshotEdicao(numeroOriginal) {
     observacao: $('c-observacao').value,
     data: $('v-data').value,
     forma: formaPagamento,
+    tipoNotinha,
   }));
 }
 
@@ -776,6 +813,9 @@ function mostrarErroModal(msg) {
 function resetarVenda() {
   itens = [];
   parcelas = [];
+  tipoNotinha = '';
+  tipoManual = false;
+  pintarTipo();
   $('v-codigo').value = '';
   $('v-data').value = new Date().toLocaleDateString('sv-SE'); // hoje, editável
   aplicarEstado();
@@ -952,6 +992,7 @@ resetarVenda();
     $('c-observacao').value = snap.observacao || '';
     if (snap.data) $('v-data').value = snap.data;
     selecionarForma(snap.forma || 'DINHEIRO');
+    if (snap.tipoNotinha) setTipo(snap.tipoNotinha, true);
     renderItens();
     if (typeof atualizarAvancar === 'function') atualizarAvancar();
     toast('Venda recuperada — confira e feche', 'ok');
@@ -1001,6 +1042,7 @@ resetarVenda();
   if (d.observacao) $('c-observacao').value = d.observacao;
   if (d.data) $('v-data').value = d.data;
   selecionarForma(d.forma || 'DINHEIRO');
+  if (d.tipoNotinha) setTipo(d.tipoNotinha, true);
   renderItens();
 
   Rascunho.aviso('Rascunho de venda recuperado', () => {

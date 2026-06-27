@@ -168,7 +168,7 @@ class CarneApiTest {
         Long variacaoId = jdbc.queryForObject(
                 "INSERT INTO variacao (produto_id, estoque) VALUES (?, 5) RETURNING id", Long.class, produtoId);
         var venda = Map.of(
-                "clienteId", clienteId, "vendedorId", vendedorId, "formaPagamento", "FIADO",
+                "clienteId", clienteId, "vendedorId", vendedorId, "formaPagamento", "FIADO", "tipoNotinha", "Roupa",
                 "observacao", "comprou no nome da avó",
                 "fiado", Map.of("parcelas", List.of(
                         Map.of("numero", 1, "valor", "200.00", "vencimento", "2030-01-10"))),
@@ -189,7 +189,7 @@ class CarneApiTest {
         Long variacaoId = jdbc.queryForObject(
                 "INSERT INTO variacao (produto_id, estoque) VALUES (?, 5) RETURNING id", Long.class, produtoId);
         var venda = Map.of(
-                "clienteId", clienteId, "vendedorId", vendedorId, "formaPagamento", "FIADO",
+                "clienteId", clienteId, "vendedorId", vendedorId, "formaPagamento", "FIADO", "tipoNotinha", "Roupa",
                 "itens", List.of(Map.of("variacaoId", variacaoId, "quantidade", 1, "precoUnit", "90.00")));
         Long vendaId = ((Number) http.postForEntity("/api/vendas", venda, Map.class)
                 .getBody().get("id")).longValue();

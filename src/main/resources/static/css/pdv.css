@@ -213,6 +213,7 @@ body {
 }
 .badge.em-dia { background: #f0fdf4; color: var(--success); }
 .badge.atrasado { background: var(--destructive); color: #fff; }
+.tipo-btn.ativa { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
 .aviso { display: block; margin-top: 8px; font-size: 13px; color: #b45309; font-weight: 500; }
 
 .formas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

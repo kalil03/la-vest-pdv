@@ -56,7 +56,13 @@ public class VendaService {
             throw new RegraNegocioException("Selecione o vendedor antes de fechar a venda");
         }
 
+        String tipoNotinha = req.tipoNotinha() == null ? "" : req.tipoNotinha().trim();
+        if (!tipoNotinha.equals("Roupa") && !tipoNotinha.equals("Tênis")) {
+            throw new RegraNegocioException("Informe o tipo da notinha (Roupa ou Tênis)");
+        }
+
         Venda venda = new Venda();
+        venda.setTipoNotinha(tipoNotinha);
         if (req.data() != null) {
             java.time.ZoneId fuso = java.time.ZoneId.of("America/Sao_Paulo");
             if (req.data().isAfter(java.time.LocalDate.now(fuso))) {
