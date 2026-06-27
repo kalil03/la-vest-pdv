@@ -46,9 +46,10 @@ public class ContasReceberService {
             WHERE p.tipo = 'DEBITO_INICIAL'
             UNION ALL
             SELECT 'V' || pf.id, c.id, c.nome,
-                   v.id, NULL AS documento, 'Parcela ' || pf.numero || '/' || cnt.total,
+                   v.id, NULL AS documento,
+                   'Parcela ' || pf.numero || '/' || cnt.total || COALESCE(' · ' || v.tipo_notinha, ''),
                    pf.vencimento, pf.valor, pf.valor_aberto,
-                   NULL AS tipo_notinha
+                   v.tipo_notinha
             FROM parcela_fiado pf
             JOIN venda v ON v.id = pf.venda_id
             JOIN cliente c ON c.id = v.cliente_id

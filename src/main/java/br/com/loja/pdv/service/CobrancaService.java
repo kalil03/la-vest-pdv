@@ -61,7 +61,7 @@ public class CobrancaService {
             UNION ALL
             SELECT c.id, c.nome,
                    COALESCE(NULLIF(c.whats_fone1, ''), NULLIF(c.telefone, ''), NULLIF(c.fone2, '')),
-                   pf.vencimento, pf.valor_aberto, NULL AS tipo_notinha
+                   pf.vencimento, pf.valor_aberto, v.tipo_notinha
             FROM parcela_fiado pf
             JOIN venda v ON v.id = pf.venda_id
             JOIN cliente c ON c.id = v.cliente_id

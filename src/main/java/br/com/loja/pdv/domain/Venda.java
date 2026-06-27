@@ -43,6 +43,10 @@ public class Venda {
     /** Ex.: "comprou no nome da avó com autorização" — sai na promissória e no carnê. */
     private String observacao;
 
+    /** Tipo da notinha: "Roupa" ou "Tênis" — obrigatório no fechamento. */
+    @Column(name = "tipo_notinha")
+    private String tipoNotinha;
+
     @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ItemVenda> itens = new ArrayList<>();
 
@@ -69,6 +73,8 @@ public class Venda {
     public void setData(Instant data) { this.data = data; }
     public FormaPagamento getFormaPagamento() { return formaPagamento; }
     public void setFormaPagamento(FormaPagamento formaPagamento) { this.formaPagamento = formaPagamento; }
+    public String getTipoNotinha() { return tipoNotinha; }
+    public void setTipoNotinha(String tipoNotinha) { this.tipoNotinha = tipoNotinha; }
     public BigDecimal getDesconto() { return desconto; }
     public void setDesconto(BigDecimal desconto) { this.desconto = desconto; }
     public BigDecimal getTotal() { return total; }
