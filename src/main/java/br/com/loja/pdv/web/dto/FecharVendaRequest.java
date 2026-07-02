@@ -3,6 +3,7 @@ package br.com.loja.pdv.web.dto;
 import br.com.loja.pdv.domain.FormaPagamento;
 import br.com.loja.pdv.domain.TipoPagamentoFiado;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -22,7 +23,9 @@ public record FecharVendaRequest(
         String clienteTelefone,
         Long vendedorId,
         @NotNull(message = "Forma de pagamento é obrigatória") FormaPagamento formaPagamento,
-        @PositiveOrZero(message = "Desconto não pode ser negativo") BigDecimal desconto,
+        @PositiveOrZero(message = "Desconto não pode ser negativo")
+        @Digits(integer = 8, fraction = 2, message = "Desconto com mais de 2 casas decimais")
+        BigDecimal desconto,
         Integer parcelasCartao,
         String observacao,
         String tipoNotinha, // "Roupa" ou "Tênis" — obrigatório (validado no serviço)
@@ -33,7 +36,9 @@ public record FecharVendaRequest(
     public record Item(
             @NotNull Long variacaoId,
             @Min(value = 1, message = "Quantidade deve ser positiva") int quantidade,
-            @PositiveOrZero(message = "Preço não pode ser negativo") BigDecimal precoUnit) {
+            @PositiveOrZero(message = "Preço não pode ser negativo")
+            @Digits(integer = 8, fraction = 2, message = "Preço com mais de 2 casas decimais")
+            BigDecimal precoUnit) {
     }
 
     /**
@@ -42,13 +47,16 @@ public record FecharVendaRequest(
      * o servidor valida — a tela faz o recálculo, o servidor garante.
      */
     public record Fiado(
-            @PositiveOrZero(message = "Entrada não pode ser negativa") BigDecimal entradaValor,
+            @PositiveOrZero(message = "Entrada não pode ser negativa")
+            @Digits(integer = 8, fraction = 2, message = "Entrada com mais de 2 casas decimais")
+            BigDecimal entradaValor,
             TipoPagamentoFiado entradaTipo,
             @Valid List<Parcela> parcelas) {
 
         public record Parcela(
                 @Min(1) int numero,
-                @NotNull BigDecimal valor,
+                @NotNull @Digits(integer = 8, fraction = 2, message = "Parcela com mais de 2 casas decimais")
+                BigDecimal valor,
                 @NotNull LocalDate vencimento) {
         }
     }
