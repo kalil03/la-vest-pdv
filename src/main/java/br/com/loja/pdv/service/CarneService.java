@@ -22,7 +22,7 @@ import java.util.StringJoiner;
 @Service
 public class CarneService {
 
-    private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
+    private static final ZoneId FUSO = br.com.loja.pdv.Fuso.LOJA;
     private static final DateTimeFormatter DATA_BR = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final EnumSet<TipoPagamentoFiado> TIPOS_RECEBIMENTO =
             EnumSet.of(TipoPagamentoFiado.DINHEIRO, TipoPagamentoFiado.PIX, TipoPagamentoFiado.CARTAO);

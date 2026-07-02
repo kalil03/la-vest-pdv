@@ -18,7 +18,7 @@ import java.util.List;
 @Service
 public class ProdutoService {
 
-    private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
+    private static final ZoneId FUSO = br.com.loja.pdv.Fuso.LOJA;
 
     private final ProdutoRepository produtoRepository;
     private final MarcaRepository marcaRepository;

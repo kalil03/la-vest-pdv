@@ -32,7 +32,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class NfceSefazService {
 
     private static final String UF_PADRAO = "1"; // tpEmis 1 = emissão normal
-    private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
+    private static final ZoneId FUSO = br.com.loja.pdv.Fuso.LOJA;
     private static final String AVISO_HOMOLOGACAO =
             "NOTA FISCAL EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL";
 

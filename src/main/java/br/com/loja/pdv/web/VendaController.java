@@ -70,7 +70,7 @@ public class VendaController {
             @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
                     iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate data) {
         return consultaService.caixaDia(data != null ? data
-                : java.time.LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo")));
+                : java.time.LocalDate.now(br.com.loja.pdv.Fuso.LOJA));
     }
 
     /** Trilha de auditoria: últimos estornos (nunca apagados). */

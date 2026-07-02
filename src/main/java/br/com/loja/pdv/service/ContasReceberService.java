@@ -111,12 +111,13 @@ public class ContasReceberService {
     private Totais totais() {
         return jdbc.queryForObject("""
                 SELECT COALESCE(SUM(t.valor_aberto), 0) AS total_aberto,
-                       COALESCE(SUM(t.valor_aberto) FILTER (WHERE t.vencimento < CURRENT_DATE), 0) AS total_vencido,
+                       COALESCE(SUM(t.valor_aberto) FILTER (
+                           WHERE t.vencimento < CAST(now() AT TIME ZONE 'America/Sao_Paulo' AS date)), 0) AS total_vencido,
                        COUNT(*) FILTER (WHERE t.valor_aberto > 0) AS parcelas_abertas,
                        (SELECT COALESCE(SUM(p.valor), 0) FROM pagamento_fiado p
                         WHERE p.tipo NOT IN ('DEBITO_INICIAL', 'BAIXA') AND p.valor > 0
                           AND date_trunc('month', p.data AT TIME ZONE 'America/Sao_Paulo')
-                              = date_trunc('month', CURRENT_DATE)) AS recebido_mes
+                              = date_trunc('month', now() AT TIME ZONE 'America/Sao_Paulo')) AS recebido_mes
                 FROM (""" + FONTE + ") t WHERE t.valor_aberto > 0",
                 new MapSqlParameterSource(),
                 (rs, i) -> new Totais(rs.getBigDecimal("total_aberto"), rs.getBigDecimal("total_vencido"),
@@ -126,7 +127,8 @@ public class ContasReceberService {
     private String condicaoStatus(String status) {
         return switch (status == null ? "" : status) {
             case "ABERTA" -> " AND t.valor_aberto > 0";
-            case "ATRASADA" -> " AND t.valor_aberto > 0 AND t.vencimento < CURRENT_DATE";
+            case "ATRASADA" -> " AND t.valor_aberto > 0"
+                    + " AND t.vencimento < CAST(now() AT TIME ZONE 'America/Sao_Paulo' AS date)";
             case "PARCIAL" -> " AND t.valor_aberto > 0 AND t.valor_aberto < t.valor";
             case "QUITADA" -> " AND t.valor_aberto = 0";
             default -> "";
@@ -135,7 +137,8 @@ public class ContasReceberService {
 
     private String statusDe(BigDecimal valor, BigDecimal aberto, LocalDate vencimento) {
         if (aberto.signum() == 0) return "QUITADA";
-        if (vencimento.isBefore(LocalDate.now())) return "ATRASADA";
+        // mesma zona do SQL: o status exibido nunca discorda do filtro da tela
+        if (vencimento.isBefore(LocalDate.now(br.com.loja.pdv.Fuso.LOJA))) return "ATRASADA";
         if (aberto.compareTo(valor) < 0) return "PARCIAL";
         return "ABERTA";
     }

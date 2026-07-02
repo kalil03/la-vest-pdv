@@ -93,13 +93,14 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
                 FROM pagamento_fiado p
                 WHERE p.cliente_id = :id AND p.tipo = 'DEBITO_INICIAL'
                   AND COALESCE(p.valor_aberto, 0) > 0
-                  AND CAST(p.data AT TIME ZONE 'America/Sao_Paulo' AS date) < CURRENT_DATE
+                  AND CAST(p.data AT TIME ZONE 'America/Sao_Paulo' AS date)
+                      < CAST(now() AT TIME ZONE 'America/Sao_Paulo' AS date)
                 UNION ALL
                 SELECT pf.valor_aberto
                 FROM parcela_fiado pf JOIN venda v ON v.id = pf.venda_id
                 WHERE v.cliente_id = :id
                   AND COALESCE(pf.valor_aberto, 0) > 0
-                  AND pf.vencimento < CURRENT_DATE
+                  AND pf.vencimento < CAST(now() AT TIME ZONE 'America/Sao_Paulo' AS date)
             ) t
             """, nativeQuery = true)
     Vencido vencidas(@Param("id") Long id);

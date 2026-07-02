@@ -64,7 +64,7 @@ public class VendaService {
         Venda venda = new Venda();
         venda.setTipoNotinha(tipoNotinha);
         if (req.data() != null) {
-            java.time.ZoneId fuso = java.time.ZoneId.of("America/Sao_Paulo");
+            java.time.ZoneId fuso = br.com.loja.pdv.Fuso.LOJA;
             if (req.data().isAfter(java.time.LocalDate.now(fuso))) {
                 throw new RegraNegocioException("Data da venda não pode estar no futuro");
             }
@@ -149,7 +149,8 @@ public class VendaService {
                 fiado != null && fiado.parcelas() != null && !fiado.parcelas().isEmpty()
                         ? fiado.parcelas()
                         // sem cronograma informado: parcela única em 30 dias
-                        : List.of(new FecharVendaRequest.Fiado.Parcela(1, restante, LocalDate.now().plusDays(30)));
+                        : List.of(new FecharVendaRequest.Fiado.Parcela(
+                                1, restante, LocalDate.now(br.com.loja.pdv.Fuso.LOJA).plusDays(30)));
 
         BigDecimal soma = BigDecimal.ZERO;
         for (var p : parcelas) {

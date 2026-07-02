@@ -68,18 +68,21 @@ public class CobrancaService {
             """;
 
     /** Agrupa por cliente; só entram os que têm parcela vencida em aberto. Filtra por tipo da notinha. */
-    private static final String AGRUPADO = """
+    /** "hoje" no fuso da loja — CURRENT_DATE seguiria o fuso do Postgres (UTC no container). */
+    private static final String HOJE = "CAST(now() AT TIME ZONE 'America/Sao_Paulo' AS date)";
+
+    private static final String AGRUPADO = ("""
             SELECT cliente_id, cliente_nome, MAX(telefone) AS telefone,
                    SUM(valor_aberto) FILTER (WHERE valor_aberto > 0) AS total_aberto,
-                   SUM(valor_aberto) FILTER (WHERE valor_aberto > 0 AND vencimento < CURRENT_DATE) AS total_vencido,
-                   COUNT(*) FILTER (WHERE valor_aberto > 0 AND vencimento < CURRENT_DATE) AS parcelas_vencidas,
-                   MIN(vencimento) FILTER (WHERE valor_aberto > 0 AND vencimento < CURRENT_DATE) AS venc_mais_antigo
+                   SUM(valor_aberto) FILTER (WHERE valor_aberto > 0 AND vencimento < HOJE) AS total_vencido,
+                   COUNT(*) FILTER (WHERE valor_aberto > 0 AND vencimento < HOJE) AS parcelas_vencidas,
+                   MIN(vencimento) FILTER (WHERE valor_aberto > 0 AND vencimento < HOJE) AS venc_mais_antigo
             FROM (""" + FONTE + """
             ) t
             WHERE (:tipo = '' OR t.tipo_notinha = :tipo)
             GROUP BY cliente_id, cliente_nome
-            HAVING SUM(valor_aberto) FILTER (WHERE valor_aberto > 0 AND vencimento < CURRENT_DATE) > 0
-            """;
+            HAVING SUM(valor_aberto) FILTER (WHERE valor_aberto > 0 AND vencimento < HOJE) > 0
+            """).replace("HOJE", HOJE);
 
     @Transactional(readOnly = true)
     public Resultado listar(String q, String ordenar, String tipo) {
@@ -106,7 +109,7 @@ public class CobrancaService {
                 + "       OR g.telefone ILIKE '%' || :q || '%') "
                 + "ORDER BY " + ordem + " LIMIT 1000";
 
-        LocalDate hoje = LocalDate.now();
+        LocalDate hoje = LocalDate.now(br.com.loja.pdv.Fuso.LOJA);
         List<Devedor> devedores = jdbc.query(sql, params, (rs, i) -> {
             LocalDate venc = rs.getDate("venc_mais_antigo").toLocalDate();
             int dias = (int) ChronoUnit.DAYS.between(venc, hoje);
