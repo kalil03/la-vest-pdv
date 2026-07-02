@@ -92,6 +92,13 @@ public class CarneService {
                     + " mas o valor recebido é R$ " + req.valor());
         }
 
+        // a mesma parcela duas vezes abateria em dobro (dois UPDATEs válidos)
+        long parcelasDistintas = req.alocacoes().stream()
+                .map(ReceberRequest.Alocacao::parcelaId).distinct().count();
+        if (parcelasDistintas < req.alocacoes().size()) {
+            throw new RegraNegocioException("A mesma parcela aparece mais de uma vez no recebimento");
+        }
+
         List<ReciboRecebimento.Item> itens = new ArrayList<>();
         StringJoiner detalhe = new StringJoiner("; ");
         for (ReceberRequest.Alocacao aloc : req.alocacoes()) {
@@ -112,7 +119,16 @@ public class CarneService {
                 saldoAnterior, clienteRepository.saldoDevedor(cliente.getId()), itens);
     }
 
-    /** Abate uma alocação numa parcela ("L.." = carnê SET, "V.." = parcela de venda). */
+    /**
+     * Abate uma alocação numa parcela ("L.." = carnê SET, "V.." = parcela de venda).
+     *
+     * A entidade é carregada só para o check de dono e a descrição; a ESCRITA é
+     * um UPDATE atômico condicional (padrão do baixarEstoque). Se retornar 0,
+     * outra operação abateu no meio — aborta, e o rollback da transação desfaz
+     * os abates já feitos neste recebimento. O restante impresso no recibo é
+     * calculado em Java: a entidade fica stale após o UPDATE em massa (e, como
+     * nenhum setter é chamado, o dirty-checking não regrava o valor velho).
+     */
     private ReciboRecebimento.Item abater(Cliente cliente, ReceberRequest.Alocacao aloc,
                                           StringJoiner detalhe) {
         String id = aloc.parcelaId();
@@ -123,11 +139,15 @@ public class CarneService {
                     .orElseThrow(() -> new RegraNegocioException("Parcela não encontrada: " + id));
             BigDecimal aberto = debito.getValorAberto();
             validarValor(aloc.valor(), aberto, id);
-            debito.setValorAberto(aberto.subtract(aloc.valor()));
+            if (pagamentoRepository.abaterDebito(debito.getId(), aloc.valor()) == 0) {
+                throw new RegraNegocioException(
+                        "Parcela " + id + " foi recebida por outra operação — confira e refaça");
+            }
             LocalDate venc = LocalDate.ofInstant(debito.getData(), FUSO);
             String desc = descricaoLegada(debito) + " " + DATA_BR.format(venc);
             detalhe.add(desc);
-            return new ReciboRecebimento.Item(desc, null, venc, aloc.valor(), debito.getValorAberto());
+            return new ReciboRecebimento.Item(desc, null, venc, aloc.valor(),
+                    aberto.subtract(aloc.valor()));
         }
         if (id.startsWith("V")) {
             ParcelaFiado parcela = parcelaRepository.findById(idNumerico(id))
@@ -135,12 +155,15 @@ public class CarneService {
                     .orElseThrow(() -> new RegraNegocioException("Parcela não encontrada: " + id));
             BigDecimal aberto = parcela.getValorAberto();
             validarValor(aloc.valor(), aberto, id);
-            parcela.setValorAberto(aberto.subtract(aloc.valor()));
+            if (parcelaRepository.abater(parcela.getId(), aloc.valor()) == 0) {
+                throw new RegraNegocioException(
+                        "Parcela " + id + " foi recebida por outra operação — confira e refaça");
+            }
             String desc = "Venda nº " + parcela.getVenda().getId()
                     + " — " + parcela.getNumero() + "/" + parcela.getVenda().getParcelas().size();
             detalhe.add(desc);
             return new ReciboRecebimento.Item(desc, parcela.getVenda().getId(),
-                    parcela.getVencimento(), aloc.valor(), parcela.getValorAberto());
+                    parcela.getVencimento(), aloc.valor(), aberto.subtract(aloc.valor()));
         }
         throw new RegraNegocioException("Parcela inválida: " + id);
     }

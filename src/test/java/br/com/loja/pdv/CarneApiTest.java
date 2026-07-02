@@ -137,6 +137,81 @@ class CarneApiTest {
     }
 
     @Test
+    void mesmaParcelaRepetidaNoRecebimentoERecusada() {
+        // sem esse bloqueio, dois UPDATEs atômicos válidos abateriam em dobro
+        var resp = receber("100.00", List.of(
+                Map.of("parcelaId", "L" + parcela50Nova, "valor", "50.00"),
+                Map.of("parcelaId", "L" + parcela50Nova, "valor", "50.00")));
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM pagamento_fiado WHERE valor > 0", Integer.class)).isZero();
+        assertThat(carne().get("saldoDevedor")).isEqualTo(250.0);
+    }
+
+    @Test
+    void falhaNaSegundaParcelaDesfazOAbateDaPrimeira() {
+        // outra operação quitou a de 50 (abate + pagamento, invariante intacto)...
+        jdbc.update("UPDATE pagamento_fiado SET valor_aberto = 0 WHERE id = ?", parcela50Nova);
+        jdbc.update("""
+                INSERT INTO pagamento_fiado (cliente_id, valor, tipo) VALUES (?, 50, 'DINHEIRO')""",
+                clienteId);
+
+        // ...mas a tela da atendente ainda a mostrava aberta: parcela 1 abate
+        // com sucesso e a 2 falha — o rollback tem que desfazer TUDO
+        var resp = receber("80.00", List.of(
+                Map.of("parcelaId", "L" + parcela100Antiga, "valor", "30.00"),
+                Map.of("parcelaId", "L" + parcela50Nova, "valor", "50.00")));
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(jdbc.queryForObject("SELECT valor_aberto FROM pagamento_fiado WHERE id = ?",
+                BigDecimal.class, parcela100Antiga)).isEqualByComparingTo("100"); // rollback do abate
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM pagamento_fiado WHERE valor > 0", Integer.class))
+                .isEqualTo(1); // só o pagamento da outra operação
+        assertThat(carne().get("saldoDevedor")).isEqualTo(200.0);
+        // invariante: SUM(valor_aberto) == saldo
+        assertThat(jdbc.queryForObject("""
+                SELECT COALESCE(SUM(valor_aberto), 0) FROM pagamento_fiado
+                WHERE tipo = 'DEBITO_INICIAL'""", BigDecimal.class))
+                .isEqualByComparingTo("200");
+    }
+
+    @Test
+    void recebimentoConcorrenteNaMesmaParcelaSoUmPassa() throws Exception {
+        // duas atendentes recebem a MESMA parcela de 100 ao mesmo tempo: o
+        // UPDATE condicional deixa exatamente uma passar; a outra leva 400.
+        // Sem ele, as duas passariam e a dívida cairia 200 por 100 recebidos.
+        java.util.concurrent.CountDownLatch pronto = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.Callable<HttpStatus> tentativa = () -> {
+            pronto.await();
+            return (HttpStatus) receber("100.00", List.of(
+                    Map.of("parcelaId", "L" + parcela100Antiga, "valor", "100.00"))).getStatusCode();
+        };
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            java.util.concurrent.Future<HttpStatus> f1 = pool.submit(tentativa);
+            java.util.concurrent.Future<HttpStatus> f2 = pool.submit(tentativa);
+            pronto.countDown();
+            List<HttpStatus> statuses = List.of(f1.get(), f2.get());
+
+            assertThat(statuses).containsExactlyInAnyOrder(HttpStatus.CREATED, HttpStatus.BAD_REQUEST);
+        } finally {
+            pool.shutdown();
+        }
+        assertThat(jdbc.queryForObject("SELECT valor_aberto FROM pagamento_fiado WHERE id = ?",
+                BigDecimal.class, parcela100Antiga)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM pagamento_fiado WHERE valor > 0", Integer.class)).isEqualTo(1);
+        // invariante: 250 de dívida - 100 recebidos = 150, e o rateio fecha
+        assertThat(carne().get("saldoDevedor")).isEqualTo(150.0);
+        assertThat(jdbc.queryForObject("""
+                SELECT COALESCE(SUM(valor_aberto), 0) FROM pagamento_fiado
+                WHERE tipo = 'DEBITO_INICIAL'""", BigDecimal.class))
+                .isEqualByComparingTo("150");
+    }
+
+    @Test
     void parcelaDeOutroClienteERecusada() {
         Long outroCliente = jdbc.queryForObject(
                 "INSERT INTO cliente (nome) VALUES ('Outra Pessoa') RETURNING id", Long.class);
