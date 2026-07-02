@@ -35,8 +35,10 @@ public class VendaConsultaService {
     public record Linha(String rotulo, long qtd, BigDecimal total) {}
 
     public record CaixaDia(LocalDate dia, List<Linha> vendasPorForma, List<Linha> recebimentosPorTipo,
+                           List<Linha> estornosPorForma,
                            BigDecimal totalVendas, BigDecimal vendidoFiado,
-                           BigDecimal totalRecebimentos, BigDecimal entrouNoCaixa) {}
+                           BigDecimal totalRecebimentos, BigDecimal totalEstornos,
+                           BigDecimal entrouNoCaixa) {}
 
     /**
      * Fechamento do dia: o que foi vendido por forma e o que ENTROU de
@@ -65,14 +67,28 @@ public class VendaConsultaService {
                 """, params,
                 (rs, i) -> new Linha(rs.getString("rotulo"), rs.getLong("qtd"), rs.getBigDecimal("total")));
 
+        // estornos FEITOS neste dia: venda de hoje estornada já some das listas
+        // acima (efeito líquido zero na gaveta); venda de dia anterior estornada
+        // hoje é dinheiro que saiu da gaveta — a linha existe para a conferência
+        // física bater, sem mexer no "entrou no caixa"
+        List<Linha> estornos = jdbc.query("""
+                SELECT forma_pagamento AS rotulo, COUNT(*) AS qtd, COALESCE(SUM(total), 0) AS total
+                FROM estorno
+                WHERE CAST(data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                GROUP BY forma_pagamento ORDER BY forma_pagamento
+                """, params,
+                (rs, i) -> new Linha(rs.getString("rotulo"), rs.getLong("qtd"), rs.getBigDecimal("total")));
+
         BigDecimal totalVendas = vendas.stream().map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal vendidoFiado = vendas.stream().filter(l -> "FIADO".equals(l.rotulo()))
                 .map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalReceb = recebimentos.stream().map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalEstornos = estornos.stream().map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add);
         // à vista + tudo que entrou pelo carnê (entrada de fiado e recebimentos)
         BigDecimal entrou = totalVendas.subtract(vendidoFiado).add(totalReceb);
 
-        return new CaixaDia(dia, vendas, recebimentos, totalVendas, vendidoFiado, totalReceb, entrou);
+        return new CaixaDia(dia, vendas, recebimentos, estornos,
+                totalVendas, vendidoFiado, totalReceb, totalEstornos, entrou);
     }
 
     @Transactional(readOnly = true)

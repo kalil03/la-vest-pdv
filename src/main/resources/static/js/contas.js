@@ -118,8 +118,10 @@ async function carregarCaixa() {
 
   $('cx-vendas').innerHTML = linhas(r.vendasPorForma);
   $('cx-recebimentos').innerHTML = linhas(r.recebimentosPorTipo);
+  $('cx-estornos').innerHTML = linhas(r.estornosPorForma);
   $('cx-total-vendas').textContent = fmt(r.totalVendas);
   $('cx-total-receb').textContent = fmt(r.totalRecebimentos);
+  $('cx-total-estornos').textContent = fmt(r.totalEstornos);
   $('cx-entrou').textContent = fmt(r.entrouNoCaixa);
 }
 
