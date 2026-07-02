@@ -56,7 +56,7 @@ public class CarneService {
         List<CarneDTO.Parcela> abertas = parcelasAbertas(clienteId);
 
         var ultimos = pagamentoRepository
-                .findTop3ByClienteIdAndTipoNotOrderByDataDesc(clienteId, TipoPagamentoFiado.DEBITO_INICIAL)
+                .findTop8ByClienteIdAndTipoNotOrderByDataDesc(clienteId, TipoPagamentoFiado.DEBITO_INICIAL)
                 .stream()
                 // entrada de venda estornada não é mais dinheiro do carnê
                 .filter(p -> p.getVenda() == null || p.getVenda().getCanceladaEm() == null)

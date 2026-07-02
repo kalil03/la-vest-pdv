@@ -204,14 +204,20 @@ function renderCarne() {
     $antiga.innerHTML = '<span class="chip prazo">nada em aberto</span>';
   }
 
-  // últimos pagamentos
+  // últimos pagamentos: um por linha — data, valor, forma e o rateio COMPLETO
+  // (o detalhe já traz cada parcela que o dinheiro quitou, separada por ";")
   const us = carne.ultimosPagamentos || [];
   $('ultimos').hidden = us.length === 0;
-  // nº da nota na frente: o detalhe diz o que o pagamento quitou ("Venda nº 12 (2/3)")
   $('ultimos-lista').innerHTML = us.map((p) => `
-    <span class="chip prazo" title="${p.vendedorNome ? 'Recebido por ' + p.vendedorNome : ''}">
-      ${p.detalhe ? `<b>${p.detalhe.split(';')[0].trim()}</b> · ` : ''}${new Date(p.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} · ${fmt(p.valor)} · ${rotuloTipo(p.tipo)}
-    </span>`).join('');
+    <tr class="border-t border-border align-top">
+      <td class="py-2 pr-3 mono whitespace-nowrap">${new Date(p.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</td>
+      <td class="py-2 pr-3 font-bold whitespace-nowrap">${fmt(p.valor)}</td>
+      <td class="py-2 pr-3 whitespace-nowrap">${rotuloTipo(p.tipo)}</td>
+      <td class="py-2">
+        ${(p.detalhe || '').split(';').map((d) => d.trim()).filter(Boolean).map((d) => `<div>${d}</div>`).join('') || '<span class="text-muted-foreground">—</span>'}
+        ${p.vendedorNome ? `<div class="text-[11px] text-muted-foreground">recebido por ${p.vendedorNome}</div>` : ''}
+      </td>
+    </tr>`).join('');
 
   renderParcelas();
   if (window.lucide) lucide.createIcons();

@@ -15,7 +15,7 @@ public interface PagamentoFiadoRepository extends JpaRepository<PagamentoFiado, 
     List<PagamentoFiado> findByVendaId(Long vendaId);
 
     /** Histórico de recebimentos reais (exclui dívida migrada). */
-    List<PagamentoFiado> findTop3ByClienteIdAndTipoNotOrderByDataDesc(
+    List<PagamentoFiado> findTop8ByClienteIdAndTipoNotOrderByDataDesc(
             Long clienteId, TipoPagamentoFiado tipoExcluido);
 
     /** Parcelas migradas do SET no razão do cliente, mais antigas primeiro. */
