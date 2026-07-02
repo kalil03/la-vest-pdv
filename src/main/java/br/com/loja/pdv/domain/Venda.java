@@ -47,6 +47,20 @@ public class Venda {
     @Column(name = "tipo_notinha")
     private String tipoNotinha;
 
+    /**
+     * Estorno é marcação, nunca DELETE: preenchido = a venda saiu de todas as
+     * somas financeiras (filtro cancelada_em IS NULL), mas o registro e a
+     * numeração impressa continuam existindo para sempre.
+     */
+    @Column(name = "cancelada_em")
+    private Instant canceladaEm;
+
+    @Column(name = "cancelada_por")
+    private String canceladaPor;
+
+    @Column(name = "cancelamento_motivo")
+    private String cancelamentoMotivo;
+
     @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ItemVenda> itens = new ArrayList<>();
 
@@ -75,6 +89,9 @@ public class Venda {
     public void setFormaPagamento(FormaPagamento formaPagamento) { this.formaPagamento = formaPagamento; }
     public String getTipoNotinha() { return tipoNotinha; }
     public void setTipoNotinha(String tipoNotinha) { this.tipoNotinha = tipoNotinha; }
+    public Instant getCanceladaEm() { return canceladaEm; }
+    public String getCanceladaPor() { return canceladaPor; }
+    public String getCancelamentoMotivo() { return cancelamentoMotivo; }
     public BigDecimal getDesconto() { return desconto; }
     public void setDesconto(BigDecimal desconto) { this.desconto = desconto; }
     public BigDecimal getTotal() { return total; }

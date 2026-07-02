@@ -260,7 +260,7 @@ class VendaApiTest {
     }
 
     @Test
-    void cancelarVendaDevolveEstoqueEApagaLancamentos() {
+    void cancelarVendaDevolveEstoqueEMarcaSemApagar() {
         var req = pedido(
                 "clienteNome", "Beatriz Rocha",
                 "formaPagamento", "FIADO",
@@ -275,16 +275,27 @@ class VendaApiTest {
 
         http.delete("/api/vendas/" + vendaId + "?operador=Administrador&motivo=estorno");
 
-        assertThat(vendaRepository.count()).isZero();
-        assertThat(estoque(variacaoTenis38)).isEqualTo(10); // estoque de volta
-        // auditoria: ficou registrado quem desfez o quê
+        // estorno é MARCAÇÃO: a venda, a entrada e as parcelas permanecem no banco...
+        assertThat(vendaRepository.count()).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT cancelada_por FROM venda WHERE id = " + vendaId, String.class))
+                .isEqualTo("Administrador");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM parcela_fiado", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pagamento_fiado", Integer.class)).isEqualTo(1);
+        // ...mas saem de TODAS as somas: estoque volta e a dívida zera
+        assertThat(estoque(variacaoTenis38)).isEqualTo(10);
+        Cliente bia = clienteRepository.buscar("Beatriz").get(0);
+        assertThat(clienteRepository.saldoDevedor(bia.getId())).isEqualByComparingTo("0.00");
+        // auditoria imutável continua sendo gravada
         assertThat(jdbc.queryForObject(
                 "SELECT operador FROM estorno WHERE venda_id = " + vendaId, String.class))
                 .isEqualTo("Administrador");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM parcela_fiado", Integer.class)).isZero();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pagamento_fiado", Integer.class)).isZero();
-        Cliente bia = clienteRepository.buscar("Beatriz").get(0);
-        assertThat(clienteRepository.saldoDevedor(bia.getId())).isEqualByComparingTo("0.00");
+
+        // estornar de novo é recusado (e não devolve estoque em dobro)
+        ResponseEntity<Map> deNovo = http.exchange("/api/vendas/" + vendaId,
+                org.springframework.http.HttpMethod.DELETE, null, Map.class);
+        assertThat(deNovo.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(estoque(variacaoTenis38)).isEqualTo(10);
     }
 
     @Test

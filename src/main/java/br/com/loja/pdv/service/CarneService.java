@@ -58,6 +58,8 @@ public class CarneService {
         var ultimos = pagamentoRepository
                 .findTop3ByClienteIdAndTipoNotOrderByDataDesc(clienteId, TipoPagamentoFiado.DEBITO_INICIAL)
                 .stream()
+                // entrada de venda estornada não é mais dinheiro do carnê
+                .filter(p -> p.getVenda() == null || p.getVenda().getCanceladaEm() == null)
                 .map(p -> new CarneDTO.Pagamento(p.getData(), p.getValor(), p.getTipo().name(),
                         p.getVendedor() != null ? p.getVendedor().getNome() : null, p.getDetalhe()))
                 .toList();
@@ -151,7 +153,8 @@ public class CarneService {
         }
         if (id.startsWith("V")) {
             ParcelaFiado parcela = parcelaRepository.findById(idNumerico(id))
-                    .filter(p -> p.getVenda().getCliente().getId().equals(cliente.getId()))
+                    .filter(p -> p.getVenda().getCliente().getId().equals(cliente.getId())
+                            && p.getVenda().getCanceladaEm() == null)
                     .orElseThrow(() -> new RegraNegocioException("Parcela não encontrada: " + id));
             BigDecimal aberto = parcela.getValorAberto();
             validarValor(aloc.valor(), aberto, id);

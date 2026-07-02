@@ -34,12 +34,16 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
     /**
      * Regra de ouro nº 1: a dívida nunca é armazenada, é sempre calculada.
      * Saldo devedor = soma das vendas FIADO - soma dos pagamentos do carnê.
+     * Venda cancelada sai dos DOIS lados: da soma de vendas e (via venda_id)
+     * da entrada de fiado que nasceu com ela.
      */
     @Query(value = """
             SELECT COALESCE((SELECT SUM(v.total) FROM venda v
-                             WHERE v.cliente_id = :id AND v.forma_pagamento = 'FIADO'), 0)
+                             WHERE v.cliente_id = :id AND v.forma_pagamento = 'FIADO'
+                               AND v.cancelada_em IS NULL), 0)
                  - COALESCE((SELECT SUM(p.valor) FROM pagamento_fiado p
-                             WHERE p.cliente_id = :id), 0)
+                             LEFT JOIN venda vx ON vx.id = p.venda_id
+                             WHERE p.cliente_id = :id AND vx.cancelada_em IS NULL), 0)
             """, nativeQuery = true)
     BigDecimal saldoDevedor(@Param("id") Long id);
 
@@ -49,9 +53,12 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
                    COALESCE(v.tot, 0) - COALESCE(p.tot, 0) AS "saldo"
             FROM cliente c
             LEFT JOIN (SELECT cliente_id, SUM(total) AS tot FROM venda
-                       WHERE forma_pagamento = 'FIADO' GROUP BY cliente_id) v ON v.cliente_id = c.id
-            LEFT JOIN (SELECT cliente_id, SUM(valor) AS tot FROM pagamento_fiado
-                       GROUP BY cliente_id) p ON p.cliente_id = c.id
+                       WHERE forma_pagamento = 'FIADO' AND cancelada_em IS NULL
+                       GROUP BY cliente_id) v ON v.cliente_id = c.id
+            LEFT JOIN (SELECT pg.cliente_id, SUM(pg.valor) AS tot FROM pagamento_fiado pg
+                       LEFT JOIN venda vx ON vx.id = pg.venda_id
+                       WHERE vx.cancelada_em IS NULL
+                       GROUP BY pg.cliente_id) p ON p.cliente_id = c.id
             WHERE c.id IN (:ids)
             """, nativeQuery = true)
     List<SaldoCliente> saldosPorCliente(@Param("ids") Collection<Long> ids);
@@ -73,6 +80,7 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
                 SELECT MAX(v.data) AS data_venda FROM venda v
                 WHERE v.cliente_id = p.cliente_id
                   AND v.forma_pagamento = 'FIADO'
+                  AND v.cancelada_em IS NULL
                   AND v.data <= p.data
             ) u ON u.data_venda IS NOT NULL
             WHERE p.cliente_id = :id
@@ -99,6 +107,7 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
                 SELECT pf.valor_aberto
                 FROM parcela_fiado pf JOIN venda v ON v.id = pf.venda_id
                 WHERE v.cliente_id = :id
+                  AND v.cancelada_em IS NULL
                   AND COALESCE(pf.valor_aberto, 0) > 0
                   AND pf.vencimento < CAST(now() AT TIME ZONE 'America/Sao_Paulo' AS date)
             ) t

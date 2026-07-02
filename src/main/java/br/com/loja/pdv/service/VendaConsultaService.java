@@ -26,7 +26,8 @@ public class VendaConsultaService {
 
     public record VendaLinha(Long id, Instant data, String clienteNome, String vendedorNome,
                              String formaPagamento, BigDecimal desconto, BigDecimal total,
-                             String observacao, int itens, boolean temRecebimento) {}
+                             String observacao, int itens, boolean temRecebimento,
+                             boolean cancelada) {}
 
     public record Totais(long quantidade, BigDecimal soma) {}
 
@@ -52,18 +53,22 @@ public class VendaConsultaService {
         List<Linha> vendas = jdbc.query("""
                 SELECT forma_pagamento AS rotulo, COUNT(*) AS qtd, COALESCE(SUM(total), 0) AS total
                 FROM venda
-                WHERE CAST(data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                WHERE cancelada_em IS NULL
+                  AND CAST(data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
                 GROUP BY forma_pagamento ORDER BY forma_pagamento
                 """, params,
                 (rs, i) -> new Linha(rs.getString("rotulo"), rs.getLong("qtd"), rs.getBigDecimal("total")));
 
-        // documento IS NULL = só lançamentos do sistema (histórico migrado do SET fica fora)
+        // documento IS NULL = só lançamentos do sistema (histórico migrado do SET
+        // fica fora); entrada de fiado de venda cancelada sai junto com a venda
         List<Linha> recebimentos = jdbc.query("""
-                SELECT tipo AS rotulo, COUNT(*) AS qtd, COALESCE(SUM(valor), 0) AS total
-                FROM pagamento_fiado
-                WHERE valor > 0 AND documento IS NULL AND tipo <> 'BAIXA'
-                  AND CAST(data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
-                GROUP BY tipo ORDER BY tipo
+                SELECT p.tipo AS rotulo, COUNT(*) AS qtd, COALESCE(SUM(p.valor), 0) AS total
+                FROM pagamento_fiado p
+                LEFT JOIN venda vx ON vx.id = p.venda_id
+                WHERE p.valor > 0 AND p.documento IS NULL AND p.tipo <> 'BAIXA'
+                  AND vx.cancelada_em IS NULL
+                  AND CAST(p.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                GROUP BY p.tipo ORDER BY p.tipo
                 """, params,
                 (rs, i) -> new Linha(rs.getString("rotulo"), rs.getLong("qtd"), rs.getBigDecimal("total")));
 
@@ -119,6 +124,7 @@ public class VendaConsultaService {
 
         List<VendaLinha> vendas = jdbc.query("""
                 SELECT v.id, v.data, v.forma_pagamento, v.desconto, v.total, v.observacao,
+                       v.cancelada_em,
                        c.nome AS cliente_nome, vd.nome AS vendedor_nome,
                        (SELECT COUNT(*) FROM item_venda i WHERE i.venda_id = v.id) AS itens,
                        EXISTS (SELECT 1 FROM parcela_fiado p
@@ -129,10 +135,14 @@ public class VendaConsultaService {
                         rs.getString("cliente_nome"), rs.getString("vendedor_nome"),
                         rs.getString("forma_pagamento"), rs.getBigDecimal("desconto"),
                         rs.getBigDecimal("total"), rs.getString("observacao"),
-                        rs.getInt("itens"), rs.getBoolean("tem_recebimento")));
+                        rs.getInt("itens"), rs.getBoolean("tem_recebimento"),
+                        rs.getTimestamp("cancelada_em") != null));
 
+        // a lista mostra as canceladas (com selo), mas a soma financeira não as conta
         Totais totais = jdbc.queryForObject(
-                "SELECT COUNT(*) AS qtd, COALESCE(SUM(v.total), 0) AS soma " + base, params,
+                "SELECT COUNT(*) AS qtd, "
+                        + "COALESCE(SUM(v.total) FILTER (WHERE v.cancelada_em IS NULL), 0) AS soma " + base,
+                params,
                 (rs, i) -> new Totais(rs.getLong("qtd"), rs.getBigDecimal("soma")));
 
         return new Pagina(vendas, totais.quantidade(), Math.max(1, pagina), porPagina, totais);

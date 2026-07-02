@@ -49,6 +49,9 @@ public class NfceEmissaoService {
 
         Venda venda = vendaRepository.findById(vendaId)
                 .orElseThrow(() -> new IllegalArgumentException("Venda nº " + vendaId + " não encontrada"));
+        if (venda.getCanceladaEm() != null) {
+            throw new RegraNegocioException("Venda nº " + vendaId + " foi estornada — não emite NFC-e");
+        }
         venda.getItens().size(); // força carregar os itens dentro da transação
 
         // numeração provisória: enquanto não transmitimos, usamos o id da venda

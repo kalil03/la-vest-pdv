@@ -54,6 +54,7 @@ public class ContasReceberService {
             JOIN venda v ON v.id = pf.venda_id
             JOIN cliente c ON c.id = v.cliente_id
             JOIN LATERAL (SELECT COUNT(*) AS total FROM parcela_fiado x WHERE x.venda_id = v.id) cnt ON true
+            WHERE v.cancelada_em IS NULL
             """;
 
     @Transactional(readOnly = true)
@@ -115,7 +116,9 @@ public class ContasReceberService {
                            WHERE t.vencimento < CAST(now() AT TIME ZONE 'America/Sao_Paulo' AS date)), 0) AS total_vencido,
                        COUNT(*) FILTER (WHERE t.valor_aberto > 0) AS parcelas_abertas,
                        (SELECT COALESCE(SUM(p.valor), 0) FROM pagamento_fiado p
+                        LEFT JOIN venda vx ON vx.id = p.venda_id
                         WHERE p.tipo NOT IN ('DEBITO_INICIAL', 'BAIXA') AND p.valor > 0
+                          AND vx.cancelada_em IS NULL
                           AND date_trunc('month', p.data AT TIME ZONE 'America/Sao_Paulo')
                               = date_trunc('month', now() AT TIME ZONE 'America/Sao_Paulo')) AS recebido_mes
                 FROM (""" + FONTE + ") t WHERE t.valor_aberto > 0",

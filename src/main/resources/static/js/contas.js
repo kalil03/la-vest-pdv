@@ -137,17 +137,18 @@ async function carregarVendas() {
   const r = await (await fetch(`/api/vendas?${params}`)).json();
 
   $('v-lista').innerHTML = r.vendas.map((v) => `
-    <tr>
+    <tr${v.cancelada ? ' style="opacity:.55"' : ''}>
       <td class="mono font-bold">${v.id}</td>
       <td class="mono">${dataHoraBr(v.data)}</td>
       <td class="font-medium">${v.clienteNome ?? '<span class="text-muted-foreground">à vista</span>'}${v.observacao ? ` <span title="${v.observacao.replace(/"/g, '&quot;')}">📝</span>` : ''}</td>
       <td>${v.vendedorNome ?? ''}</td>
-      <td><span class="chip forma">${FORMA[v.formaPagamento] || v.formaPagamento}</span></td>
-      <td class="num font-semibold">${fmt(v.total)}</td>
-      <td>
-        <button class="acao-btn" data-acao="recibo" data-id="${v.id}">Recibo</button>
+      <td><span class="chip forma">${FORMA[v.formaPagamento] || v.formaPagamento}</span>${v.cancelada ? ' <span class="chip" style="background:#fee2e2;color:#b91c1c;font-weight:700">CANCELADA</span>' : ''}</td>
+      <td class="num font-semibold"${v.cancelada ? ' style="text-decoration:line-through"' : ''}>${fmt(v.total)}</td>
+      <td>${v.cancelada
+        ? `<button class="acao-btn" data-acao="recibo" data-id="${v.id}">Recibo</button>`
+        : `<button class="acao-btn" data-acao="recibo" data-id="${v.id}">Recibo</button>
         <button class="acao-btn" data-acao="editar" data-id="${v.id}" ${v.temRecebimento ? 'disabled title="Parcela já recebida no carnê"' : ''}>Editar</button>
-        <button class="acao-btn perigo" data-acao="estornar" data-id="${v.id}" ${v.temRecebimento ? 'disabled title="Parcela já recebida no carnê"' : ''}>Estornar</button>
+        <button class="acao-btn perigo" data-acao="estornar" data-id="${v.id}" ${v.temRecebimento ? 'disabled title="Parcela já recebida no carnê"' : ''}>Estornar</button>`}
       </td>
     </tr>`).join('')
     || '<tr><td colspan="7" class="text-center text-muted-foreground py-8">Nenhuma venda com esses filtros</td></tr>';

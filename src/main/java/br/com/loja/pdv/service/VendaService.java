@@ -21,19 +21,22 @@ public class VendaService {
     private final VendedorRepository vendedorRepository;
     private final PagamentoFiadoRepository pagamentoFiadoRepository;
     private final EstornoRepository estornoRepository;
+    private final NfceRepository nfceRepository;
 
     public VendaService(VendaRepository vendaRepository,
                         VariacaoRepository variacaoRepository,
                         ClienteRepository clienteRepository,
                         VendedorRepository vendedorRepository,
                         PagamentoFiadoRepository pagamentoFiadoRepository,
-                        EstornoRepository estornoRepository) {
+                        EstornoRepository estornoRepository,
+                        NfceRepository nfceRepository) {
         this.vendaRepository = vendaRepository;
         this.variacaoRepository = variacaoRepository;
         this.clienteRepository = clienteRepository;
         this.vendedorRepository = vendedorRepository;
         this.pagamentoFiadoRepository = pagamentoFiadoRepository;
         this.estornoRepository = estornoRepository;
+        this.nfceRepository = nfceRepository;
     }
 
     /**
@@ -235,14 +238,20 @@ public class VendaService {
     }
 
     /**
-     * Cancela a venda inteira: devolve o estoque, apaga entrada/parcelas e a
-     * própria venda — tudo numa transação. Recusado se alguma parcela do
-     * fiado já recebeu pagamento (o carnê já andou; cancelar bagunçaria o caixa).
+     * Cancela a venda: devolve o estoque e a MARCA como cancelada — nunca
+     * deleta. A venda (com sua numeração e data originais), a entrada de fiado
+     * e as parcelas permanecem no banco; todas as somas financeiras as ignoram
+     * pelo filtro cancelada_em IS NULL. Recusado se alguma parcela do fiado já
+     * recebeu pagamento (o carnê já andou) ou se há NFC-e AUTORIZADA
+     * (cancelamento fiscal é evento na SEFAZ, não marcação local).
      */
     @Transactional
     public void cancelar(Long id, String operador, String motivo) {
         Venda venda = vendaRepository.findById(id)
                 .orElseThrow(() -> new RegraNegocioException("Venda não encontrada (id " + id + ")"));
+        if (venda.getCanceladaEm() != null) {
+            throw new RegraNegocioException("Esta venda já foi estornada");
+        }
 
         boolean carneAndou = venda.getParcelas().stream()
                 .anyMatch(p -> p.getValorAberto().compareTo(p.getValor()) < 0);
@@ -251,7 +260,21 @@ public class VendaService {
                     "Esta venda já tem parcela recebida no carnê — não dá mais para cancelar");
         }
 
-        // auditoria: a venda some, o registro de quem desfez fica para sempre
+        boolean nfceAutorizada = nfceRepository.findByVendaId(id)
+                .filter(n -> n.getStatus() == Nfce.Status.AUTORIZADO)
+                .isPresent();
+        if (nfceAutorizada) {
+            throw new RegraNegocioException(
+                    "Esta venda tem NFC-e autorizada — cancele a nota na SEFAZ antes de estornar");
+        }
+
+        // marcação atômica: se outro estorno passou na frente, 0 linhas e
+        // abortamos ANTES de devolver o estoque em dobro
+        if (vendaRepository.marcarCancelada(id, java.time.Instant.now(), operador, motivo) == 0) {
+            throw new RegraNegocioException("Esta venda já foi estornada");
+        }
+
+        // auditoria imutável: quem desfez o quê, para sempre
         Estorno estorno = new Estorno();
         estorno.setVendaId(venda.getId());
         estorno.setOperador(operador);
@@ -267,9 +290,7 @@ public class VendaService {
         for (ItemVenda item : venda.getItens()) {
             variacaoRepository.devolverEstoque(item.getVariacao().getId(), item.getQuantidade());
         }
-        // entrada de fiado registrada junto da venda some com ela
-        pagamentoFiadoRepository.deleteAll(pagamentoFiadoRepository.findByVendaId(id));
-        vendaRepository.delete(venda); // itens e parcelas caem em cascata
+        // entrada de fiado e parcelas PERMANECEM: saem das somas pelo filtro
     }
 
     private String descricao(Variacao v) {

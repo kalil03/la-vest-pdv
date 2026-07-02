@@ -11,11 +11,12 @@ import java.util.List;
 
 public interface ParcelaFiadoRepository extends JpaRepository<ParcelaFiado, Long> {
 
-    /** Cronograma de todas as vendas fiado do cliente, mais antigas primeiro. */
+    /** Cronograma das vendas fiado NÃO canceladas do cliente, mais antigas primeiro. */
     @Query("""
             SELECT p FROM ParcelaFiado p
             JOIN FETCH p.venda v
             WHERE v.cliente.id = :clienteId
+              AND v.canceladaEm IS NULL
             ORDER BY p.vencimento, p.id
             """)
     List<ParcelaFiado> doCliente(@Param("clienteId") Long clienteId);

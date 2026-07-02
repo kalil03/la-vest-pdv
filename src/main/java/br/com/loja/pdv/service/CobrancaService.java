@@ -65,6 +65,7 @@ public class CobrancaService {
             FROM parcela_fiado pf
             JOIN venda v ON v.id = pf.venda_id
             JOIN cliente c ON c.id = v.cliente_id
+            WHERE v.cancelada_em IS NULL
             """;
 
     /** Agrupa por cliente; só entram os que têm parcela vencida em aberto. Filtra por tipo da notinha. */
