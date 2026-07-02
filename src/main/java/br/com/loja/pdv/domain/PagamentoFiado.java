@@ -48,7 +48,7 @@ public class PagamentoFiado {
     /** Nº da notinha no sistema antigo (NDOC, ex. "66/01") — só em registros migrados. */
     private String documento;
 
-    /** Tipo da notinha do carnê SET: "Tênis" ou "Roupa" (coluna GRUPO do contasrec). */
+    /** Tipo da notinha do carnê SET: "Tênis" ou "Geral" (era "Roupa" no SET; renomeado na V19). */
     @Column(name = "tipo_notinha")
     private String tipoNotinha;
 

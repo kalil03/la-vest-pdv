@@ -86,7 +86,7 @@ class VendaApiTest {
     void vendaAVistaGravaVendaEBaixaEstoqueNaMesmaOperacao() {
         var req = pedido(
                 "formaPagamento", "DINHEIRO",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "itens", List.of(
                         Map.of("variacaoId", variacaoTenis38, "quantidade", 2, "precoUnit", "150.00"),
                         Map.of("variacaoId", variacaoPerfume, "quantidade", 1, "precoUnit", "80.00")));
@@ -104,7 +104,7 @@ class VendaApiTest {
     void vendaSemVendedorERecusada() {
         var req = Map.of(
                 "formaPagamento", "DINHEIRO",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1)));
 
         ResponseEntity<Map> resp = http.postForEntity("/api/vendas", req, Map.class);
@@ -119,7 +119,7 @@ class VendaApiTest {
         long variacaoInexistente = 99999L;
         var req = pedido(
                 "formaPagamento", "PIX",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "itens", List.of(
                         Map.of("variacaoId", variacaoTenis38, "quantidade", 3),
                         Map.of("variacaoId", variacaoInexistente, "quantidade", 1)));
@@ -136,7 +136,7 @@ class VendaApiTest {
     void fiadoSemClienteERecusado() {
         var req = pedido(
                 "formaPagamento", "FIADO",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1)));
 
         ResponseEntity<Map> resp = http.postForEntity("/api/vendas", req, Map.class);
@@ -151,7 +151,7 @@ class VendaApiTest {
         var req = pedido(
                 "clienteNome", "Maria da Silva",
                 "formaPagamento", "FIADO",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "observacao", "comprou no nome da avó",
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
 
@@ -172,7 +172,7 @@ class VendaApiTest {
     void descontoReduzOTotalEFicaRegistrado() {
         var req = pedido(
                 "formaPagamento", "PIX",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "desconto", "30.00",
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 2, "precoUnit", "150.00")));
 
@@ -188,7 +188,7 @@ class VendaApiTest {
     void descontoMaiorQueAVendaERecusado() {
         var req = pedido(
                 "formaPagamento", "PIX",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "desconto", "500.00",
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
 
@@ -204,7 +204,7 @@ class VendaApiTest {
         var req = pedido(
                 "clienteNome", "Carlos Souza",
                 "formaPagamento", "FIADO",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "fiado", Map.of(
                         "entradaValor", "60.00",
                         "entradaTipo", "DINHEIRO",
@@ -235,7 +235,7 @@ class VendaApiTest {
         var req = pedido(
                 "clienteNome", "Ana Lima",
                 "formaPagamento", "FIADO",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "fiado", Map.of(
                         "parcelas", List.of(
                                 Map.of("numero", 1, "valor", "100.00", "vencimento", "2026-07-11"))),
@@ -264,7 +264,7 @@ class VendaApiTest {
         var req = pedido(
                 "clienteNome", "Beatriz Rocha",
                 "formaPagamento", "FIADO",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "fiado", Map.of(
                         "entradaValor", "50.00", "entradaTipo", "PIX",
                         "parcelas", List.of(Map.of("numero", 1, "valor", "100.00", "vencimento", "2026-07-11"))),
@@ -303,7 +303,7 @@ class VendaApiTest {
         var req = pedido(
                 "clienteNome", "Diego Brito",
                 "formaPagamento", "FIADO",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "fiado", Map.of("parcelas", List.of(
                         Map.of("numero", 1, "valor", "150.00", "vencimento", "2026-07-11"))),
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
@@ -331,7 +331,7 @@ class VendaApiTest {
         var req = pedido(
                 "clienteNome", "Cliente Score",
                 "formaPagamento", "FIADO",
-                "tipoNotinha", "Roupa",
+                "tipoNotinha", "Geral",
                 "fiado", Map.of("entradaValor", "50.00", "entradaTipo", "PIX",
                         "parcelas", List.of(Map.of("numero", 1, "valor", "100.00", "vencimento", "2030-01-10"))),
                 "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));

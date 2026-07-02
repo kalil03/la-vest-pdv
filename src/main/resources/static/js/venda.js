@@ -17,7 +17,7 @@ let loja = { nome: 'Loja', endereco: '', telefone: '' };
 let vendedores = [];
 let parcelas = [];         // [{numero, valor, vencimento(yyyy-mm-dd)}] no modal
 let condicionalEmFechamento = null; // id da condicional sendo fechada via /?condicional=
-let tipoNotinha = '';      // "Roupa" | "Tênis" — obrigatório
+let tipoNotinha = '';      // "Geral" | "Tênis" — obrigatório
 let tipoManual = false;    // operador escolheu na mão (não deixa a sugestão sobrescrever)
 let enviandoVenda = false; // trava de duplo-submit: F10 repetido não pode gerar duas vendas
 
@@ -42,7 +42,7 @@ const $clienteNovoAviso = $('cliente-novo-aviso');
 const $avancar = $('avancar');
 $('c-vendedor').addEventListener('change', atualizarAvancar);
 
-// ---------- tipo da notinha (Roupa/Tênis) — obrigatório ----------
+// ---------- tipo da notinha (Geral/Tênis) — obrigatório ----------
 function pintarTipo() {
   document.querySelectorAll('#tipo-notinha .tipo-btn').forEach((b) =>
     b.classList.toggle('ativa', b.dataset.tipo === tipoNotinha));
@@ -57,7 +57,7 @@ function setTipo(t, manual) {
 function sugerirTipo() {
   if (tipoManual || !itens.length) return;
   const temCalcado = itens.some((i) => /cal[çc]ad/i.test(i.categoria || ''));
-  setTipo(temCalcado ? 'Tênis' : 'Roupa', false);
+  setTipo(temCalcado ? 'Tênis' : 'Geral', false);
 }
 document.getElementById('tipo-notinha').addEventListener('click', (e) => {
   const b = e.target.closest('.tipo-btn');
@@ -416,8 +416,8 @@ function abrirModal() {
     setTimeout(() => $('c-vendedor').classList.remove('ring-2', 'ring-destructive'), 2000);
     return;
   }
-  if (tipoNotinha !== 'Roupa' && tipoNotinha !== 'Tênis') {
-    toast('Informe o tipo da notinha: Roupa ou Tênis', 'erro');
+  if (tipoNotinha !== 'Geral' && tipoNotinha !== 'Tênis') {
+    toast('Informe o tipo da notinha: Geral ou Tênis', 'erro');
     const box = $('tipo-notinha');
     box.classList.add('ring-2', 'ring-destructive', 'rounded-lg');
     setTimeout(() => box.classList.remove('ring-2', 'ring-destructive', 'rounded-lg'), 2000);

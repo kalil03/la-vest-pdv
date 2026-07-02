@@ -27,7 +27,8 @@ public record CarneDTO(
             LocalDate vencimento,
             BigDecimal valor,
             BigDecimal valorAberto,
-            long diasAtraso) {    // negativo = ainda vai vencer (ex.: -5 → vence em 5 dias)
+            long diasAtraso,      // negativo = ainda vai vencer (ex.: -5 → vence em 5 dias)
+            String tipo) {        // "Tênis" | "Geral" — separa a carteira nas telas
     }
 
     public record Pagamento(Instant data, BigDecimal valor, String tipo, String vendedorNome,

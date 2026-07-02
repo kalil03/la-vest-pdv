@@ -43,7 +43,7 @@ public class Venda {
     /** Ex.: "comprou no nome da avó com autorização" — sai na promissória e no carnê. */
     private String observacao;
 
-    /** Tipo da notinha: "Roupa" ou "Tênis" — obrigatório no fechamento. */
+    /** Tipo da notinha: "Geral" ou "Tênis" — obrigatório no fechamento. */
     @Column(name = "tipo_notinha")
     private String tipoNotinha;
 

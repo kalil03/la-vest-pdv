@@ -28,7 +28,7 @@ public record FecharVendaRequest(
         BigDecimal desconto,
         Integer parcelasCartao,
         String observacao,
-        String tipoNotinha, // "Roupa" ou "Tênis" — obrigatório (validado no serviço)
+        String tipoNotinha, // "Geral" ou "Tênis" — obrigatório (validado no serviço)
         LocalDate data, // null = agora; preenchida = venda lançada com outra data (ex.: venda de ontem anotada no papel)
         @Valid Fiado fiado,
         @NotEmpty(message = "Venda sem itens") @Valid List<Item> itens) {

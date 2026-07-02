@@ -98,7 +98,7 @@ class InvarianteFiadoTest {
         fiado.put("parcelas", parcelas);
         var resp = http.postForEntity("/api/vendas", Map.of(
                 "clienteId", clienteId, "vendedorId", vendedorId, "formaPagamento", "FIADO",
-                "tipoNotinha", "Roupa", "fiado", fiado,
+                "tipoNotinha", "Geral", "fiado", fiado,
                 "itens", List.of(Map.of("variacaoId", variacaoId, "quantidade", 1, "precoUnit", precoUnit))),
                 Map.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);

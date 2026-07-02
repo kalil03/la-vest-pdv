@@ -198,9 +198,10 @@ public class CarneService {
                 .findByClienteIdAndTipoOrderByDataAsc(clienteId, TipoPagamentoFiado.DEBITO_INICIAL)) {
             if (p.getValorAberto() == null || p.getValorAberto().signum() <= 0) continue;
             LocalDate venc = LocalDate.ofInstant(p.getData(), FUSO);
-            abertas.add(new CarneDTO.Parcela("L" + p.getId(), descricaoLegada(p), null, null,
+            // o tipo vai em campo próprio (chip na tela), não mais colado na descrição
+            abertas.add(new CarneDTO.Parcela("L" + p.getId(), descricaoLegadaBase(p), null, null,
                     venc, p.getValor().negate(), p.getValorAberto(),
-                    ChronoUnit.DAYS.between(venc, hoje)));
+                    ChronoUnit.DAYS.between(venc, hoje), p.getTipoNotinha()));
         }
         for (ParcelaFiado p : parcelaRepository.doCliente(clienteId)) {
             if (p.getValorAberto().signum() <= 0) continue;
@@ -209,15 +210,20 @@ public class CarneService {
                     "Venda nº " + venda.getId() + " — " + p.getNumero() + "/" + venda.getParcelas().size(),
                     venda.getId(), venda.getObservacao(),
                     p.getVencimento(), p.getValor(), p.getValorAberto(),
-                    ChronoUnit.DAYS.between(p.getVencimento(), hoje)));
+                    ChronoUnit.DAYS.between(p.getVencimento(), hoje), venda.getTipoNotinha()));
         }
         abertas.sort(java.util.Comparator.comparing(CarneDTO.Parcela::vencimento));
         return abertas;
     }
 
     /** "Carnê SET nº 66/01" — o nº que a loja conhece do sistema antigo. */
+    private String descricaoLegadaBase(PagamentoFiado p) {
+        return p.getDocumento() != null ? "Carnê SET nº " + p.getDocumento() : "Carnê SET";
+    }
+
+    /** Versão com o tipo — usada no recibo impresso, onde não há chip. */
     private String descricaoLegada(PagamentoFiado p) {
-        String base = p.getDocumento() != null ? "Carnê SET nº " + p.getDocumento() : "Carnê SET";
+        String base = descricaoLegadaBase(p);
         return p.getTipoNotinha() != null ? base + " · " + p.getTipoNotinha() : base;
     }
 

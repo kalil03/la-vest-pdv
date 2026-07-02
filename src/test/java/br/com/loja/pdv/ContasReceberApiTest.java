@@ -72,7 +72,7 @@ class ContasReceberApiTest {
         Long variacaoId = jdbc.queryForObject(
                 "INSERT INTO variacao (produto_id, estoque) VALUES (?, 5) RETURNING id", Long.class, produtoId);
         var venda = Map.of(
-                "clienteId", clienteId, "vendedorId", vendedorId, "formaPagamento", "FIADO", "tipoNotinha", "Roupa",
+                "clienteId", clienteId, "vendedorId", vendedorId, "formaPagamento", "FIADO", "tipoNotinha", "Geral",
                 "fiado", Map.of("parcelas", List.of(
                         Map.of("numero", 1, "valor", "200.00", "vencimento", "2030-01-10"))),
                 "itens", List.of(Map.of("variacaoId", variacaoId, "quantidade", 1, "precoUnit", "200.00")));
@@ -80,7 +80,7 @@ class ContasReceberApiTest {
 
         var contas = (List<Map<String, Object>>) listar("?status=ABERTA").get("contas");
         var daVenda = contas.stream().filter(c -> c.get("notinha") != null).findFirst().orElseThrow();
-        assertThat(daVenda.get("descricao")).isEqualTo("Parcela 1/1 · Roupa");
+        assertThat(daVenda.get("descricao")).isEqualTo("Parcela 1/1 · Geral");
         assertThat(daVenda.get("status")).isEqualTo("ABERTA"); // vence em 2030
     }
 }

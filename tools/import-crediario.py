@@ -144,14 +144,14 @@ def main():
                     # Tênis estão 100% separadas no SET; aberta sem grupo => Roupa.
                     grupo = (p.get('GRUPO') or '')
                     tipo_nota = ('Tênis' if ('Tênis' in grupo or 'Tenis' in grupo)
-                                 else ('Roupa' if 'Roupa' in grupo else None))
+                                 else ('Geral' if 'Roupa' in grupo else None))
 
                     if situacao == 'a Receber':
                         cur.execute("""
                             INSERT INTO pagamento_fiado
                                 (cliente_id, valor, tipo, data, valor_aberto, documento, tipo_notinha)
                             VALUES (%s, %s, 'DEBITO_INICIAL', CAST(%s AS date), %s, %s, %s)
-                            """, (cliente_id, -valor, venc, valor, documento, tipo_nota or 'Roupa'))
+                            """, (cliente_id, -valor, venc, valor, documento, tipo_nota or 'Geral'))
                         abertas += 1
                         total_aberto += valor
                     elif situacao == 'Recebida':

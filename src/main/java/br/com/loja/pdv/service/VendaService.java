@@ -60,8 +60,8 @@ public class VendaService {
         }
 
         String tipoNotinha = req.tipoNotinha() == null ? "" : req.tipoNotinha().trim();
-        if (!tipoNotinha.equals("Roupa") && !tipoNotinha.equals("Tênis")) {
-            throw new RegraNegocioException("Informe o tipo da notinha (Roupa ou Tênis)");
+        if (!tipoNotinha.equals("Geral") && !tipoNotinha.equals("Tênis")) {
+            throw new RegraNegocioException("Informe o tipo da notinha (Geral ou Tênis)");
         }
 
         Venda venda = new Venda();

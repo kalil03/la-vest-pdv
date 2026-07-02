@@ -245,7 +245,7 @@ function renderParcelas() {
       <td>${isSel
         ? `<span class="inline-flex w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold items-center justify-center">${ordem}</span>`
         : '<input type="checkbox" tabindex="-1" class="pointer-events-none accent-current">'}</td>
-      <td>${p.descricao}${p.observacao ? `<br><small class="text-muted-foreground"><i data-lucide="message-square-text" class="w-3 h-3 inline"></i> ${p.observacao}</small>` : ''}</td>
+      <td>${p.descricao}${p.tipo ? ` <span class="chip prazo">${p.tipo}</span>` : ''}${p.observacao ? `<br><small class="text-muted-foreground"><i data-lucide="message-square-text" class="w-3 h-3 inline"></i> ${p.observacao}</small>` : ''}</td>
       <td class="mono">${dataBr(p.vencimento)}</td>
       <td>${statusChip(p)}</td>
       <td class="num font-semibold">${fmt(p.valorAberto)}</td>`;
