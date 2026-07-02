@@ -411,6 +411,8 @@ function calcularSomaManual() {
 }
 
 async function confirmarRecebimento() {
+  // o F10 chama esta função direto, sem passar pelo disabled do botão
+  if (recebendo) return;
   const alocacoes = [];
   let valorTotal = 0;
   

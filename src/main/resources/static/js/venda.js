@@ -19,6 +19,7 @@ let parcelas = [];         // [{numero, valor, vencimento(yyyy-mm-dd)}] no modal
 let condicionalEmFechamento = null; // id da condicional sendo fechada via /?condicional=
 let tipoNotinha = '';      // "Roupa" | "Tênis" — obrigatório
 let tipoManual = false;    // operador escolheu na mão (não deixa a sugestão sobrescrever)
+let enviandoVenda = false; // trava de duplo-submit: F10 repetido não pode gerar duas vendas
 
 fetch('/api/config').then((r) => r.json()).then((c) => { loja = c; });
 
@@ -593,6 +594,8 @@ $avancar.addEventListener('click', abrirModal);
 
 // ---------- confirmar: o clique único que grava + imprime ----------
 async function confirmarVenda() {
+  // o atalho F10 chama esta função direto, sem passar pelo disabled do botão
+  if (enviandoVenda) return;
   const forma = $('m-forma').value;
 
   const body = {
@@ -640,6 +643,7 @@ async function confirmarVenda() {
     };
   }
 
+  enviandoVenda = true;
   $('m-confirmar').disabled = true;
   try {
     const resp = await fetch('/api/vendas', {
@@ -671,6 +675,7 @@ async function confirmarVenda() {
   } catch {
     mostrarErroModal('Falha de conexão com o servidor');
   } finally {
+    enviandoVenda = false;
     $('m-confirmar').disabled = false;
   }
 }
