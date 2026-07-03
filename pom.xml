@@ -62,6 +62,15 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- PDF do fechamento mensal (aprovado): unica lib de PDF do projeto,
+		     usada so para exportar o relatorio em A4 (no kiosk nao ha "salvar
+		     como PDF" — a impressao sai direto na termica). -->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>3.0.3</version>
+		</dependency>
+
 		<!-- NFC-e direto na SEFAZ (gratis, sem gateway pago). Monta/assina/transmite
 		     o XML 4.00. Via JitPack. Axis2/javax sao do stack legado da lib. -->
 		<dependency>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="antialiased">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <title>PDV — Fechamento Mensal</title>
+  <script src="/js/auth.js"></script>
+  <script src="/vendor/tailwind.js"></script>
+  <script src="/vendor/lucide.js"></script>
+  <link rel="stylesheet" href="/vendor/fonts.css">
+  <link rel="stylesheet" href="/css/pdv.css">
+  <style>
+    :root {
+      --background: #ffffff; --foreground: oklch(0.145 0 0);
+      --primary: #030213; --primary-foreground: oklch(1 0 0);
+      --secondary: oklch(0.95 0.0058 264.53); --muted: #ececf0; --muted-foreground: #717182;
+      --destructive: #d4183d; --border: rgba(0, 0, 0, 0.1);
+      --sidebar: oklch(0.985 0 0); --sidebar-foreground: oklch(0.145 0 0);
+      --sidebar-primary: #030213; --sidebar-accent: oklch(0.97 0 0);
+      --sidebar-accent-foreground: oklch(0.205 0 0); --sidebar-border: oklch(0.922 0 0);
+      --ok: #16a34a; --ok-bg: #f0fdf4; --warn: #d97706; --warn-bg: #fffbeb;
+      --bad: #d4183d; --bad-bg: #fef2f2;
+    }
+    body { font-family: 'Inter', system-ui, sans-serif; margin: 0; background: var(--background); color: var(--foreground); }
+    [hidden] { display: none !important; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    .kpi { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--background); }
+    .kpi .rotulo { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); }
+    .kpi .valor { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+    .tab-contas { width: 100%; border-collapse: collapse; }
+    .tab-contas th { padding: 10px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; color: var(--muted-foreground); text-align: left; border-bottom: 1px solid var(--border); background: var(--secondary); }
+    .tab-contas td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
+    .tab-contas .num { text-align: right; font-family: 'JetBrains Mono', monospace; }
+
+    .filtros-bar input { font-size: 13px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--foreground); }
+    .filtros-bar input:focus { outline: none; border-color: var(--primary); }
+    .btn-exportar { padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-exportar:hover { background: var(--secondary); }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: {
+        background: 'var(--background)', foreground: 'var(--foreground)',
+        primary: { DEFAULT: 'var(--primary)', foreground: 'var(--primary-foreground)' },
+        secondary: { DEFAULT: 'var(--secondary)', foreground: 'var(--secondary-foreground)' },
+        muted: { DEFAULT: 'var(--muted)', foreground: 'var(--muted-foreground)' },
+        destructive: { DEFAULT: 'var(--destructive)' }, border: 'var(--border)',
+        sidebar: { DEFAULT: 'var(--sidebar)', foreground: 'var(--sidebar-foreground)',
+          primary: 'var(--sidebar-primary)', accent: 'var(--sidebar-accent)',
+          'accent-foreground': 'var(--sidebar-accent-foreground)', border: 'var(--sidebar-border)' }
+      } } }
+    }
+  </script>
+</head>
+<body class="bg-background overflow-hidden text-foreground">
+
+  <div class="flex h-screen overflow-hidden">
+    <!-- SIDEBAR -->
+    <aside class="w-56 flex-shrink-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border z-20 relative">
+      <div class="flex items-center gap-2.5 px-5 py-4 border-b border-sidebar-border">
+        <div class="w-7 h-7 rounded-md overflow-hidden flex items-center justify-center">
+          <img src="/favicon.png" alt="La Vest" class="w-full h-full object-cover">
+        </div>
+        <div>
+          <p class="text-sidebar-accent-foreground leading-none font-semibold text-[13px]">La Vest</p>
+          <p class="text-sidebar-foreground mt-1 text-[11px]">Sistema de Gestão</p>
+        </div>
+      </div>
+
+      <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <p class="text-sidebar-foreground px-2 mb-2 uppercase font-semibold text-[10px] tracking-widest">Menu Principal</p>
+        <a href="/" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="layout-dashboard" class="w-[15px] h-[15px]"></i><span class="flex-1">Venda (Caixa)</span>
+        </a>
+        <a href="/carne.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="wallet" class="w-[15px] h-[15px]"></i><span class="flex-1">Carnê</span>
+        </a>
+        <a href="/contas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="receipt" class="w-[15px] h-[15px]"></i><span class="flex-1">A Receber</span>
+        </a>
+        <a href="/caixa.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="calculator" class="w-[15px] h-[15px]"></i><span class="flex-1">Caixa do dia</span>
+        </a>
+        <a href="/fechamento.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group bg-sidebar-accent text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="calendar-check" class="w-[15px] h-[15px] text-primary"></i>
+          <span class="flex-1 font-medium">Fechamento</span>
+          <i data-lucide="chevron-right" class="w-3 h-3 text-primary"></i>
+        </a>
+        <a href="/produtos.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="package" class="w-[15px] h-[15px]"></i><span class="flex-1">Produtos</span>
+        </a>
+        <a href="/clientes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="users" class="w-[15px] h-[15px]"></i><span class="flex-1">Clientes</span>
+        </a>
+        <a href="/etiquetas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="tags" class="w-[15px] h-[15px]"></i><span class="flex-1">Etiquetas</span>
+        </a>
+        <a href="/cobranca.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="phone-outgoing" class="w-[15px] h-[15px]"></i><span class="flex-1">Cobrança</span>
+        </a>
+        <a href="/condicional.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="shirt" class="w-[15px] h-[15px]"></i><span class="flex-1">Condicional</span>
+        </a>
+        <a href="/ajustes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="settings" class="w-[15px] h-[15px]"></i><span class="flex-1">Ajustes</span>
+        </a>
+      </nav>
+
+      <div class="px-4 py-3 border-t border-sidebar-border">
+        <div class="flex items-center gap-2.5">
+          <div id="usuario-avatar" class="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[11px] font-semibold text-primary"></div>
+          <div class="flex-1 min-w-0">
+            <p id="usuario-nome" class="text-sidebar-accent-foreground truncate text-[12px] font-medium"></p>
+            <button id="sair" class="text-sidebar-foreground text-[11px] hover:underline bg-transparent border-0 p-0 cursor-pointer">Sair</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTEÚDO -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div class="px-8 py-4 border-b border-border flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 class="text-foreground text-lg font-bold leading-tight flex items-center gap-2"><i data-lucide="calendar-check" class="w-5 h-5"></i> Fechamento Mensal</h1>
+          <p class="text-muted-foreground text-[12px] mt-1">Vendas por categoria, por vendedor e por forma — como no movimento mensal do caderno</p>
+        </div>
+        <div class="filtros-bar flex items-center gap-2">
+          <label class="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">Mês</label>
+          <input id="fm-mes" type="month">
+          <button id="fm-csv" class="btn-exportar"><i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Exportar CSV</button>
+          <button id="fm-pdf" class="btn-exportar"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> Exportar PDF</button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-8">
+        <div class="max-w-4xl mx-auto flex flex-col gap-5">
+
+          <div id="fm-vazio" class="text-center text-muted-foreground py-16 text-[14px]" hidden>
+            Sem movimento neste mês.
+          </div>
+
+          <div id="fm-conteudo" hidden>
+            <!-- POR CATEGORIA -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div class="kpi"><div class="rotulo">Geral</div><div id="fm-cat-geral" class="valor">—</div></div>
+              <div class="kpi"><div class="rotulo">Tênis</div><div id="fm-cat-tenis" class="valor">—</div></div>
+              <div class="kpi" id="fm-cat-semtipo-box" hidden><div class="rotulo">Sem tipo (vendas antigas)</div><div id="fm-cat-semtipo" class="valor">—</div></div>
+              <div class="kpi" style="border-width: 2px"><div class="rotulo">Total geral</div><div id="fm-total" class="valor" style="color: var(--ok)">—</div></div>
+            </div>
+
+            <!-- POR VENDEDOR -->
+            <div class="bg-background border border-border rounded-xl overflow-hidden mt-5">
+              <div class="px-4 py-3 border-b border-border"><h3 class="m-0 text-[13px] font-semibold">Vendas por vendedor</h3></div>
+              <table class="tab-contas">
+                <thead><tr><th>Vendedor</th><th class="num">Vendas</th><th class="num">À vista</th><th class="num">A prazo</th><th class="num">Total</th></tr></thead>
+                <tbody id="fm-vendedores"></tbody>
+              </table>
+            </div>
+
+            <!-- OUTROS LANÇAMENTOS -->
+            <div class="bg-background border border-border rounded-xl overflow-hidden mt-5">
+              <div class="px-4 py-3 border-b border-border"><h3 class="m-0 text-[13px] font-semibold">Outros lançamentos do mês</h3></div>
+              <table class="tab-contas"><tbody id="fm-outros"></tbody></table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/fechamento.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

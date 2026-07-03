@@ -119,5 +119,34 @@ class FechamentoMensalTest {
                 .isEqualTo(50.0);
         assertThat(((Number) ((Map<String, Object>) f.get("retiradas")).get("total")).doubleValue())
                 .isEqualTo(40.0);
+
+        // um cálculo, três saídas: CSV e PDF carregam os MESMOS números da tela
+        String qs = "?ano=" + hoje.getYear() + "&mes=" + hoje.getMonthValue();
+        String csv = new String(http.getForObject("/api/fechamento-mensal/csv" + qs, byte[].class),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(csv).startsWith("﻿"); // BOM: Excel pt-BR abre com acento certo
+        assertThat(csv)
+                .contains("Geral;1;200,00")
+                .contains("Tênis;1;100,00")
+                .contains("Sem tipo;1;50,00")
+                .contains("TOTAL GERAL;3;350,00")
+                .contains("Retiradas (sangria);1;40,00")
+                .contains("Entradas de fiado;1;50,00")
+                .contains("Recebimento de carnê (balcão);1;30,00");
+
+        byte[] pdf = http.getForObject("/api/fechamento-mensal/pdf" + qs, byte[].class);
+        assertThat(new String(pdf, 0, 5, java.nio.charset.StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
+        try (var doc = org.apache.pdfbox.Loader.loadPDF(pdf)) {
+            String texto = new org.apache.pdfbox.text.PDFTextStripper().getText(doc);
+            assertThat(texto)
+                    .contains("TOTAL GERAL")
+                    .contains("350,00")   // total geral
+                    .contains("Ana").contains("Bia").contains("Sem vendedor")
+                    .contains("100,00").contains("200,00")
+                    .contains("40,00")    // retirada
+                    .contains("30,00");   // recebimento
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 }
