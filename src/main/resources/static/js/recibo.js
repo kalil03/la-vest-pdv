@@ -57,14 +57,16 @@ function reciboHTML(venda, loja) {
   const pagamento = rotuloForma(venda.formaPagamento) +
     (venda.formaPagamento === 'CARTAO' && venda.parcelasCartao > 1 ? ` ${venda.parcelasCartao}x` : '');
 
+  const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <style>
-  @page { size: 80mm auto; margin: 0; }
+  @page { size: ${larguraMm}mm auto; margin: 0; }
   body {
-    width: 72mm;
+    width: ${larguraMm - 8}mm;
     margin: 0 auto;
     font-family: 'Courier New', monospace;
     font-size: 12px;
@@ -99,7 +101,7 @@ function reciboHTML(venda, loja) {
   <div class="sep"></div>
   <p class="info">Pagamento: ${pagamento}</p>
   ${blocoFiado}
-  <div class="rodape">Obrigado pela preferência!</div>
+  <div class="rodape">${esc(loja?.impRodape ?? 'Obrigado pela preferência!')}</div>
 </body>
 </html>`;
 }
@@ -164,13 +166,15 @@ function reciboCarneHTML(r, loja) {
 
   const rotulo = { DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO: 'Cartão' }[r.tipo] || r.tipo;
 
+  const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <style>
-  @page { size: 80mm auto; margin: 0; }
-  body { width: 72mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
+  @page { size: ${larguraMm}mm auto; margin: 0; }
+  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
   .centro { text-align: center; }
   .dir { text-align: right; }
   h1 { font-size: 15px; margin: 6px 0 2px; text-align: center; }
@@ -208,7 +212,7 @@ function reciboCarneHTML(r, loja) {
     <div class="linha-assinatura"></div>
     <div class="centro">${esc(r.clienteNome)}</div>
   </div>
-  <div class="rodape">Obrigado pela preferência!</div>
+  <div class="rodape">${esc(loja?.impRodape ?? 'Obrigado pela preferência!')}</div>
 </body>
 </html>`;
 }

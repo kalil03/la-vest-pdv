@@ -62,14 +62,85 @@ function toast(msg, tipo = '') {
   toastTimer = setTimeout(() => { $t.hidden = true; }, 4000);
 }
 
+// ---------- loja, carnê e impressão (tabela config) ----------
+async function carregarConfig() {
+  const c = await (await fetch('/api/config')).json();
+  $('cfg-nome').value = c.nome || '';
+  $('cfg-endereco').value = c.endereco || '';
+  $('cfg-telefone').value = c.telefone || '';
+  $('cfg-venc-dias').value = c.carneVencDias || '30';
+  $('cfg-parcelas').value = c.carneParcelas || '1';
+  $('cfg-largura').value = c.impLarguraMm || '80';
+  $('cfg-rodape').value = c.impRodape || '';
+}
+
+$('form-config').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const resp = await fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nome: $('cfg-nome').value, endereco: $('cfg-endereco').value,
+        telefone: $('cfg-telefone').value,
+        carneVencDias: $('cfg-venc-dias').value, carneParcelas: $('cfg-parcelas').value,
+        impLarguraMm: $('cfg-largura').value, impRodape: $('cfg-rodape').value,
+      }),
+    });
+    if (!resp.ok) {
+      const erro = await resp.json().catch(() => ({}));
+      throw new Error(erro.erro || 'Erro ao salvar');
+    }
+    toast('Ajustes salvos', 'ok');
+  } catch (erro) { toast(erro.message); }
+});
+
 // ---------- operadores (logins) ----------
 async function carregarUsuarios() {
   const usuarios = await (await fetch('/api/usuarios')).json();
   $('qtd-usuarios').textContent = usuarios.length;
   $('lista-usuarios').innerHTML = usuarios.length
-    ? usuarios.map((u) => linhaPessoa(u.nome, u.login)).join('')
+    ? usuarios.map((u) => `<div class="linha">
+        <span class="mini-avatar" style="background:${corAvatar(u.nome)}">${iniciais(u.nome)}</span>
+        <span style="flex:1">${u.nome}</span>
+        <span class="mono">${u.login}</span>
+        <button type="button" class="u-acao" data-acao="senha" data-id="${u.id}" data-nome="${u.nome}"
+                style="margin-left:8px; padding:3px 8px; font-size:11px; border:1px solid var(--border); border-radius:6px; background:transparent; cursor:pointer">Trocar senha</button>
+        <button type="button" class="u-acao" data-acao="desativar" data-id="${u.id}" data-nome="${u.nome}"
+                style="padding:3px 8px; font-size:11px; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--destructive, #d4183d); cursor:pointer">Desativar</button>
+      </div>`).join('')
     : '<div class="vazio-lista">Nenhum registro</div>';
 }
+
+$('lista-usuarios').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.u-acao');
+  if (!btn) return;
+  const { acao, id, nome } = btn.dataset;
+
+  if (acao === 'desativar') {
+    if (!confirm(`Desativar o operador "${nome}"? Ele não conseguirá mais entrar no sistema.`)) return;
+    const resp = await fetch(`/api/usuarios/${id}/desativar`, { method: 'POST' });
+    if (!resp.ok) {
+      const erro = await resp.json().catch(() => ({}));
+      toast(erro.erro || 'Não foi possível desativar');
+      return;
+    }
+    toast(`Operador ${nome} desativado`, 'ok');
+    carregarUsuarios();
+    return;
+  }
+
+  if (acao === 'senha') {
+    const senhaAtual = prompt(`Trocar a senha de ${nome}.\n\nSenha ATUAL:`);
+    if (senhaAtual === null) return;
+    const senhaNova = prompt('Senha NOVA:');
+    if (senhaNova === null || !senhaNova.trim()) return;
+    try {
+      await enviar(`/api/usuarios/${id}/senha`, { senhaAtual, senhaNova });
+      toast(`Senha de ${nome} trocada`, 'ok');
+    } catch (erro) { toast(erro.message); }
+  }
+});
 
 $('form-usuario').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -139,6 +210,7 @@ $('form-marca').addEventListener('submit', async (e) => {
   } catch (erro) { toast(erro.message); }
 });
 
+carregarConfig();
 carregarUsuarios();
 carregarVendedores();
 carregarMarcas();

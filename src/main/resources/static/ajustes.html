@@ -262,6 +262,32 @@
             </div>
           </section>
 
+          <!-- DADOS DA LOJA + PADRÕES (persistem no banco; valem para notinha, carnê e impressão) -->
+          <section class="aj-card" style="grid-column: 1 / -1">
+            <div class="aj-cabecalho">
+              <div class="aj-icone"><i data-lucide="store" class="w-4 h-4"></i></div>
+              <div>
+                <h2>Loja, carnê e impressão</h2>
+                <p class="desc">Cabeçalho da notinha, padrões do parcelamento e da bobina</p>
+              </div>
+            </div>
+            <div class="aj-corpo">
+              <form class="aj-form" id="form-config" style="flex-wrap: wrap">
+                <div class="campo" style="min-width: 180px"><label for="cfg-nome">Nome da loja</label><input id="cfg-nome" required></div>
+                <div class="campo" style="min-width: 260px; flex: 2"><label for="cfg-endereco">Endereço (sai na notinha)</label><input id="cfg-endereco"></div>
+                <div class="campo" style="min-width: 140px"><label for="cfg-telefone">Telefone</label><input id="cfg-telefone"></div>
+                <div class="campo" style="max-width: 130px"><label for="cfg-venc-dias">1ª parcela em (dias)</label><input id="cfg-venc-dias" type="number" min="1" max="120"></div>
+                <div class="campo" style="max-width: 120px"><label for="cfg-parcelas">Parcelas padrão</label><input id="cfg-parcelas" type="number" min="1" max="24"></div>
+                <div class="campo" style="max-width: 130px"><label for="cfg-largura">Bobina (mm)</label>
+                  <select id="cfg-largura"><option value="58">58 mm</option><option value="80">80 mm</option></select>
+                </div>
+                <div class="campo" style="min-width: 220px; flex: 2"><label for="cfg-rodape">Rodapé da notinha</label><input id="cfg-rodape" placeholder="Obrigado pela preferência!"></div>
+                <button type="submit"><i data-lucide="save" class="w-3.5 h-3.5"></i> Salvar ajustes</button>
+              </form>
+              <p class="desc" style="margin: 8px 0 0">Valem na próxima venda/impressão — sem precisar reiniciar o sistema.</p>
+            </div>
+          </section>
+
           <!-- OPERADORES (LOGINS) -->
           <section class="aj-card">
             <div class="aj-cabecalho">

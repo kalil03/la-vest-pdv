@@ -61,6 +61,39 @@ public class AuthController {
         return dto(u);
     }
 
+    public record TrocarSenhaRequest(@NotBlank(message = "Informe a senha atual") String senhaAtual,
+                                     @NotBlank(message = "Informe a senha nova") String senhaNova) {}
+
+    /** Troca a senha exigindo a atual; o sal é renovado junto. */
+    @PostMapping("/api/usuarios/{id}/senha")
+    public Map<String, Object> trocarSenha(@PathVariable Long id,
+                                           @RequestBody @jakarta.validation.Valid TrocarSenhaRequest req) {
+        Usuario u = usuarioRepository.findById(id)
+                .filter(Usuario::isAtivo)
+                .orElseThrow(() -> new RegraNegocioException("Usuário não encontrado"));
+        if (!hash(u.getSal(), req.senhaAtual()).equals(u.getSenhaHash())) {
+            throw new RegraNegocioException("Senha atual incorreta");
+        }
+        u.setSal(UUID.randomUUID().toString().substring(0, 8));
+        u.setSenhaHash(hash(u.getSal(), req.senhaNova()));
+        usuarioRepository.save(u);
+        return dto(u);
+    }
+
+    /** Desativa um operador — nunca o último ativo (senão ninguém entra mais). */
+    @PostMapping("/api/usuarios/{id}/desativar")
+    public void desativar(@PathVariable Long id) {
+        Usuario u = usuarioRepository.findById(id)
+                .filter(Usuario::isAtivo)
+                .orElseThrow(() -> new RegraNegocioException("Usuário não encontrado"));
+        if (usuarioRepository.findByAtivoTrueOrderByNome().size() <= 1) {
+            throw new RegraNegocioException(
+                    "Não dá para desativar o último operador ativo — o sistema ficaria sem login");
+        }
+        u.setAtivo(false);
+        usuarioRepository.save(u);
+    }
+
     private Map<String, Object> dto(Usuario u) {
         return Map.of("id", u.getId(), "login", u.getLogin(), "nome", u.getNome());
     }

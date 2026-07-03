@@ -23,6 +23,10 @@ let enviandoVenda = false; // trava de duplo-submit: F10 repetido não pode gera
 
 fetch('/api/config').then((r) => r.json()).then((c) => { loja = c; });
 
+// padrões do carnê configuráveis em Ajustes (com fallback se o config não carregou)
+const vencPadraoIso = () => isoMaisDias(new Date(), Math.max(1, parseInt(loja.carneVencDias, 10) || 30));
+const parcelasPadrao = () => String(Math.max(1, parseInt(loja.carneParcelas, 10) || 1));
+
 // operador logado no cabeçalho do caixa
 document.addEventListener('DOMContentLoaded', () => {
   const op = document.getElementById('caixa-operador');
@@ -455,10 +459,10 @@ function abrirModal() {
     } else {
       $('m-entrada').value = '0';
       formatarMoeda($('m-entrada'));
-      $('m-num-parcelas').value = '1';
+      $('m-num-parcelas').value = parcelasPadrao();
     }
     if (c.parcelasCartao) $('m-parcelas-cartao').value = c.parcelasCartao;
-    $('m-primeiro-venc').value = isoMaisDias(new Date(), 30);
+    $('m-primeiro-venc').value = vencPadraoIso();
     window.reabrirContexto = null;
   } else {
     // Sincroniza o modal com a forma de pagamento que o usuário escolheu na tela principal (ex: F6)
@@ -492,7 +496,7 @@ const totalFinal = () => round2(subtotalVenda() - descontoValor());
 
 /** Divide o restante em n parcelas iguais; a última absorve os centavos. */
 function gerarParcelas(restante, n, primeiraDataIso) {
-  if (!primeiraDataIso) primeiraDataIso = isoMaisDias(new Date(), 30);
+  if (!primeiraDataIso) primeiraDataIso = vencPadraoIso();
   const cents = Math.round(restante * 100);
   const base = Math.floor(cents / n);
   return Array.from({ length: n }, (_, i) => ({
@@ -831,8 +835,8 @@ function resetarVenda() {
   $('m-desconto-modo').value = 'R$';
   $('m-entrada').value = '0';
   formatarMoeda($('m-entrada'));
-  $('m-num-parcelas').value = '1';
-  $('m-primeiro-venc').value = isoMaisDias(new Date(), 30);
+  $('m-num-parcelas').value = parcelasPadrao();
+  $('m-primeiro-venc').value = vencPadraoIso();
   $('c-observacao').value = ''; // observação é da venda, não do caixa (vendedor fica)
   $busca.value = '';
   $busca.focus();
