@@ -32,7 +32,8 @@ async function carregar() {
 
   // tabela
   $('lista').innerHTML = r.contas.map((c) => `
-    <tr data-cliente="${c.clienteId}" title="Abrir o carnê de ${c.clienteNome}">
+    <tr data-cliente="${c.clienteId}" ${c.notinha ? `data-notinha="${c.notinha}"` : ''}
+        title="${c.notinha ? 'Ver o que foi comprado na venda nº ' + c.notinha : 'Abrir o carnê de ' + c.clienteNome}">
       <td class="font-medium">${c.clienteNome}</td>
       <td class="mono">${c.notinha ?? c.documento ?? '—'}</td>
       <td>${c.descricao}</td>
@@ -44,7 +45,11 @@ async function carregar() {
     || '<tr><td colspan="7" class="text-center text-muted-foreground py-8">Nenhuma parcela com esses filtros</td></tr>';
 
   [...$('lista').querySelectorAll('tr[data-cliente]')].forEach((tr) => {
-    tr.addEventListener('click', () => { location.href = `/carne.html?cliente=${tr.dataset.cliente}`; });
+    tr.addEventListener('click', () => {
+      // parcela de venda nossa: mostra os itens; carnê SET (sem venda no sistema): direto ao carnê
+      if (tr.dataset.notinha) abrirDetalheVenda(tr.dataset.notinha, tr.dataset.cliente);
+      else location.href = `/carne.html?cliente=${tr.dataset.cliente}`;
+    });
   });
 
   // paginação
@@ -168,6 +173,56 @@ $('v-lista').addEventListener('click', async (e) => {
     });
   }
 });
+
+/** Modal com os itens da venda (endpoint que o Recibo já usa — nada novo no back). */
+async function abrirDetalheVenda(vendaId, clienteId) {
+  const resp = await fetch(`/api/vendas/${vendaId}`);
+  if (!resp.ok) { toastContas('Não foi possível abrir a venda', 'erro'); return; }
+  const v = await resp.json();
+
+  const linhas = v.itens.map((i) => `
+    <tr>
+      <td class="py-1.5 pr-2 text-[13px]">${i.descricao}</td>
+      <td class="py-1.5 pr-2 text-[13px] mono text-center">${i.quantidade}×</td>
+      <td class="py-1.5 pr-2 text-[13px] mono text-right">${fmt(i.precoUnit)}</td>
+      <td class="py-1.5 text-[13px] mono text-right font-semibold">${fmt(i.subtotal)}</td>
+    </tr>`).join('');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'fixed inset-0 z-[100] flex items-center justify-center';
+  overlay.style.background = 'rgba(0,0,0,.55)';
+  overlay.innerHTML = `
+    <div style="background: var(--background); border: 1px solid var(--border)" class="rounded-xl shadow-2xl max-w-lg w-full mx-4 flex flex-col max-h-[85vh]">
+      <div class="px-5 py-4 border-b border-border">
+        <p class="m-0 text-[15px] font-bold">Venda nº ${v.id}</p>
+        <p class="m-0 mt-1 text-[12px] text-muted-foreground">${v.clienteNome ?? 'à vista'} — ${dataHoraBr(v.data)}${v.observacao ? ' · 📝 ' + v.observacao : ''}</p>
+      </div>
+      <div class="px-5 py-3 overflow-y-auto">
+        <table class="w-full" style="border-collapse: collapse">
+          <thead><tr class="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+            <th class="py-1 pr-2 font-semibold">Produto</th><th class="py-1 pr-2 font-semibold text-center">Qtd</th>
+            <th class="py-1 pr-2 font-semibold text-right">Unit.</th><th class="py-1 font-semibold text-right">Subtotal</th>
+          </tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+        <div class="border-t border-border mt-2 pt-2 text-[13px] flex flex-col gap-1">
+          ${Number(v.desconto) > 0 ? `<div class="flex justify-between"><span>Desconto</span><span class="mono">− ${fmt(v.desconto)}</span></div>` : ''}
+          <div class="flex justify-between font-bold text-[14px]"><span>Total</span><span class="mono">${fmt(v.total)}</span></div>
+        </div>
+      </div>
+      <div class="flex gap-3 px-5 py-4 border-t border-border">
+        <button id="dv-fechar" class="flex-1 py-2 rounded-lg font-semibold text-[13px]" style="background: var(--muted)">Fechar</button>
+        <button id="dv-carne" class="flex-1 py-2 rounded-lg font-semibold text-[13px] text-white" style="background: var(--primary)">Abrir carnê do cliente</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const fechar = () => { overlay.remove(); document.removeEventListener('keydown', esc); };
+  const esc = (e) => { if (e.key === 'Escape') fechar(); };
+  document.addEventListener('keydown', esc);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) fechar(); });
+  overlay.querySelector('#dv-fechar').addEventListener('click', fechar);
+  overlay.querySelector('#dv-carne').addEventListener('click', () => { location.href = `/carne.html?cliente=${clienteId}`; });
+}
 
 function confirmarAcao(msg, onYes) {
   const overlay = document.createElement('div');
