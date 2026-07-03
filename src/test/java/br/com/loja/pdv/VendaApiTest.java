@@ -45,7 +45,7 @@ class VendaApiTest {
         jdbc.execute("""
                 TRUNCATE item_venda, parcela_fiado, pagamento_fiado, venda,
                          variacao, produto, marca, vendedor, cliente, estorno,
-                         fechamento_caixa
+                         fechamento_caixa, retirada_caixa
                 RESTART IDENTITY CASCADE""");
 
         vendedorId = jdbc.queryForObject(
@@ -397,6 +397,34 @@ class VendaApiTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM fechamento_caixa", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT diferenca FROM fechamento_caixa", BigDecimal.class))
                 .isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void retiradaViraSaidaDeDinheiroNaConferenciaDoDia() {
+        // 150 em dinheiro entram; sangria de 40 sai da gaveta
+        http.postForEntity("/api/vendas", pedido(
+                "formaPagamento", "DINHEIRO", "tipoNotinha", "Geral",
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00"))),
+                Map.class);
+        ResponseEntity<Map> retirada = http.postForEntity("/api/vendas/caixa-dia/retirada",
+                Map.of("valor", "40.00", "motivo", "fornecedor", "operador", "Teste"), Map.class);
+        assertThat(retirada.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        var dia = http.getForEntity("/api/vendas/caixa-dia", Map.class).getBody();
+        assertThat(((Number) dia.get("totalRetiradas")).doubleValue()).isEqualTo(40.0);
+        assertThat(((Number) dia.get("saidasDinheiro")).doubleValue()).isEqualTo(40.0);
+        assertThat((List<?>) dia.get("retiradasDia")).hasSize(1);
+
+        // conferência: esperado = 0 + 150 − 40 = 110; contou 110 → confere
+        var fech = http.postForEntity("/api/vendas/caixa-dia/fechar",
+                Map.of("saldoAnterior", "0.00", "contagem", "110.00"), Map.class).getBody();
+        assertThat(((Number) fech.get("esperado")).doubleValue()).isEqualTo(110.0);
+        assertThat(((Number) fech.get("diferenca")).doubleValue()).isEqualTo(0.0);
+
+        // valor inválido é recusado na porta
+        assertThat(http.postForEntity("/api/vendas/caixa-dia/retirada",
+                Map.of("valor", "-5.00"), Map.class).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test

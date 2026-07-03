@@ -179,6 +179,25 @@
           <table class="tab-contas"><tbody id="cx-saidas"></tbody></table>
         </div>
 
+        <!-- RETIRADAS (SANGRIA) -->
+        <div class="bg-background border border-border rounded-xl overflow-hidden">
+          <div class="px-4 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 class="m-0 text-[13px] font-semibold">Retiradas do dia (sangria)</h3>
+              <p class="m-0 mt-1 text-[11px] text-muted-foreground">Dinheiro tirado da gaveta — entra como saída na conferência abaixo.</p>
+            </div>
+            <div class="filtros-bar flex items-center gap-2">
+              <input id="rt-valor" inputmode="decimal" placeholder="R$ 0,00" style="width: 110px; text-align: right; font-family: 'JetBrains Mono', monospace">
+              <input id="rt-motivo" placeholder="Motivo (ex.: pagamento fornecedor)" style="width: 240px">
+              <button id="rt-registrar" class="px-3 py-2 rounded-lg font-semibold text-[13px] text-white cursor-pointer border-0" style="background: var(--primary)">Registrar retirada</button>
+            </div>
+          </div>
+          <table class="tab-contas"><tbody id="cx-retiradas"></tbody></table>
+          <div class="flex justify-between px-4 py-3 bg-secondary border-t border-border text-[13px] font-bold">
+            <span>Total retirado</span><span id="cx-total-retiradas" class="mono"></span>
+          </div>
+        </div>
+
         <!-- CONFERÊNCIA DO DINHEIRO -->
         <div class="bg-background border-2 border-border rounded-xl p-5">
           <h3 class="m-0 mb-4 text-[15px] font-bold flex items-center gap-2">

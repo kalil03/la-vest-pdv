@@ -65,6 +65,15 @@ public class VendaController {
         vendaService.cancelar(id, operador.isBlank() ? null : operador, motivo);
     }
 
+    /** Sangria: registra retirada de dinheiro da gaveta (vira saída na conferência). */
+    @PostMapping("/caixa-dia/retirada")
+    @ResponseStatus(HttpStatus.CREATED)
+    public br.com.loja.pdv.service.VendaConsultaService.Retirada registrarRetirada(
+            @RequestBody @jakarta.validation.Valid
+            br.com.loja.pdv.service.VendaConsultaService.RetiradaRequest req) {
+        return consultaService.registrarRetirada(req);
+    }
+
     /** Fecha (ou refaz) a conferência do caixa do dia — esperado/diferença calculados no servidor. */
     @PostMapping("/caixa-dia/fechar")
     public br.com.loja.pdv.service.VendaConsultaService.Fechamento fecharCaixa(

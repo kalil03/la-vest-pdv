@@ -52,6 +52,13 @@ async function carregar() {
         <td class="num font-semibold" style="color: var(--bad)">− ${fmt(s.total)}</td></tr>`).join('')
     || '<tr><td colspan="3" class="text-center text-muted-foreground py-5">Nenhuma devolução de dias anteriores hoje</td></tr>';
 
+  $('cx-retiradas').innerHTML = (mov.retiradasDia || []).map((r) => `
+    <tr><td class="mono">${new Date(r.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}</td>
+        <td>${r.motivo ?? '<span class="text-muted-foreground">sem motivo</span>'}${r.operador ? ` <span class="text-muted-foreground text-[11px]">por ${r.operador}</span>` : ''}</td>
+        <td class="num font-semibold" style="color: var(--bad)">− ${fmt(r.valor)}</td></tr>`).join('')
+    || '<tr><td colspan="3" class="text-center text-muted-foreground py-5">Nenhuma retirada neste dia</td></tr>';
+  $('cx-total-retiradas').textContent = fmt(mov.totalRetiradas || 0);
+
   // saldo anterior: 1º o fechamento já gravado deste dia, senão a contagem do último fechamento
   const f = mov.fechamento;
   const saldoIni = f ? f.saldoAnterior : (mov.saldoAnteriorSugerido ?? 0);
@@ -147,8 +154,65 @@ async function fecharCaixa() {
   }
 }
 
+// ---------- retirada (sangria): valor + motivo, com confirmação ----------
+let registrandoRetirada = false;
+async function registrarRetirada() {
+  if (registrandoRetirada) return;
+  const valor = lerMoeda($('rt-valor'));
+  if (!(valor > 0)) {
+    toast('Digite o valor da retirada', 'erro');
+    $('rt-valor').focus();
+    return;
+  }
+  const motivo = $('rt-motivo').value.trim();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'fixed inset-0 z-[100] flex items-center justify-center';
+  overlay.style.background = 'rgba(0,0,0,.55)';
+  overlay.innerHTML = `
+    <div style="background: var(--background); border: 1px solid var(--border)" class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 flex flex-col gap-4">
+      <p class="text-[14px] font-medium text-center leading-relaxed m-0">
+        Registrar retirada de <b>${fmt(valor)}</b> da gaveta${motivo ? `<br><span class="text-muted-foreground text-[12px]">${motivo}</span>` : ''}?</p>
+      <div class="flex gap-3">
+        <button id="rt-nao" class="flex-1 py-2 rounded-lg font-semibold text-[13px]" style="background: var(--muted)">Não</button>
+        <button id="rt-sim" class="flex-1 py-2 rounded-lg font-semibold text-[13px] text-white" style="background: var(--primary)">Sim, retirar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#rt-nao').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#rt-sim').addEventListener('click', async () => {
+    overlay.remove();
+    registrandoRetirada = true;
+    try {
+      const resp = await fetch('/api/vendas/caixa-dia/retirada', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          valor: valor.toFixed(2), motivo: motivo || null,
+          operador: window.usuarioLogado?.nome || null,
+        }),
+      });
+      if (!resp.ok) {
+        const erro = await resp.json().catch(() => ({}));
+        toast(erro.erro || 'Não foi possível registrar a retirada', 'erro');
+        return;
+      }
+      toast(`Retirada de ${fmt(valor)} registrada`, 'ok');
+      $('rt-valor').value = '';
+      $('rt-motivo').value = '';
+      await carregar();
+    } catch {
+      toast('Sem conexão com o servidor', 'erro');
+    } finally {
+      registrandoRetirada = false;
+    }
+  });
+}
+
 instalarMoeda($('cf-saldo-anterior'), recalcular);
 instalarMoeda($('cf-contagem'), recalcular);
+instalarMoeda($('rt-valor'));
+$('rt-registrar').addEventListener('click', registrarRetirada);
 $('cx-data').addEventListener('input', carregar);
 $('cf-fechar').addEventListener('click', fecharCaixa);
 carregar();

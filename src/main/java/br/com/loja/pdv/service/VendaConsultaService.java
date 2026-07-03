@@ -41,6 +41,18 @@ public class VendaConsultaService {
     /** Uma venda do dia, com quem comprou (null = à vista sem cliente). */
     public record VendaDia(Long id, String cliente, String formaPagamento, BigDecimal total) {}
 
+    /** Sangria: dinheiro retirado da gaveta — saída na conferência. */
+    public record Retirada(Long id, Instant data, BigDecimal valor, String motivo, String operador) {}
+
+    public record RetiradaRequest(
+            @jakarta.validation.constraints.NotNull
+            @jakarta.validation.constraints.Positive(message = "Valor da retirada deve ser positivo")
+            @jakarta.validation.constraints.Digits(integer = 8, fraction = 2,
+                    message = "Valor da retirada com mais de 2 casas decimais")
+            BigDecimal valor,
+            String motivo,
+            String operador) {}
+
     /** Um recebimento/entrada do dia, com quem pagou. */
     public record RecebimentoDia(String cliente, String tipo, BigDecimal valor, Long vendaEntrada) {}
 
@@ -52,6 +64,7 @@ public class VendaConsultaService {
 
     public record CaixaDia(LocalDate dia, List<Linha> vendasPorForma, List<Linha> recebimentosPorTipo,
                            List<VendaDia> vendasDia, List<RecebimentoDia> recebimentosDia,
+                           List<Retirada> retiradasDia, BigDecimal totalRetiradas,
                            List<Linha> estornosPorForma, List<SaidaEstorno> saidasCrossDay,
                            BigDecimal totalVendas, BigDecimal vendidoFiado,
                            BigDecimal totalRecebimentos, BigDecimal totalEstornos,
@@ -156,9 +169,21 @@ public class VendaConsultaService {
                 .map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add)
                 .add(recebimentos.stream().filter(l -> "DINHEIRO".equals(l.rotulo()))
                         .map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add));
+        // sangrias do dia: saída em dinheiro — sem isso, retirada vira "falta" na conferência
+        List<Retirada> retiradasDia = jdbc.query("""
+                SELECT id, data, valor, motivo, operador FROM retirada_caixa
+                WHERE CAST(data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                ORDER BY id
+                """, params,
+                (rs, i) -> new Retirada(rs.getLong("id"), rs.getTimestamp("data").toInstant(),
+                        rs.getBigDecimal("valor"), rs.getString("motivo"), rs.getString("operador")));
+        BigDecimal totalRetiradas = retiradasDia.stream()
+                .map(Retirada::valor).reduce(BigDecimal.ZERO, BigDecimal::add);
+
         BigDecimal saidasDinheiro = saidasCrossDay.stream()
                 .filter(s -> "DINHEIRO".equals(s.formaPagamento()))
-                .map(SaidaEstorno::total).reduce(BigDecimal.ZERO, BigDecimal::add);
+                .map(SaidaEstorno::total).reduce(BigDecimal.ZERO, BigDecimal::add)
+                .add(totalRetiradas);
 
         BigDecimal sugerido = jdbc.query(
                 "SELECT contagem FROM fechamento_caixa WHERE data < :dia ORDER BY data DESC LIMIT 1",
@@ -173,9 +198,26 @@ public class VendaConsultaService {
                         : null);
 
         return new CaixaDia(dia, vendas, recebimentos, vendasDia, recebimentosDia,
+                retiradasDia, totalRetiradas,
                 estornos, saidasCrossDay,
                 totalVendas, vendidoFiado, totalReceb, totalEstornos, entrou,
                 entradasDinheiro, saidasDinheiro, sugerido, fechamento);
+    }
+
+    /** Registra uma sangria (agora, com o timestamp do momento). */
+    @Transactional
+    public Retirada registrarRetirada(RetiradaRequest req) {
+        Long id = jdbc.queryForObject("""
+                INSERT INTO retirada_caixa (valor, motivo, operador)
+                VALUES (:valor, :motivo, :operador) RETURNING id
+                """,
+                new MapSqlParameterSource()
+                        .addValue("valor", req.valor())
+                        .addValue("motivo", req.motivo() == null || req.motivo().isBlank()
+                                ? null : req.motivo().trim())
+                        .addValue("operador", req.operador()),
+                Long.class);
+        return new Retirada(id, Instant.now(), req.valor(), req.motivo(), req.operador());
     }
 
     /**
