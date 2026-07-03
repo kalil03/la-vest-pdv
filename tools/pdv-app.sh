@@ -19,6 +19,17 @@ mkdir -p "$LOGDIR"
 
 esta_no_ar() { curl -s -o /dev/null --max-time 2 "$URL/api/config"; }
 
+# O jar foi re-empacotado DEPOIS de o backend subir? Sem isso, ./mvnw package
+# troca o arquivo no disco mas o servico continua rodando o codigo antigo.
+backend_desatualizado() {
+    local pid inicio jar_mtime
+    pid=$(systemctl --user show -p MainPID --value pdv-backend 2>/dev/null) || return 1
+    { [ -z "$pid" ] || [ "$pid" = 0 ]; } && return 1
+    inicio=$(stat -c %Y "/proc/$pid" 2>/dev/null) || return 1
+    jar_mtime=$(stat -c %Y "$JAR" 2>/dev/null) || return 1
+    [ "$jar_mtime" -gt "$inicio" ]
+}
+
 # 1) banco
 if ! docker ps --format '{{.Names}}' | grep -q '^pdv-postgres$'; then
     echo "subindo o banco..."
@@ -26,9 +37,14 @@ if ! docker ps --format '{{.Names}}' | grep -q '^pdv-postgres$'; then
         echo "ERRO: container pdv-postgres nao existe. Crie o banco antes." >&2; exit 1; }
 fi
 
-# 2) backend (so se ainda nao estiver no ar)
+# 2) backend (so se ainda nao estiver no ar — ou se o jar foi atualizado)
 # usa systemd --user: o sistema vira um servico que sobrevive a fechar a
 # janela e e gerenciavel (systemctl --user status/stop/restart pdv-backend).
+if esta_no_ar && backend_desatualizado; then
+    echo "sistema atualizado: reiniciando com a versao nova..."
+    systemctl --user stop pdv-backend 2>/dev/null || true
+    sleep 2
+fi
 if ! esta_no_ar; then
     echo "iniciando o sistema..."
     systemctl --user reset-failed pdv-backend 2>/dev/null || true
