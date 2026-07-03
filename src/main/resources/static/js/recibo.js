@@ -116,21 +116,58 @@ function esc(s) {
 }
 
 function imprimirRecibo(venda, loja) {
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = 'none';
-  iframe.srcdoc = reciboHTML(venda, loja);
-  iframe.onload = () => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    // remove depois que o diálogo de impressão fechar
-    setTimeout(() => iframe.remove(), 3000);
+  previewImprimir(reciboHTML(venda, loja));
+}
+
+/**
+ * Preview do cupom antes do papel: no kiosk a impressão sai DIRETO
+ * (--kiosk-printing), então este modal é a única chance de conferir.
+ * Mostra exatamente o HTML que vai para a térmica; "Imprimir" manda,
+ * "Cancelar" fecha SEM imprimir (o registro já foi gravado antes).
+ * Autocontido (estilos inline) para servir qualquer tela.
+ */
+function previewImprimir(html) {
+  document.getElementById('preview-cupom')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'preview-cupom';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:#fff;color:#111;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.35);width:420px;max-width:94vw;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;font-family:Inter,system-ui,sans-serif">
+      <div style="padding:12px 16px;border-bottom:1px solid #e5e5ea;font-weight:700;font-size:15px">Confira antes de imprimir</div>
+      <div style="flex:1;overflow:auto;background:#9a9aa0;padding:14px;display:flex;justify-content:center">
+        <iframe style="width:330px;height:460px;border:0;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.35);flex-shrink:0"></iframe>
+      </div>
+      <div style="padding:10px 16px;font-size:12px;color:#6b6b70;border-top:1px solid #e5e5ea">
+        Já está gravado no sistema — "Cancelar" cancela só a IMPRESSÃO, não a venda/recebimento.
+      </div>
+      <div style="display:flex;gap:10px;padding:0 16px 14px">
+        <button data-acao="cancelar" style="flex:1;padding:13px;border-radius:10px;border:1px solid #d4d4d8;background:#fff;color:#111;font-weight:600;font-size:14px;cursor:pointer">Cancelar impressão (Esc)</button>
+        <button data-acao="imprimir" style="flex:1.4;padding:13px;border-radius:10px;border:0;background:#030213;color:#fff;font-weight:700;font-size:14px;cursor:pointer">Imprimir (Enter)</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const frame = overlay.querySelector('iframe');
+  frame.srcdoc = html;
+  frame.addEventListener('load', () => {
+    // altura do papel de verdade, até o limite do modal
+    try { frame.style.height = Math.max(220, frame.contentDocument.body.scrollHeight + 30) + 'px'; } catch (e) { /* cross-origin não acontece com srcdoc */ }
+  });
+
+  const fechar = () => {
+    document.removeEventListener('keydown', teclas, true);
+    overlay.remove();
   };
-  document.body.appendChild(iframe);
+  const imprimir = () => { fechar(); imprimirHTML(html); };
+  const teclas = (e) => {
+    // captura: enquanto o preview está aberto, os atalhos da página (F10 etc.) não valem
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fechar(); }
+    else if (e.key === 'Enter' || e.key === 'F10') { e.preventDefault(); e.stopPropagation(); imprimir(); }
+  };
+  document.addEventListener('keydown', teclas, true);
+  overlay.querySelector('[data-acao="cancelar"]').addEventListener('click', fechar);
+  overlay.querySelector('[data-acao="imprimir"]').addEventListener('click', imprimir);
+  overlay.querySelector('[data-acao="imprimir"]').focus();
 }
 
 /** Impressão genérica via iframe oculto (sem popup). */
@@ -218,5 +255,5 @@ function reciboCarneHTML(r, loja) {
 }
 
 function imprimirReciboCarne(recibo, loja) {
-  imprimirHTML(reciboCarneHTML(recibo, loja));
+  previewImprimir(reciboCarneHTML(recibo, loja));
 }
