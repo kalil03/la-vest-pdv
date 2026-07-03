@@ -91,6 +91,9 @@ class CarneApiTest {
         assertThat(itens).hasSize(2);
         assertThat(itens.get(0).get("restante")).isEqualTo(0.0);   // 50 quitada
         assertThat(itens.get(1).get("restante")).isEqualTo(70.0);  // 100 - 30
+        // comprovante do pagamento parcial: o valor ORIGINAL da nota sai no papel
+        assertThat(itens.get(0).get("valorOriginal")).isEqualTo(50.0);
+        assertThat(itens.get(1).get("valorOriginal")).isEqualTo(100.0);
 
         var c = carne();
         assertThat(c.get("parcelasAbertas")).isEqualTo(2);

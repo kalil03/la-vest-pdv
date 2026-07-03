@@ -216,7 +216,7 @@ public class VendaService {
                 .toList();
 
         var parcelas = venda.getParcelas().stream()
-                .map(p -> new VendaResumo.Parcela(p.getNumero(), p.getValor(), p.getVencimento()))
+                .map(p -> new VendaResumo.Parcela(p.getNumero(), p.getValor(), p.getVencimento(), p.getValorAberto()))
                 .toList();
 
         Cliente cliente = venda.getCliente();

@@ -33,10 +33,33 @@ function reciboHTML(venda, loja) {
 
   const fiado = venda.formaPagamento === 'FIADO';
 
+  // nota que já recebeu pagamento: a reimpressão vira a VIA DA LOJA atualizada,
+  // com o que resta por parcela — na venda original (nada pago) nada disso aparece
+  const temPagamento = fiado && venda.parcelas.some(
+    (p) => p.valorAberto != null && Number(p.valorAberto) < Number(p.valor));
+
   const linhasParcelas = fiado && venda.parcelas.length
-    ? venda.parcelas.map((p) =>
-        `<tr><td>${p.numero}ª parcela</td><td>${dataBr(p.vencimento)}</td><td class="dir">${fmt(p.valor)}</td></tr>`).join('')
+    ? venda.parcelas.map((p) => {
+        const situacao = temPagamento
+          ? (Number(p.valorAberto) === 0 ? ' — PAGA' : ` — resta ${fmt(p.valorAberto)}`)
+          : '';
+        return `<tr><td>${p.numero}ª parcela</td><td>${dataBr(p.vencimento)}</td><td class="dir">${fmt(p.valor)}${situacao}</td></tr>`;
+      }).join('')
     : '';
+
+  const pagoParcelas = fiado
+    ? venda.parcelas.reduce((s, p) => s + (Number(p.valor) - Number(p.valorAberto ?? p.valor)), 0)
+    : 0;
+  const restaNota = fiado
+    ? venda.parcelas.reduce((s, p) => s + Number(p.valorAberto ?? p.valor), 0)
+    : 0;
+  const blocoAtualizada = temPagamento ? `
+    <div class="sep"></div>
+    <div class="centro negrito">VIA DA LOJA — ATUALIZADA EM ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</div>
+    <table>
+      <tr><td>Pago até hoje (parcelas)</td><td></td><td class="dir">${fmt(pagoParcelas)}</td></tr>
+      <tr class="total"><td>RESTA DESTA NOTA</td><td></td><td class="dir">${fmt(restaNota)}</td></tr>
+    </table>` : '';
 
   const blocoFiado = fiado ? `
     <div class="sep"></div>
@@ -48,6 +71,7 @@ function reciboHTML(venda, loja) {
     ${venda.observacao ? `<p class="texto">Obs.: <b>${esc(venda.observacao)}</b></p>` : ''}
     ${venda.entrada ? `<p class="texto">Entrada: <b>${fmt(venda.entrada)}</b></p>` : ''}
     ${linhasParcelas ? `<table>${linhasParcelas}</table>` : ''}
+    ${blocoAtualizada}
     <div class="assinatura">
       <div class="linha-assinatura"></div>
       <div class="centro">${esc(venda.clienteNome || '')}</div>
@@ -193,12 +217,22 @@ function reciboCarneHTML(r, loja) {
   const dataHora = new Date(r.data).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const dataBr = (iso) => { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; };
 
-  const linhas = (r.parcelasQuitadas || []).map((p) => `
-    <tr><td>${esc(p.descricao)}</td><td>${dataBr(p.vencimento)}</td><td class="dir">${fmtR(p.valor)}</td></tr>`).join('');
-
-  const parcial = r.parcelaParcial ? `
-    <p class="texto">Parcela ${esc(r.parcelaParcial.descricao)} (${dataBr(r.parcelaParcial.vencimento)}):
-    pagamento parcial — resta <b>${fmtR(r.parcelaParcial.valorAberto)}</b></p>` : '';
+  // comprovante da(s) nota(s): valor original, pago agora, já pago e o que RESTA —
+  // é o papel que o cliente grampeia junto da promissória (pagamento parcial)
+  const notas = (r.itens || []).map((p) => {
+    const quitada = Number(p.restante) === 0;
+    const jaPago = Number(p.valorOriginal) - Number(p.restante);
+    return `
+    <div class="nota-bloco">
+      <div><b>${esc(p.descricao)}</b> — venc. ${dataBr(p.vencimento)}</div>
+      <table>
+        <tr><td>Valor da nota</td><td class="dir">${fmtR(p.valorOriginal)}</td></tr>
+        <tr><td>Pago agora</td><td class="dir">${fmtR(p.valorAplicado)}</td></tr>
+        ${jaPago > Number(p.valorAplicado) ? `<tr><td>Pago até hoje</td><td class="dir">${fmtR(jaPago)}</td></tr>` : ''}
+        <tr><td><b>${quitada ? 'NOTA QUITADA' : 'Resta desta nota'}</b></td><td class="dir"><b>${quitada ? '—' : fmtR(p.restante)}</b></td></tr>
+      </table>
+    </div>`;
+  }).join('');
 
   const rotulo = { DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO: 'Cartão' }[r.tipo] || r.tipo;
 
@@ -223,6 +257,7 @@ function reciboCarneHTML(r, loja) {
   .assinatura { margin-top: 34px; }
   .linha-assinatura { border-top: 1px solid #000; margin: 0 8px 2px; }
   .rodape { text-align: center; font-size: 10px; margin-top: 8px; }
+  .nota-bloco { margin: 6px 0; padding-bottom: 4px; border-bottom: 1px dashed #000; }
 </style>
 </head>
 <body>
@@ -235,8 +270,7 @@ function reciboCarneHTML(r, loja) {
   <p class="info">Cliente: ${esc(r.clienteNome)}</p>
   <p class="info">Recebido por: ${esc(r.vendedorNome)}</p>
   <div class="sep"></div>
-  ${linhas ? `<table><tr><td><b>Parcelas quitadas</b></td><td><b>Venc.</b></td><td class="dir"><b>Valor</b></td></tr>${linhas}</table>` : ''}
-  ${parcial}
+  ${notas}
   <div class="sep"></div>
   <table>
     <tr><td class="destaque">VALOR RECEBIDO</td><td class="dir destaque">${fmtR(r.valor)}</td></tr>

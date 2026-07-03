@@ -266,7 +266,7 @@ function renderParcelas() {
       <td>${isSel
         ? `<span class="inline-flex w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold items-center justify-center">${ordem}</span>`
         : '<input type="checkbox" tabindex="-1" class="pointer-events-none accent-current">'}</td>
-      <td>${p.descricao}${p.tipo ? ` <span class="chip prazo">${p.tipo}</span>` : ''}${p.observacao ? `<br><small class="text-muted-foreground"><i data-lucide="message-square-text" class="w-3 h-3 inline"></i> ${p.observacao}</small>` : ''}</td>
+      <td>${p.descricao}${p.tipo ? ` <span class="chip prazo">${p.tipo}</span>` : ''}${p.notinha ? ` <button type="button" class="nota-btn" data-venda="${p.notinha}" title="Imprimir a via da loja com o saldo atualizado desta nota">🖨 nota</button>` : ''}${p.observacao ? `<br><small class="text-muted-foreground"><i data-lucide="message-square-text" class="w-3 h-3 inline"></i> ${p.observacao}</small>` : ''}</td>
       <td class="mono">${dataBr(p.vencimento)}</td>
       <td>${statusChip(p)}</td>
       <td class="num font-semibold">${fmt(p.valorAberto)}</td>`;
@@ -275,6 +275,14 @@ function renderParcelas() {
       else selecionadas.push(p);
       renderParcelas();
     };
+    // via da loja atualizada: imprime a promissória com o saldo de hoje,
+    // sem selecionar a parcela (clique não pode virar seleção)
+    tr.querySelector('.nota-btn')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const resp = await fetch(`/api/vendas/${e.currentTarget.dataset.venda}`);
+      if (resp.ok) imprimirRecibo(await resp.json(), loja);
+      else toast('Não foi possível abrir a nota', 'erro');
+    });
     tr.addEventListener('click', alternar);
     tr.addEventListener('keydown', (e) => {
       if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); alternar(); }

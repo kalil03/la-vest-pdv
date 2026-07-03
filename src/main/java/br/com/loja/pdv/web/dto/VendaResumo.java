@@ -30,6 +30,6 @@ public record VendaResumo(
                        int quantidade, BigDecimal precoUnit, BigDecimal subtotal) {
     }
 
-    public record Parcela(int numero, BigDecimal valor, LocalDate vencimento) {
+    public record Parcela(int numero, BigDecimal valor, LocalDate vencimento, BigDecimal valorAberto) {
     }
 }

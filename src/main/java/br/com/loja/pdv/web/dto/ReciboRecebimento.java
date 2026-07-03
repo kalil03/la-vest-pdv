@@ -19,6 +19,6 @@ public record ReciboRecebimento(
 
     /** Uma parcela abatida: quitada quando restante == 0, parcial caso contrário. */
     public record Item(String descricao, Long notinha, LocalDate vencimento,
-                       BigDecimal valorAplicado, BigDecimal restante) {
+                       BigDecimal valorOriginal, BigDecimal valorAplicado, BigDecimal restante) {
     }
 }

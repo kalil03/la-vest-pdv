@@ -148,8 +148,8 @@ public class CarneService {
             LocalDate venc = LocalDate.ofInstant(debito.getData(), FUSO);
             String desc = descricaoLegada(debito) + " " + DATA_BR.format(venc);
             detalhe.add(desc);
-            return new ReciboRecebimento.Item(desc, null, venc, aloc.valor(),
-                    aberto.subtract(aloc.valor()));
+            return new ReciboRecebimento.Item(desc, null, venc,
+                    debito.getValor().negate(), aloc.valor(), aberto.subtract(aloc.valor()));
         }
         if (id.startsWith("V")) {
             ParcelaFiado parcela = parcelaRepository.findById(idNumerico(id))
@@ -166,7 +166,8 @@ public class CarneService {
                     + " — " + parcela.getNumero() + "/" + parcela.getVenda().getParcelas().size();
             detalhe.add(desc);
             return new ReciboRecebimento.Item(desc, parcela.getVenda().getId(),
-                    parcela.getVencimento(), aloc.valor(), aberto.subtract(aloc.valor()));
+                    parcela.getVencimento(), parcela.getValor(),
+                    aloc.valor(), aberto.subtract(aloc.valor()));
         }
         throw new RegraNegocioException("Parcela inválida: " + id);
     }
