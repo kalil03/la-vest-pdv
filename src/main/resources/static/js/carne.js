@@ -204,20 +204,35 @@ function renderCarne() {
     $antiga.innerHTML = '<span class="chip prazo">nada em aberto</span>';
   }
 
-  // últimos pagamentos: um por linha — data, valor, forma e o rateio COMPLETO
+  // últimos pagamentos: 2 visíveis, o resto colapsado atrás do "Ver mais"
   // (o detalhe já traz cada parcela que o dinheiro quitou, separada por ";")
   const us = carne.ultimosPagamentos || [];
   $('ultimos').hidden = us.length === 0;
-  $('ultimos-lista').innerHTML = us.map((p) => `
-    <tr class="border-t border-border align-top">
-      <td class="py-2 pr-3 mono whitespace-nowrap">${new Date(p.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</td>
-      <td class="py-2 pr-3 font-bold whitespace-nowrap">${fmt(p.valor)}</td>
-      <td class="py-2 pr-3 whitespace-nowrap">${rotuloTipo(p.tipo)}</td>
-      <td class="py-2">
+  const linhaPg = (p) => `
+    <div class="flex gap-3 py-2 border-t border-border text-[13px] items-start">
+      <span class="mono whitespace-nowrap">${new Date(p.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
+      <span class="font-bold whitespace-nowrap">${fmt(p.valor)}</span>
+      <span class="whitespace-nowrap">${rotuloTipo(p.tipo)}</span>
+      <span class="flex-1 min-w-0">
         ${(p.detalhe || '').split(';').map((d) => d.trim()).filter(Boolean).map((d) => `<div>${d}</div>`).join('') || '<span class="text-muted-foreground">—</span>'}
         ${p.vendedorNome ? `<div class="text-[11px] text-muted-foreground">recebido por ${p.vendedorNome}</div>` : ''}
-      </td>
-    </tr>`).join('');
+      </span>
+    </div>`;
+  $('ultimos-lista').innerHTML = us.slice(0, 2).map(linhaPg).join('');
+  const extras = us.slice(2);
+  const $extra = $('ultimos-extra');
+  const $vermais = $('ultimos-vermais');
+  $extra.innerHTML = extras.map(linhaPg).join('');
+  $extra.style.maxHeight = '0';
+  $vermais.hidden = extras.length === 0;
+  $vermais.textContent = `Ver mais ${extras.length} pagamento${extras.length > 1 ? 's' : ''} ▾`;
+  $vermais.onclick = () => {
+    const fechado = $extra.style.maxHeight === '0px' || $extra.style.maxHeight === '0';
+    $extra.style.maxHeight = fechado ? $extra.scrollHeight + 'px' : '0';
+    $vermais.textContent = fechado
+      ? 'Ver menos ▴'
+      : `Ver mais ${extras.length} pagamento${extras.length > 1 ? 's' : ''} ▾`;
+  };
 
   renderParcelas();
   if (window.lucide) lucide.createIcons();
