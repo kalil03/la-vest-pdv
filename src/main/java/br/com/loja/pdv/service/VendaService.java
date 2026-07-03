@@ -68,11 +68,16 @@ public class VendaService {
         venda.setTipoNotinha(tipoNotinha);
         if (req.data() != null) {
             java.time.ZoneId fuso = br.com.loja.pdv.Fuso.LOJA;
-            if (req.data().isAfter(java.time.LocalDate.now(fuso))) {
+            java.time.LocalDate hoje = java.time.LocalDate.now(fuso);
+            if (req.data().isAfter(hoje)) {
                 throw new RegraNegocioException("Data da venda não pode estar no futuro");
             }
-            // dia escolhido no caixa (ex.: venda de ontem anotada no papel), meio-dia local
-            venda.setData(req.data().atTime(12, 0).atZone(fuso).toInstant());
+            // o caixa manda a data SEMPRE (o campo vem preenchido com hoje): só é
+            // retroativa se for de dia anterior — aí vale a convenção do meio-dia.
+            // Data de hoje mantém o agora, senão toda promissória sairia com 12:00.
+            if (req.data().isBefore(hoje)) {
+                venda.setData(req.data().atTime(12, 0).atZone(fuso).toInstant());
+            }
         }
         venda.setCliente(cliente);
         venda.setFormaPagamento(req.formaPagamento());

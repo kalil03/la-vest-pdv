@@ -348,6 +348,31 @@ class VendaApiTest {
     }
 
     @Test
+    void dataDeHojeMantemAHoraRealSoRetroativaViraMeioDia() {
+        // o caixa envia a data SEMPRE (campo preenchido com hoje por padrão):
+        // isso não pode achatar a hora da venda para 12:00
+        String hoje = java.time.LocalDate.now(br.com.loja.pdv.Fuso.LOJA).toString();
+        Long deHoje = ((Number) http.postForEntity("/api/vendas", pedido(
+                "formaPagamento", "DINHEIRO", "tipoNotinha", "Geral", "data", hoje,
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "10.00"))),
+                Map.class).getBody().get("id")).longValue();
+        long desvioSegundos = Math.abs(java.time.Duration.between(
+                jdbc.queryForObject("SELECT data FROM venda WHERE id = ?",
+                        java.sql.Timestamp.class, deHoje).toInstant(),
+                java.time.Instant.now()).getSeconds());
+        assertThat(desvioSegundos).isLessThan(300); // hora real, não meio-dia fixo
+
+        String ontem = java.time.LocalDate.now(br.com.loja.pdv.Fuso.LOJA).minusDays(1).toString();
+        Long retro = ((Number) http.postForEntity("/api/vendas", pedido(
+                "formaPagamento", "DINHEIRO", "tipoNotinha", "Geral", "data", ontem,
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "10.00"))),
+                Map.class).getBody().get("id")).longValue();
+        assertThat(jdbc.queryForObject(
+                "SELECT to_char(data AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD HH24:MI') FROM venda WHERE id = ?",
+                String.class, retro)).isEqualTo(ontem + " 12:00"); // convenção da retroativa
+    }
+
+    @Test
     void fecharCaixaCalculaEsperadoEDiferencaNoServidor() {
         // venda de hoje em dinheiro: 150 na gaveta
         http.postForEntity("/api/vendas", pedido(
