@@ -38,6 +38,12 @@ public class VendaConsultaService {
     /** Estorno feito no dia de uma venda de dia ANTERIOR: dinheiro que saiu da gaveta hoje. */
     public record SaidaEstorno(Long vendaId, LocalDate diaVenda, String formaPagamento, BigDecimal total) {}
 
+    /** Uma venda do dia, com quem comprou (null = à vista sem cliente). */
+    public record VendaDia(Long id, String cliente, String formaPagamento, BigDecimal total) {}
+
+    /** Um recebimento/entrada do dia, com quem pagou. */
+    public record RecebimentoDia(String cliente, String tipo, BigDecimal valor, Long vendaEntrada) {}
+
     public record Fechamento(BigDecimal saldoAnterior, BigDecimal contagem, BigDecimal esperado,
                              BigDecimal diferenca, String operador, Instant fechadoEm) {}
 
@@ -45,6 +51,7 @@ public class VendaConsultaService {
                                      BigDecimal contagem, String operador) {}
 
     public record CaixaDia(LocalDate dia, List<Linha> vendasPorForma, List<Linha> recebimentosPorTipo,
+                           List<VendaDia> vendasDia, List<RecebimentoDia> recebimentosDia,
                            List<Linha> estornosPorForma, List<SaidaEstorno> saidasCrossDay,
                            BigDecimal totalVendas, BigDecimal vendidoFiado,
                            BigDecimal totalRecebimentos, BigDecimal totalEstornos,
@@ -95,6 +102,32 @@ public class VendaConsultaService {
                 """, params,
                 (rs, i) -> new Linha(rs.getString("rotulo"), rs.getLong("qtd"), rs.getBigDecimal("total")));
 
+        // as mesmas vendas/recebimentos, linha a linha, com QUEM comprou/pagou
+        List<VendaDia> vendasDia = jdbc.query("""
+                SELECT v.id, c.nome AS cliente, v.forma_pagamento, v.total
+                FROM venda v
+                LEFT JOIN cliente c ON c.id = v.cliente_id
+                WHERE v.cancelada_em IS NULL
+                  AND CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                ORDER BY v.id
+                """, params,
+                (rs, i) -> new VendaDia(rs.getLong("id"), rs.getString("cliente"),
+                        rs.getString("forma_pagamento"), rs.getBigDecimal("total")));
+
+        List<RecebimentoDia> recebimentosDia = jdbc.query("""
+                SELECT c.nome AS cliente, p.tipo, p.valor, p.venda_id
+                FROM pagamento_fiado p
+                JOIN cliente c ON c.id = p.cliente_id
+                LEFT JOIN venda vx ON vx.id = p.venda_id
+                WHERE p.valor > 0 AND p.documento IS NULL AND p.tipo <> 'BAIXA'
+                  AND vx.cancelada_em IS NULL
+                  AND CAST(p.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                ORDER BY p.id
+                """, params,
+                (rs, i) -> new RecebimentoDia(rs.getString("cliente"), rs.getString("tipo"),
+                        rs.getBigDecimal("valor"),
+                        rs.getObject("venda_id") == null ? null : rs.getLong("venda_id")));
+
         // com a venda cancelada mantendo a data original (nunca é deletada), dá
         // para separar: estorno de venda de HOJE já se anulou nas somas acima;
         // estorno de venda de dia ANTERIOR é devolução que saiu da gaveta HOJE
@@ -139,7 +172,8 @@ public class VendaConsultaService {
                                 rs.getString("operador"), rs.getTimestamp("fechado_em").toInstant())
                         : null);
 
-        return new CaixaDia(dia, vendas, recebimentos, estornos, saidasCrossDay,
+        return new CaixaDia(dia, vendas, recebimentos, vendasDia, recebimentosDia,
+                estornos, saidasCrossDay,
                 totalVendas, vendidoFiado, totalReceb, totalEstornos, entrou,
                 entradasDinheiro, saidasDinheiro, sugerido, fechamento);
     }

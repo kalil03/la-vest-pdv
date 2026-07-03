@@ -24,14 +24,24 @@ async function carregar() {
   if (!$('cx-data').value) $('cx-data').value = new Date().toLocaleDateString('sv-SE');
   mov = await (await fetch(`/api/vendas/caixa-dia?data=${$('cx-data').value}`)).json();
 
-  const linhas = (lista) => lista.map((l) => `
-    <tr><td>${ROTULO[l.rotulo] || l.rotulo}</td>
-        <td class="num text-muted-foreground">${l.qtd}×</td>
-        <td class="num font-semibold">${fmt(l.total)}</td></tr>`).join('')
-    || '<tr><td colspan="3" class="text-center text-muted-foreground py-5">Nada neste dia</td></tr>';
+  const vazio = (cols) => `<tr><td colspan="${cols}" class="text-center text-muted-foreground py-5">Nada neste dia</td></tr>`;
+  const resumoFormas = (lista) => lista
+    .map((l) => `${ROTULO[l.rotulo] || l.rotulo} ${fmt(l.total)} (${l.qtd}×)`).join(' · ');
 
-  $('cx-vendas').innerHTML = linhas(mov.vendasPorForma);
-  $('cx-recebimentos').innerHTML = linhas(mov.recebimentosPorTipo);
+  // linha a linha, com quem comprou/pagou
+  $('cx-vendas').innerHTML = (mov.vendasDia || []).map((v) => `
+    <tr><td class="mono text-muted-foreground">${v.id}</td>
+        <td class="font-medium">${v.cliente ?? '<span class="text-muted-foreground">Consumidor</span>'}</td>
+        <td><span class="chip forma">${ROTULO[v.formaPagamento] || v.formaPagamento}</span></td>
+        <td class="num font-semibold">${fmt(v.total)}</td></tr>`).join('') || vazio(4);
+
+  $('cx-recebimentos').innerHTML = (mov.recebimentosDia || []).map((r) => `
+    <tr><td class="font-medium">${r.cliente}${r.vendaEntrada ? ` <span class="text-muted-foreground text-[11px]">entrada da venda nº ${r.vendaEntrada}</span>` : ''}</td>
+        <td><span class="chip forma">${ROTULO[r.tipo] || r.tipo}</span></td>
+        <td class="num font-semibold">${fmt(r.valor)}</td></tr>`).join('') || vazio(3);
+
+  $('cx-vendas-formas').textContent = resumoFormas(mov.vendasPorForma);
+  $('cx-receb-formas').textContent = resumoFormas(mov.recebimentosPorTipo);
   $('cx-total-vendas').textContent = fmt(mov.totalVendas);
   $('cx-total-receb').textContent = fmt(mov.totalRecebimentos);
   $('cx-entrou').textContent = fmt(mov.entrouNoCaixa);

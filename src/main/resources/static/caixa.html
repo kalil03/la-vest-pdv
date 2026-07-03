@@ -31,8 +31,11 @@
     .kpi .valor { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
 
     .tab-contas { width: 100%; border-collapse: collapse; }
+    .tab-contas th { padding: 10px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; color: var(--muted-foreground); text-align: left; border-bottom: 1px solid var(--border); background: var(--secondary); }
     .tab-contas td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
     .tab-contas .num { text-align: right; font-family: 'JetBrains Mono', monospace; }
+    .chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .chip.forma { background: var(--muted); color: var(--foreground); }
 
     .filtros-bar input { font-size: 13px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--foreground); }
     .filtros-bar input:focus { outline: none; border-color: var(--primary); }
@@ -121,36 +124,43 @@
     </aside>
 
     <!-- CONTEÚDO -->
-    <main class="flex-1 h-screen overflow-y-auto">
-      <div class="max-w-5xl mx-auto px-6 py-6 flex flex-col gap-5">
-
-        <div class="flex items-center justify-between">
-          <div>
-            <h1 class="m-0 text-[20px] font-bold flex items-center gap-2">
-              <i data-lucide="calculator" class="w-5 h-5"></i> Caixa do dia
-            </h1>
-            <p class="m-0 mt-1 text-[13px] text-muted-foreground">Movimento do dia e conferência do dinheiro da gaveta</p>
-          </div>
-          <div class="filtros-bar flex items-center gap-2">
-            <label class="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">Dia</label>
-            <input id="cx-data" type="date">
-          </div>
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div class="px-8 py-4 border-b border-border flex items-center justify-between gap-4">
+        <div>
+          <h1 class="text-foreground text-lg font-bold leading-tight flex items-center gap-2"><i data-lucide="calculator" class="w-5 h-5"></i> Caixa do dia</h1>
+          <p class="text-muted-foreground text-[12px] mt-1">Movimento do dia e conferência do dinheiro da gaveta</p>
         </div>
+        <div class="filtros-bar flex items-center gap-2">
+          <label class="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider">Dia</label>
+          <input id="cx-data" type="date">
+        </div>
+      </div>
 
-        <!-- MOVIMENTO DO DIA -->
+      <div class="flex-1 overflow-y-auto p-8">
+        <div class="max-w-5xl mx-auto flex flex-col gap-5">
+
+        <!-- MOVIMENTO DO DIA: linha a linha, com quem comprou/pagou -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div class="bg-background border border-border rounded-xl overflow-hidden">
             <div class="px-4 py-3 border-b border-border"><h3 class="m-0 text-[13px] font-semibold">Vendas do dia</h3></div>
-            <table class="tab-contas"><tbody id="cx-vendas"></tbody></table>
-            <div class="flex justify-between px-4 py-3 bg-secondary border-t border-border text-[13px] font-bold">
-              <span>Total vendido</span><span id="cx-total-vendas" class="mono"></span>
+            <table class="tab-contas">
+              <thead><tr><th>Nº</th><th>Cliente</th><th>Forma</th><th class="num">Valor</th></tr></thead>
+              <tbody id="cx-vendas"></tbody>
+            </table>
+            <div class="px-4 py-3 bg-secondary border-t border-border">
+              <div class="flex justify-between text-[13px] font-bold"><span>Total vendido</span><span id="cx-total-vendas" class="mono"></span></div>
+              <div id="cx-vendas-formas" class="text-[11px] text-muted-foreground mt-1"></div>
             </div>
           </div>
           <div class="bg-background border border-border rounded-xl overflow-hidden">
             <div class="px-4 py-3 border-b border-border"><h3 class="m-0 text-[13px] font-semibold">Recebimentos de carnê e entradas</h3></div>
-            <table class="tab-contas"><tbody id="cx-recebimentos"></tbody></table>
-            <div class="flex justify-between px-4 py-3 bg-secondary border-t border-border text-[13px] font-bold">
-              <span>Total recebido</span><span id="cx-total-receb" class="mono"></span>
+            <table class="tab-contas">
+              <thead><tr><th>Cliente</th><th>Forma</th><th class="num">Valor</th></tr></thead>
+              <tbody id="cx-recebimentos"></tbody>
+            </table>
+            <div class="px-4 py-3 bg-secondary border-t border-border">
+              <div class="flex justify-between text-[13px] font-bold"><span>Total recebido</span><span id="cx-total-receb" class="mono"></span></div>
+              <div id="cx-receb-formas" class="text-[11px] text-muted-foreground mt-1"></div>
             </div>
           </div>
         </div>
@@ -209,6 +219,7 @@
           </div>
         </div>
 
+        </div>
       </div>
     </main>
   </div>
