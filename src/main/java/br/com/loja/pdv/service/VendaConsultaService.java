@@ -35,11 +35,22 @@ public class VendaConsultaService {
 
     public record Linha(String rotulo, long qtd, BigDecimal total) {}
 
+    /** Estorno feito no dia de uma venda de dia ANTERIOR: dinheiro que saiu da gaveta hoje. */
+    public record SaidaEstorno(Long vendaId, LocalDate diaVenda, String formaPagamento, BigDecimal total) {}
+
+    public record Fechamento(BigDecimal saldoAnterior, BigDecimal contagem, BigDecimal esperado,
+                             BigDecimal diferenca, String operador, Instant fechadoEm) {}
+
+    public record FecharCaixaRequest(LocalDate data, BigDecimal saldoAnterior,
+                                     BigDecimal contagem, String operador) {}
+
     public record CaixaDia(LocalDate dia, List<Linha> vendasPorForma, List<Linha> recebimentosPorTipo,
-                           List<Linha> estornosPorForma,
+                           List<Linha> estornosPorForma, List<SaidaEstorno> saidasCrossDay,
                            BigDecimal totalVendas, BigDecimal vendidoFiado,
                            BigDecimal totalRecebimentos, BigDecimal totalEstornos,
-                           BigDecimal entrouNoCaixa) {}
+                           BigDecimal entrouNoCaixa,
+                           BigDecimal entradasDinheiro, BigDecimal saidasDinheiro,
+                           BigDecimal saldoAnteriorSugerido, Fechamento fechamento) {}
 
     /**
      * Fechamento do dia: o que foi vendido por forma e o que ENTROU de
@@ -84,6 +95,21 @@ public class VendaConsultaService {
                 """, params,
                 (rs, i) -> new Linha(rs.getString("rotulo"), rs.getLong("qtd"), rs.getBigDecimal("total")));
 
+        // com a venda cancelada mantendo a data original (nunca é deletada), dá
+        // para separar: estorno de venda de HOJE já se anulou nas somas acima;
+        // estorno de venda de dia ANTERIOR é devolução que saiu da gaveta HOJE
+        List<SaidaEstorno> saidasCrossDay = jdbc.query("""
+                SELECT e.venda_id, e.total, e.forma_pagamento,
+                       CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) AS dia_venda
+                FROM estorno e JOIN venda v ON v.id = e.venda_id
+                WHERE CAST(e.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                  AND CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) < :dia
+                ORDER BY e.venda_id
+                """, params,
+                (rs, i) -> new SaidaEstorno(rs.getLong("venda_id"),
+                        rs.getDate("dia_venda").toLocalDate(),
+                        rs.getString("forma_pagamento"), rs.getBigDecimal("total")));
+
         BigDecimal totalVendas = vendas.stream().map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal vendidoFiado = vendas.stream().filter(l -> "FIADO".equals(l.rotulo()))
                 .map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -92,8 +118,67 @@ public class VendaConsultaService {
         // à vista + tudo que entrou pelo carnê (entrada de fiado e recebimentos)
         BigDecimal entrou = totalVendas.subtract(vendidoFiado).add(totalReceb);
 
-        return new CaixaDia(dia, vendas, recebimentos, estornos,
-                totalVendas, vendidoFiado, totalReceb, totalEstornos, entrou);
+        // conferência da gaveta: só o que é DINHEIRO físico
+        BigDecimal entradasDinheiro = vendas.stream().filter(l -> "DINHEIRO".equals(l.rotulo()))
+                .map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add)
+                .add(recebimentos.stream().filter(l -> "DINHEIRO".equals(l.rotulo()))
+                        .map(Linha::total).reduce(BigDecimal.ZERO, BigDecimal::add));
+        BigDecimal saidasDinheiro = saidasCrossDay.stream()
+                .filter(s -> "DINHEIRO".equals(s.formaPagamento()))
+                .map(SaidaEstorno::total).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal sugerido = jdbc.query(
+                "SELECT contagem FROM fechamento_caixa WHERE data < :dia ORDER BY data DESC LIMIT 1",
+                params, rs -> rs.next() ? rs.getBigDecimal(1) : null);
+        Fechamento fechamento = jdbc.query(
+                "SELECT saldo_anterior, contagem, esperado, diferenca, operador, fechado_em "
+                        + "FROM fechamento_caixa WHERE data = :dia",
+                params, rs -> rs.next()
+                        ? new Fechamento(rs.getBigDecimal("saldo_anterior"), rs.getBigDecimal("contagem"),
+                                rs.getBigDecimal("esperado"), rs.getBigDecimal("diferenca"),
+                                rs.getString("operador"), rs.getTimestamp("fechado_em").toInstant())
+                        : null);
+
+        return new CaixaDia(dia, vendas, recebimentos, estornos, saidasCrossDay,
+                totalVendas, vendidoFiado, totalReceb, totalEstornos, entrou,
+                entradasDinheiro, saidasDinheiro, sugerido, fechamento);
+    }
+
+    /**
+     * Grava (ou regrava) o fechamento do dia. A operadora digita saldo anterior
+     * e contagem; esperado e diferença são recalculados AQUI do movimento real —
+     * o que fica gravado nunca depende de conta feita na tela.
+     */
+    @Transactional
+    public Fechamento fecharCaixa(FecharCaixaRequest req) {
+        LocalDate dia = req.data() != null ? req.data() : LocalDate.now(br.com.loja.pdv.Fuso.LOJA);
+        if (dia.isAfter(LocalDate.now(br.com.loja.pdv.Fuso.LOJA))) {
+            throw new RegraNegocioException("Não dá para fechar o caixa de um dia futuro");
+        }
+        if (req.contagem() == null) {
+            throw new RegraNegocioException("Informe a contagem do caixa (quanto tem na gaveta)");
+        }
+        BigDecimal saldoAnterior = req.saldoAnterior() != null ? req.saldoAnterior() : BigDecimal.ZERO;
+
+        CaixaDia mov = caixaDia(dia);
+        BigDecimal esperado = saldoAnterior.add(mov.entradasDinheiro()).subtract(mov.saidasDinheiro());
+        BigDecimal diferenca = req.contagem().subtract(esperado);
+
+        jdbc.update("""
+                INSERT INTO fechamento_caixa (data, saldo_anterior, contagem, esperado, diferenca, operador)
+                VALUES (:data, :saldoAnterior, :contagem, :esperado, :diferenca, :operador)
+                ON CONFLICT (data) DO UPDATE SET
+                    saldo_anterior = EXCLUDED.saldo_anterior, contagem = EXCLUDED.contagem,
+                    esperado = EXCLUDED.esperado, diferenca = EXCLUDED.diferenca,
+                    operador = EXCLUDED.operador, fechado_em = now()
+                """,
+                new MapSqlParameterSource()
+                        .addValue("data", dia).addValue("saldoAnterior", saldoAnterior)
+                        .addValue("contagem", req.contagem()).addValue("esperado", esperado)
+                        .addValue("diferenca", diferenca).addValue("operador", req.operador()));
+
+        return new Fechamento(saldoAnterior, req.contagem(), esperado, diferenca,
+                req.operador(), Instant.now());
     }
 
     @Transactional(readOnly = true)

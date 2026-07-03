@@ -44,7 +44,8 @@ class VendaApiTest {
     void limparEPopular() {
         jdbc.execute("""
                 TRUNCATE item_venda, parcela_fiado, pagamento_fiado, venda,
-                         variacao, produto, marca, vendedor, cliente, estorno
+                         variacao, produto, marca, vendedor, cliente, estorno,
+                         fechamento_caixa
                 RESTART IDENTITY CASCADE""");
 
         vendedorId = jdbc.queryForObject(
@@ -344,5 +345,58 @@ class VendaApiTest {
 
     private int estoque(Long variacaoId) {
         return jdbc.queryForObject("SELECT estoque FROM variacao WHERE id = ?", Integer.class, variacaoId);
+    }
+
+    @Test
+    void fecharCaixaCalculaEsperadoEDiferencaNoServidor() {
+        // venda de hoje em dinheiro: 150 na gaveta
+        http.postForEntity("/api/vendas", pedido(
+                "formaPagamento", "DINHEIRO", "tipoNotinha", "Geral",
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00"))),
+                Map.class);
+
+        // esperado = 100 (saldo anterior) + 150 (dinheiro de hoje) = 250; contou 230 → falta 20
+        ResponseEntity<Map> resp = http.postForEntity("/api/vendas/caixa-dia/fechar",
+                Map.of("saldoAnterior", "100.00", "contagem", "230.00", "operador", "Teste"), Map.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(((Number) resp.getBody().get("esperado")).doubleValue()).isEqualTo(250.0);
+        assertThat(((Number) resp.getBody().get("diferenca")).doubleValue()).isEqualTo(-20.0);
+
+        // gravou: o GET do dia devolve o fechamento (e refazer sobrescreve, sem duplicar)
+        var dia = http.getForEntity("/api/vendas/caixa-dia", Map.class).getBody();
+        var fech = (Map<String, Object>) dia.get("fechamento");
+        assertThat(((Number) fech.get("diferenca")).doubleValue()).isEqualTo(-20.0);
+        http.postForEntity("/api/vendas/caixa-dia/fechar",
+                Map.of("saldoAnterior", "100.00", "contagem", "250.00"), Map.class);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM fechamento_caixa", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT diferenca FROM fechamento_caixa", BigDecimal.class))
+                .isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void estornoDeVendaDeOntemVirouSaidaDeDinheiroNoCaixaDeHoje() {
+        String ontem = java.time.LocalDate.now(br.com.loja.pdv.Fuso.LOJA).minusDays(1).toString();
+        // venda de ontem em dinheiro, estornada hoje: o dinheiro devolvido sai da gaveta de HOJE
+        Long deOntem = ((Number) http.postForEntity("/api/vendas", pedido(
+                "formaPagamento", "DINHEIRO", "tipoNotinha", "Geral", "data", ontem,
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00"))),
+                Map.class).getBody().get("id")).longValue();
+        // venda de hoje estornada hoje: se anula sozinha, NÃO pode virar saída
+        Long deHoje = ((Number) http.postForEntity("/api/vendas", pedido(
+                "formaPagamento", "DINHEIRO", "tipoNotinha", "Geral",
+                "itens", List.of(Map.of("variacaoId", variacaoPerfume, "quantidade", 1, "precoUnit", "80.00"))),
+                Map.class).getBody().get("id")).longValue();
+        http.delete("/api/vendas/" + deOntem + "?operador=T&motivo=estorno");
+        http.delete("/api/vendas/" + deHoje + "?operador=T&motivo=estorno");
+
+        var dia = http.getForEntity("/api/vendas/caixa-dia", Map.class).getBody();
+
+        var saidas = (List<Map<String, Object>>) dia.get("saidasCrossDay");
+        assertThat(saidas).hasSize(1);
+        assertThat(((Number) saidas.get(0).get("vendaId")).longValue()).isEqualTo(deOntem);
+        assertThat(((Number) dia.get("saidasDinheiro")).doubleValue()).isEqualTo(150.0);
+        // a venda de hoje estornada também não conta como entrada
+        assertThat(((Number) dia.get("entradasDinheiro")).doubleValue()).isEqualTo(0.0);
     }
 }

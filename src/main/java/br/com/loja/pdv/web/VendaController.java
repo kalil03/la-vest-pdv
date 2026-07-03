@@ -65,6 +65,13 @@ public class VendaController {
         vendaService.cancelar(id, operador.isBlank() ? null : operador, motivo);
     }
 
+    /** Fecha (ou refaz) a conferência do caixa do dia — esperado/diferença calculados no servidor. */
+    @PostMapping("/caixa-dia/fechar")
+    public br.com.loja.pdv.service.VendaConsultaService.Fechamento fecharCaixa(
+            @RequestBody br.com.loja.pdv.service.VendaConsultaService.FecharCaixaRequest req) {
+        return consultaService.fecharCaixa(req);
+    }
+
     @GetMapping("/caixa-dia")
     public br.com.loja.pdv.service.VendaConsultaService.CaixaDia caixaDia(
             @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(
