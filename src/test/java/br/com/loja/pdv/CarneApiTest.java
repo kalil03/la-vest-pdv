@@ -21,6 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * valor_aberto é só o rateio (invariante: SUM(valor_aberto) == saldo).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// os testes leem o JSON da API como Map generico DE PROPOSITO (estilo da suite):
+// um cast que nao bata com a resposta quebra o teste, que e o comportamento desejado
+@SuppressWarnings({ "rawtypes", "unchecked" })
 class CarneApiTest {
 
     @Autowired TestRestTemplate http;
@@ -54,7 +57,6 @@ class CarneApiTest {
                 Long.class, clienteId, -valor, venc, valor);
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> carne() {
         return http.getForEntity("/api/clientes/" + clienteId + "/carne", Map.class).getBody();
     }

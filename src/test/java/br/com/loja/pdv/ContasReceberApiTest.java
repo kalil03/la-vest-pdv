@@ -14,6 +14,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** Contas a receber: visão única das parcelas com status calculado. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// os testes leem o JSON da API como Map generico DE PROPOSITO (estilo da suite):
+// um cast que nao bata com a resposta quebra o teste, que e o comportamento desejado
+@SuppressWarnings({ "rawtypes", "unchecked" })
 class ContasReceberApiTest {
 
     @Autowired TestRestTemplate http;
@@ -37,7 +40,6 @@ class ContasReceberApiTest {
                 (?, -60,  'DEBITO_INICIAL', '2023-03-10', 25)""", clienteId, clienteId, clienteId);
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> listar(String query) {
         return http.getForEntity("/api/contas-receber" + query, Map.class).getBody();
     }

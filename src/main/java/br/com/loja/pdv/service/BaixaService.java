@@ -44,7 +44,7 @@ public class BaixaService {
 
     public record DarBaixaRequest(Long clienteId, String motivo, String operador) {}
 
-    /** Dá baixa em TODO o saldo em aberto do cliente. Reversível via restaurar(). */
+    /** Dá baixa em todo o saldo em aberto do cliente. Reversível via restaurar(). */
     @Transactional
     public BaixaDTO darBaixa(DarBaixaRequest req) {
         if (req.clienteId() == null) throw new RegraNegocioException("Cliente é obrigatório");
