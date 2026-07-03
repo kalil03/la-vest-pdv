@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 // os testes leem o JSON da API como Map generico DE PROPOSITO (estilo da suite):
 // um cast que nao bata com a resposta quebra o teste, que e o comportamento desejado
-@SuppressWarnings({ "rawtypes", "unchecked" })
+@SuppressWarnings("rawtypes")
 class AjustesApiTest {
 
     @Autowired TestRestTemplate http;
