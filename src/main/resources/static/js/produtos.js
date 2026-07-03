@@ -229,23 +229,40 @@ async function carregarLista() {
 
   produtosCache = await (await fetch(`/api/produtos?${params}`)).json();
   $lista.innerHTML = '';
+
+  if (produtosCache.length === 0) {
+    const temFiltro = params.toString() !== '';
+    $lista.innerHTML = `
+      <tr><td colspan="9" class="px-4 py-14 text-center text-muted-foreground">
+        <div class="text-[14px] font-medium">${temFiltro ? 'Nenhum produto com esses filtros' : 'Nenhum produto ainda'}</div>
+        <div class="text-[12px] mt-1">${temFiltro ? 'Ajuste a busca ou limpe os filtros.' : 'Clique em "Novo Produto" para cadastrar o primeiro.'}</div>
+      </td></tr>`;
+  }
+
   produtosCache.forEach((p) => {
     const variacoes = p.variacoes.filter((v) => !v.padrao)
       .map((v) => [v.tamanho, v.cor].filter(Boolean).join(' ')).join(', ');
     const tr = document.createElement('tr');
-    tr.className = 'cursor-pointer hover:bg-muted transition-colors';
+    tr.className = 'cursor-pointer hover:bg-muted transition-colors border-b border-border';
     tr.innerHTML = `
-            <td class="px-4 py-2.5 text-[13px]">${p.codigo}</td>
-      <td class="px-4 py-2.5 text-[13px] font-medium">${p.nome}${variacoes ? ` <small class="grade-chip">${variacoes}</small>` : ''}</td>
-      <td class="px-4 py-2.5 text-[13px]">${p.marcaNome || ''}</td>
-      <td class="px-4 py-2.5 text-[13px]">${p.categoria || ''}</td>
-      <td class="px-4 py-2.5 text-[13px]">${p.ncm || ''}</td>
-      <td class="px-4 py-2.5 text-[13px]">${fmt(p.custo || 0)}</td>
-      <td class="px-4 py-2.5 text-[13px] text-primary font-semibold">${fmt(p.preco || 0)}</td>
-      <td class="px-4 py-2.5 text-[13px]">${new Date(p.dataCriacao).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</td>`;
+      <td class="px-4 py-3 text-[13px] font-mono text-muted-foreground">${p.codigo}</td>
+      <td class="px-4 py-3 text-[13px] font-semibold">${p.nome}${variacoes ? ` <small class="grade-chip">${variacoes}</small>` : ''}</td>
+      <td class="px-4 py-3 text-[12px]">${p.marcaNome ? `<span class="px-2 py-0.5 rounded-full bg-secondary text-[11px] font-medium">${p.marcaNome}</span>` : ''}</td>
+      <td class="px-4 py-3 text-[12px]">${p.categoria ? `<span class="px-2 py-0.5 rounded-full bg-secondary text-[11px] font-medium">${p.categoria}</span>` : ''}</td>
+      <td class="px-4 py-3 text-[12px] font-mono text-muted-foreground">${p.ncm || ''}</td>
+      <td class="px-4 py-3 text-[13px] font-mono text-right text-muted-foreground">${fmt(p.custo || 0)}</td>
+      <td class="px-4 py-3 text-[14px] font-mono text-right text-primary font-bold">${fmt(p.preco || 0)}</td>
+      <td class="px-4 py-3 text-[12px] text-muted-foreground">${new Date(p.dataCriacao).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</td>
+      <td class="px-4 py-3 text-right"><button type="button" class="px-2.5 py-1 border border-border rounded-md text-[12px] font-medium bg-background hover:bg-secondary">Editar</button></td>`;
     tr.addEventListener('click', () => editarProduto(p));
     $lista.appendChild(tr);
   });
+
+  const rodape = document.getElementById('lista-rodape');
+  if (rodape) {
+    rodape.textContent = `${produtosCache.length.toLocaleString('pt-BR')} produto${produtosCache.length === 1 ? '' : 's'}`
+      + (produtosCache.length >= 200 ? ' (mostrando os primeiros 200 — refine a busca)' : '');
+  }
 }
 
 let filtroTimer = null;

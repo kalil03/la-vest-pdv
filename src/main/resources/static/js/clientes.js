@@ -63,18 +63,37 @@ async function carregarLista() {
   const q = $('f-texto').value.trim();
   const clientes = await (await fetch(`/api/clientes?q=${encodeURIComponent(q)}`)).json();
   $lista.innerHTML = '';
+
+  if (clientes.length === 0) {
+    $lista.innerHTML = `
+      <tr><td colspan="6" class="px-4 py-14 text-center text-muted-foreground">
+        <div class="text-[14px] font-medium">${q ? 'Nenhum cliente com essa busca' : 'Nenhum cliente ainda'}</div>
+        <div class="text-[12px] mt-1">${q ? 'Confira o nome, CPF ou telefone.' : 'Clique em "Novo Cliente" para cadastrar o primeiro.'}</div>
+      </td></tr>`;
+  }
+
   clientes.forEach((c) => {
     const deve = Number(c.saldoDevedor) > 0;
     const tr = document.createElement('tr');
-    tr.className = 'cursor-pointer hover:bg-muted transition-colors';
+    tr.className = 'cursor-pointer hover:bg-muted transition-colors border-b border-border';
     tr.innerHTML = `
-      <td>${c.nome}</td>
-      <td>${c.cpf ?? '<span class="text-muted-foreground">—</span>'}</td>
-      <td>${c.cidade ?? ''}</td>
-      <td class="num text-right ${deve ? 'neg' : ''}">${deve ? fmt(c.saldoDevedor) : '—'}</td>`;
+      <td class="px-4 py-3 text-[13px] font-semibold">${c.nome}</td>
+      <td class="px-4 py-3 text-[13px] font-mono text-muted-foreground">${c.cpf ?? '—'}</td>
+      <td class="px-4 py-3 text-[13px] font-mono text-muted-foreground">${c.telefone ?? ''}</td>
+      <td class="px-4 py-3 text-[13px]">${c.cidade ?? ''}</td>
+      <td class="px-4 py-3 text-[13px] font-mono text-right">${deve
+        ? `<span class="px-2 py-0.5 rounded-full text-[12px] font-bold" style="background: var(--bad-bg, #fef2f2); color: var(--bad, #d4183d)">${fmt(c.saldoDevedor)}</span>`
+        : '<span class="text-muted-foreground">—</span>'}</td>
+      <td class="px-4 py-3 text-right"><button type="button" class="px-2.5 py-1 border border-border rounded-md text-[12px] font-medium bg-background hover:bg-secondary">Editar</button></td>`;
     tr.addEventListener('click', () => editarCliente(c));
     $lista.appendChild(tr);
   });
+
+  const rodape = document.getElementById('lista-rodape');
+  if (rodape) {
+    rodape.textContent = `${clientes.length.toLocaleString('pt-BR')} cliente${clientes.length === 1 ? '' : 's'}`
+      + (clientes.length >= 200 ? ' (mostrando os primeiros 200 — refine a busca)' : '');
+  }
 }
 
 let filtroTimer = null;
