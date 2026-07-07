@@ -72,23 +72,14 @@
 		</dependency>
 
 		<!-- NFC-e direto na SEFAZ (gratis, sem gateway pago). Monta/assina/transmite
-		     o XML 4.00. Via JitPack. Axis2/javax sao do stack legado da lib. -->
+		     o XML 4.00. Via JitPack. Axis2 fica: e o stack SOAP da transmissao. -->
 		<dependency>
 			<groupId>com.github.Samuel-Oliveira</groupId>
 			<artifactId>Java_NFe</artifactId>
 			<version>v4.00.42</version>
 			<exclusions>
-				<!-- Axis2 so e usado na transmissao SOAP (fase do certificado).
-				     Fora ele aqui para nao poluir o classpath do PDV em producao
-				     (commons-logging conflita com o spring-jcl do Boot). -->
-				<exclusion>
-					<groupId>org.apache.axis2</groupId>
-					<artifactId>*</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.ws.commons.axiom</groupId>
-					<artifactId>*</artifactId>
-				</exclusion>
+				<!-- commons-logging conflita com o spring-jcl do Boot (mesmo pacote
+				     org.apache.commons.logging); o spring-jcl substitui sem perda. -->
 				<exclusion>
 					<groupId>commons-logging</groupId>
 					<artifactId>commons-logging</artifactId>

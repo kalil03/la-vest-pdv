@@ -26,9 +26,17 @@ public class FiscalProperties {
     private String cscId = "";
     private String csosnPadrao = "102";
     private String cfopPadrao = "5102";
+    /** Pasta com os XSDs da SEFAZ (validação local antes de transmitir). */
+    private String pastaSchemas = "";
+    /** Caminho do .pfx do certificado A1. Vazio = usa o repositório do Windows
+     *  (certificado já instalado no usuário, sem senha — mas hoje com um bug
+     *  conhecido da lib pra assinar; preencher aqui assim que houver a senha). */
+    private String certificadoCaminho = "";
+    private String certificadoSenha = "";
 
     private final Endereco endereco = new Endereco();
     private final Nfce nfce = new Nfce();
+    private final RespTecnico respTecnico = new RespTecnico();
 
     /** tpAmb da SEFAZ ("2" homologação, "1" produção). */
     public String tpAmb() {
@@ -61,6 +69,24 @@ public class FiscalProperties {
         public void setCodMunicipio(String v) { this.codMunicipio = v; }
         public String getCep() { return cep; }
         public void setCep(String v) { this.cep = v; }
+        public String getFone() { return fone; }
+        public void setFone(String v) { this.fone = v; }
+    }
+
+    /** Responsável técnico pelo sistema emissor — exigido pela SEFAZ (grupo infRespTec).
+     *  Precisa ser CNPJ (não aceita CPF); o contato pode ser uma pessoa física. */
+    public static class RespTecnico {
+        private String cnpj = "";
+        private String contato = "";
+        private String email = "";
+        private String fone = "";
+
+        public String getCnpj() { return cnpj; }
+        public void setCnpj(String v) { this.cnpj = v; }
+        public String getContato() { return contato; }
+        public void setContato(String v) { this.contato = v; }
+        public String getEmail() { return email; }
+        public void setEmail(String v) { this.email = v; }
         public String getFone() { return fone; }
         public void setFone(String v) { this.fone = v; }
     }
@@ -99,6 +125,14 @@ public class FiscalProperties {
     public void setCsosnPadrao(String v) { this.csosnPadrao = v; }
     public String getCfopPadrao() { return cfopPadrao; }
     public void setCfopPadrao(String v) { this.cfopPadrao = v; }
+    public String getPastaSchemas() { return pastaSchemas; }
+    public void setPastaSchemas(String v) { this.pastaSchemas = v; }
+    public String getCertificadoCaminho() { return certificadoCaminho; }
+    public void setCertificadoCaminho(String v) { this.certificadoCaminho = v; }
+    public String getCertificadoSenha() { return certificadoSenha; }
+    public void setCertificadoSenha(String v) { this.certificadoSenha = v; }
+    public boolean temCertificadoArquivo() { return certificadoCaminho != null && !certificadoCaminho.isBlank(); }
     public Endereco getEndereco() { return endereco; }
     public Nfce getNfce() { return nfce; }
+    public RespTecnico getRespTecnico() { return respTecnico; }
 }

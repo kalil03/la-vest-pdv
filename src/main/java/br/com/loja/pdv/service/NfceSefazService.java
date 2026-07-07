@@ -43,8 +43,9 @@ public class NfceSefazService {
         this.fiscal = fiscal;
     }
 
-    /** Resultado da montagem: o XML pronto para assinar, a chave e o conteúdo do QR Code. */
-    public record NfceMontada(String chaveAcesso, String xml, String qrCode) {}
+    /** Resultado da montagem: o objeto pronto para assinar (nfe), a chave, o XML (prévia, não
+     *  assinado) e o conteúdo do QR Code. */
+    public record NfceMontada(String chaveAcesso, TNFe nfe, String xml, String qrCode) {}
 
     /**
      * Monta o XML da NFC-e para a venda.
@@ -74,17 +75,28 @@ public class NfceSefazService {
         inf.setTotal(montarTotal(totalProdutos, descontoDe(venda)));
         inf.setTransp(montarTransp());
         inf.setPag(montarPag(venda));
+        inf.setInfRespTec(montarRespTecnico());
 
         TNFe nfe = new TNFe();
         nfe.setInfNFe(inf);
 
-        String qrCode = NFCeUtil.getCodeQRCodeV3(chave, fiscal.tpAmb(), fiscal.getNfce().getUrlQrcode());
+        String qrCode = gerarQrCode(chave, fiscal.tpAmb());
         TNFe.InfNFeSupl supl = new TNFe.InfNFeSupl();
         supl.setQrCode(qrCode);
         supl.setUrlChave(fiscal.getNfce().getUrlQrcode());
         nfe.setInfNFeSupl(supl);
 
-        return new NfceMontada(chave, marshal(nfe), qrCode);
+        return new NfceMontada(chave, nfe, marshal(nfe), qrCode);
+    }
+
+    /** QR Code v2 (chave + hash SHA-1 de chave+CSC) — o que o app do consumidor valida. */
+    private String gerarQrCode(String chave, String tpAmb) {
+        try {
+            return NFCeUtil.getCodeQRCode(chave, tpAmb, fiscal.getCscId(), fiscal.getCsc(),
+                    fiscal.getNfce().getUrlQrcode());
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Falha ao gerar QR Code da NFC-e: " + e.getMessage(), e);
+        }
     }
 
     private TNFe.InfNFe.Ide montarIde(EstadosEnum estado, int numero, String cNF,
@@ -112,14 +124,13 @@ public class NfceSefazService {
         return ide;
     }
 
+    /** Ordem dos campos segue o XSD (leiauteNFe_v4.00): CNPJ, xNome, xFant,
+     *  enderEmit, IE, [IEST], [IM, CNAE], CRT — a serialização é sensível a isso. */
     private TNFe.InfNFe.Emit montarEmit(EstadosEnum estado) {
         TNFe.InfNFe.Emit emit = new TNFe.InfNFe.Emit();
         emit.setCNPJ(fiscal.getCnpj());
         emit.setXNome(fiscal.getRazaoSocial());
         if (naoVazio(fiscal.getNomeFantasia())) emit.setXFant(fiscal.getNomeFantasia());
-        emit.setIE(fiscal.getInscricaoEstadual());
-        if (naoVazio(fiscal.getCnae())) emit.setCNAE(fiscal.getCnae());
-        emit.setCRT(fiscal.getCrt());
 
         FiscalProperties.Endereco e = fiscal.getEndereco();
         TEnderEmi end = new TEnderEmi();
@@ -134,6 +145,11 @@ public class NfceSefazService {
         end.setXPais("BRASIL");
         if (naoVazio(e.getFone())) end.setFone(e.getFone());
         emit.setEnderEmit(end);
+
+        emit.setIE(fiscal.getInscricaoEstadual());
+        // CNAE só pode aparecer junto de IM (grupo "interesse da Prefeitura", p/ prestador de
+        // serviço) — a loja não tem IM (é comércio, não serviço), então não manda nenhum dos dois.
+        emit.setCRT(fiscal.getCrt());
         return emit;
     }
 
@@ -236,6 +252,17 @@ public class NfceSefazService {
         TNFe.InfNFe.Total total = new TNFe.InfNFe.Total();
         total.setICMSTot(tot);
         return total;
+    }
+
+    /** Exigido pela SEFAZ desde a NT2020.001 — identifica quem desenvolve/mantém o sistema. */
+    private TInfRespTec montarRespTecnico() {
+        FiscalProperties.RespTecnico rt = fiscal.getRespTecnico();
+        TInfRespTec infRespTec = new TInfRespTec();
+        infRespTec.setCNPJ(rt.getCnpj());
+        infRespTec.setXContato(rt.getContato());
+        infRespTec.setEmail(rt.getEmail());
+        infRespTec.setFone(rt.getFone());
+        return infRespTec;
     }
 
     /** NFC-e é sempre sem frete por conta do emitente. */
