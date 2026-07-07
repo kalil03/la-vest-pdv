@@ -160,9 +160,56 @@ async function carregarVendedores() {
   const vendedores = await (await fetch('/api/vendedores')).json();
   $('qtd-vendedores').textContent = vendedores.length;
   $('lista-vendedores').innerHTML = vendedores.length
-    ? vendedores.map((v) => linhaPessoa(v.nome, v.cpf)).join('')
+    ? vendedores.map((v) => `<div class="linha">
+        <span class="mini-avatar" style="background:${corAvatar(v.nome)}">${iniciais(v.nome)}</span>
+        <span class="flex-1" style="flex:1">${v.nome}</span>
+        <span class="mono">${v.cpf || ''}</span>
+        <button type="button" class="u-acao" data-acao="editar" data-id="${v.id}" data-nome="${v.nome}" data-cpf="${v.cpf || ''}"
+                style="margin-left:8px; padding:3px 8px; font-size:11px; border:1px solid var(--border); border-radius:6px; background:transparent; cursor:pointer">Editar</button>
+        <button type="button" class="u-acao" data-acao="desativar" data-id="${v.id}" data-nome="${v.nome}"
+                style="padding:3px 8px; font-size:11px; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--destructive, #d4183d); cursor:pointer">Remover</button>
+      </div>`).join('')
     : '<div class="vazio-lista">Nenhum registro</div>';
 }
+
+$('lista-vendedores').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.u-acao');
+  if (!btn) return;
+  const { acao, id, nome, cpf } = btn.dataset;
+
+  if (acao === 'desativar') {
+    if (!confirm(`Remover o vendedor "${nome}"? Vendas antigas continuam com ele, mas não aparece mais pra escolher.`)) return;
+    const resp = await fetch(`/api/vendedores/${id}/desativar`, { method: 'POST' });
+    if (!resp.ok) {
+      const erro = await resp.json().catch(() => ({}));
+      toast(erro.erro || 'Não foi possível remover');
+      return;
+    }
+    toast(`Vendedor ${nome} removido`, 'ok');
+    carregarVendedores();
+    return;
+  }
+
+  if (acao === 'editar') {
+    const novoNome = prompt('Nome do vendedor:', nome);
+    if (novoNome === null || !novoNome.trim()) return;
+    const novoCpf = prompt('CPF (opcional):', cpf || '');
+    if (novoCpf === null) return;
+    try {
+      const resp = await fetch(`/api/vendedores/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: novoNome.trim(), cpf: novoCpf.trim() || null }),
+      });
+      if (!resp.ok) {
+        const erro = await resp.json().catch(() => ({}));
+        throw new Error(erro.erro || 'Erro ao salvar');
+      }
+      toast('Vendedor atualizado', 'ok');
+      carregarVendedores();
+    } catch (erro) { toast(erro.message); }
+  }
+});
 
 $('form-vendedor').addEventListener('submit', async (e) => {
   e.preventDefault();
