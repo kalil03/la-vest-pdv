@@ -195,12 +195,22 @@
       background: var(--background);
       border: 1px solid var(--border);
       border-radius: 14px;
-      padding: 18px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 5px;
       overflow-y: auto;
     }
+    /* campos do painel: label + input compactos, pra caber sem rolar */
+    .painel-venda label { margin-bottom: 3px !important; }
+    .painel-venda input:not(#v-codigo, #v-data),
+    .painel-venda select,
+    .painel-venda .relative input {
+      padding-top: 6px !important;
+      padding-bottom: 6px !important;
+    }
+    #v-codigo, #v-data { padding-top: 6px !important; padding-bottom: 6px !important; }
+    .tipo-btn { padding-top: 6px !important; padding-bottom: 6px !important; }
     .btn-nova {
       width: 100%;
       padding: 10px;
@@ -247,11 +257,11 @@
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      margin-bottom: 14px;
+      margin-bottom: 8px;
     }
 
     .painel-venda .valor {
-      font-size: 32px;
+      font-size: 26px;
       font-weight: 700;
       color: var(--foreground);
       font-variant-numeric: tabular-nums;
@@ -266,7 +276,7 @@
     }
 
     .formas-pagamento button {
-      padding: 9px 8px;
+      padding: 6px 8px;
       border: 1px solid var(--border);
       border-radius: 10px;
       background: var(--background);
@@ -278,7 +288,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 5px;
+      gap: 3px;
     }
 
     .formas-pagamento button:hover {
@@ -308,7 +318,7 @@
 
     .btn-fechar {
       width: 100%;
-      padding: 13px;
+      padding: 10px;
       background: var(--primary);
       color: var(--primary-foreground);
       border-radius: 12px;
