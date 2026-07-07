@@ -1,0 +1,11 @@
+{
+  "name": "La Vest",
+  "short_name": "La Vest",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#030213",
+  "icons": [
+    { "src": "/favicon.png", "sizes": "256x256", "type": "image/png" }
+  ]
+}
