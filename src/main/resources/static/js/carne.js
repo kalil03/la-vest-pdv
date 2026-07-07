@@ -485,7 +485,17 @@ async function confirmarRecebimento() {
       return;
     }
     const recibo = await resp.json();
-    imprimirReciboCarne(recibo, loja);
+
+    // maior controle: primeiro a(s) promissoria(s) atualizada(s) das notas
+    // atingidas por este pagamento (pra grampear no notinha — via da loja),
+    // e só depois o recibo do cliente. Parcela migrada do SET (sem notinha)
+    // não tem venda nossa pra reimprimir.
+    const notasAfetadas = [...new Set(recibo.itens.map((i) => i.notinha).filter(Boolean))];
+    for (const notinha of notasAfetadas) {
+      const respVenda = await fetch(`/api/vendas/${notinha}`);
+      if (respVenda.ok) await imprimirRecibo(await respVenda.json(), loja);
+    }
+    await imprimirReciboCarne(recibo, loja);
     toast(`Recebido ${fmt(recibo.valor)} de ${recibo.clienteNome} — saldo agora ${fmt(recibo.saldoRestante)}`, 'ok');
     $('modal-receber').hidden = true;
     await selecionarCliente(cliente);

@@ -139,7 +139,7 @@ function esc(s) {
 }
 
 function imprimirRecibo(venda, loja) {
-  previewImprimir(reciboHTML(venda, loja));
+  return previewImprimir(reciboHTML(venda, loja));
 }
 
 /**
@@ -150,6 +150,7 @@ function imprimirRecibo(venda, loja) {
  * Autocontido (estilos inline) para servir qualquer tela.
  */
 function previewImprimir(html) {
+  return new Promise((resolve) => {
   document.getElementById('preview-cupom')?.remove();
   const overlay = document.createElement('div');
   overlay.id = 'preview-cupom';
@@ -180,6 +181,7 @@ function previewImprimir(html) {
   const fechar = () => {
     document.removeEventListener('keydown', teclas, true);
     overlay.remove();
+    resolve();
   };
   const imprimir = () => { fechar(); imprimirHTML(html); };
   const teclas = (e) => {
@@ -191,6 +193,7 @@ function previewImprimir(html) {
   overlay.querySelector('[data-acao="cancelar"]').addEventListener('click', fechar);
   overlay.querySelector('[data-acao="imprimir"]').addEventListener('click', imprimir);
   overlay.querySelector('[data-acao="imprimir"]').focus();
+  });
 }
 
 /** Impressão genérica via iframe oculto (sem popup). */
@@ -288,5 +291,5 @@ function reciboCarneHTML(r, loja) {
 }
 
 function imprimirReciboCarne(recibo, loja) {
-  previewImprimir(reciboCarneHTML(recibo, loja));
+  return previewImprimir(reciboCarneHTML(recibo, loja));
 }
