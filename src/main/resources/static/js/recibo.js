@@ -183,7 +183,14 @@ function previewImprimir(html) {
     overlay.remove();
     resolve();
   };
-  const imprimir = () => { fechar(); imprimirHTML(html); };
+  // não resolve na hora do clique: só depois que a impressão anterior teve
+  // tempo de sair de verdade — imprimir duas vias em sequência rápida nessa
+  // térmica derruba a segunda ("Falha na impressão")
+  const imprimir = () => {
+    document.removeEventListener('keydown', teclas, true);
+    overlay.remove();
+    imprimirHTML(html, resolve);
+  };
   const teclas = (e) => {
     // captura: enquanto o preview está aberto, os atalhos da página (F10 etc.) não valem
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fechar(); }
@@ -196,8 +203,10 @@ function previewImprimir(html) {
   });
 }
 
-/** Impressão genérica via iframe oculto (sem popup). */
-function imprimirHTML(html) {
+/** Impressão genérica via iframe oculto (sem popup). Só chama aoTerminar depois
+ *  de dar tempo real da impressão sair — pra poder encadear vias sem atropelar
+ *  a térmica com dois jobs quase simultâneos. */
+function imprimirHTML(html, aoTerminar) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.right = '0';
@@ -209,7 +218,7 @@ function imprimirHTML(html) {
   iframe.onload = () => {
     iframe.contentWindow.focus();
     iframe.contentWindow.print();
-    setTimeout(() => iframe.remove(), 3000);
+    setTimeout(() => { iframe.remove(); if (aoTerminar) aoTerminar(); }, 2500);
   };
   document.body.appendChild(iframe);
 }
