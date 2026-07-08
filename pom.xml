@@ -62,6 +62,14 @@
 			<scope>test</scope>
 		</dependency>
 
+		<!-- QR Code da NFC-e: gerado localmente (offline) como SVG nitido pra
+		     bobina termica. So o encoder core, sem javase/AWT. -->
+		<dependency>
+			<groupId>com.google.zxing</groupId>
+			<artifactId>core</artifactId>
+			<version>3.5.3</version>
+		</dependency>
+
 		<!-- PDF do fechamento mensal (aprovado): unica lib de PDF do projeto,
 		     usada so para exportar o relatorio em A4 (no kiosk nao ha "salvar
 		     como PDF" — a impressao sai direto na termica). -->

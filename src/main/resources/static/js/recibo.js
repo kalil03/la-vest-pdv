@@ -160,8 +160,14 @@ function juntarDocumentos(htmls) {
   const parser = new DOMParser();
   const docs = htmls.map((h) => parser.parseFromString(h, 'text/html'));
   const estilos = [...new Set(docs.map((d) => d.head.querySelector('style')?.textContent || ''))].join('\n');
-  const paginas = docs.map((d, i) =>
-    `<div style="${i < docs.length - 1 ? 'break-after: page;' : ''}">${d.body.innerHTML}</div>`).join('');
+  // Cada via é uma "página" com quebra forçada depois (menos a última): uso as duas
+  // propriedades — a moderna `break-after` e a legada `page-break-after` — porque
+  // o driver da térmica só corta/avança entre páginas se enxergar o page break.
+  // Uma folga no pé (padding-bottom) evita que o corte coma a última linha.
+  const paginas = docs.map((d, i) => {
+    const quebra = i < docs.length - 1 ? 'page-break-after: always; break-after: page;' : '';
+    return `<div style="${quebra} padding-bottom: 6mm;">${d.body.innerHTML}</div>`;
+  }).join('');
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>${estilos}</style></head><body>${paginas}</body></html>`;
 }
 
@@ -316,4 +322,144 @@ function reciboCarneHTML(r, loja) {
 
 function imprimirReciboCarne(recibo, loja) {
   return previewImprimir(reciboCarneHTML(recibo, loja));
+}
+
+/**
+ * DANFE NFC-e (cupom fiscal 80mm) — impresso APÓS a autorização na SEFAZ.
+ * `danfe` vem do backend (emissão): identidade fiscal do emitente, chave,
+ * protocolo, data de autorização, URL de consulta e o QR Code já em SVG
+ * (gerado offline). Os itens/total saem da própria venda.
+ */
+function danfeNfceHTML(venda, loja, danfe) {
+  const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
+
+  const linhasItens = venda.itens.map((i, idx) => `
+    <tr><td colspan="3" class="desc">${idx + 1}. ${esc(i.codigo || '')} ${esc(i.descricao)}</td></tr>
+    <tr><td>${i.quantidade} x ${fmt(i.precoUnit)}</td><td></td><td class="dir">${fmt(i.subtotal)}</td></tr>`).join('');
+
+  const temDesconto = Number(venda.desconto) > 0;
+  const totais = `
+    ${temDesconto ? `
+    <tr><td>Subtotal</td><td></td><td class="dir">${fmt(venda.subtotal)}</td></tr>
+    <tr><td>Desconto</td><td></td><td class="dir">-${fmt(venda.desconto)}</td></tr>` : ''}
+    <tr class="total"><td>TOTAL R$</td><td></td><td class="dir">${fmt(venda.total)}</td></tr>`;
+
+  const consumidor = venda.clienteNome
+    ? `Consumidor: ${esc(venda.clienteNome)}`
+    : 'CONSUMIDOR NÃO IDENTIFICADO';
+
+  const aviso = danfe.homologacao
+    ? `<div class="centro negrito" style="margin:6px 0">EMITIDA EM AMBIENTE DE HOMOLOGAÇÃO<br>SEM VALOR FISCAL</div>` : '';
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: ${larguraMm}mm auto; margin: 0; }
+  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
+  .centro { text-align: center; }
+  .negrito { font-weight: bold; }
+  .dir { text-align: right; }
+  .info { text-align: center; font-size: 10px; margin: 0; }
+  .sep { border-top: 1px dashed #000; margin: 5px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 1px 0; vertical-align: top; font-size: 11px; }
+  .desc { font-weight: bold; }
+  .total td { font-size: 14px; font-weight: bold; padding-top: 3px; }
+  .titulo { text-align: center; font-weight: bold; font-size: 11px; margin: 4px 0; }
+  .chave { font-size: 10px; word-break: break-all; text-align: center; margin: 3px 0; }
+  .qr { display: flex; justify-content: center; margin: 6px 0; }
+  .qr svg { width: ${Math.min(50, larguraMm - 20)}mm; height: ${Math.min(50, larguraMm - 20)}mm; }
+</style>
+</head>
+<body>
+  <div class="centro negrito">${esc(danfe.razaoSocial || loja.nome)}</div>
+  <p class="info">CNPJ ${esc(danfe.cnpj || '')}${danfe.inscricaoEstadual ? ' — IE ' + esc(danfe.inscricaoEstadual) : ''}</p>
+  <p class="info">${esc(danfe.endereco || loja.endereco || '')}</p>
+  <div class="sep"></div>
+  <div class="titulo">DANFE NFC-e — Documento Auxiliar da<br>Nota Fiscal de Consumidor Eletrônica</div>
+  <div class="sep"></div>
+  <table>${linhasItens}${totais}</table>
+  <div class="sep"></div>
+  <p class="info">Pagamento: ${rotuloForma(venda.formaPagamento)}</p>
+  <div class="sep"></div>
+  ${aviso}
+  <div class="centro" style="font-size:10px">Consulte pela Chave de Acesso em:</div>
+  <div class="info">${esc(danfe.urlConsulta || '')}</div>
+  <div class="chave negrito">${esc(danfe.chaveFormatada || danfe.chave || '')}</div>
+  <p class="info">${esc(consumidor)}</p>
+  ${danfe.protocolo ? `<p class="info">Protocolo de autorização: ${esc(danfe.protocolo)}</p>` : ''}
+  ${danfe.dataAutorizacao ? `<p class="info">${esc(danfe.dataAutorizacao)}</p>` : ''}
+  <div class="qr">${danfe.qrCodeSvg || ''}</div>
+</body>
+</html>`;
+}
+
+function imprimirDanfeNfce(venda, loja, danfe) {
+  return previewImprimir(danfeNfceHTML(venda, loja, danfe));
+}
+
+/**
+ * Promissória com SALDO ATUALIZADO após uma baixa (80mm). A baixa quita as notas
+ * em aberto do cliente; este cupom lista o que foi quitado e mostra o saldo atual
+ * zerado — para grampear na promissória física do SET em vez de marcar à mão.
+ */
+function promissoriaBaixaHTML(c, loja) {
+  const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const dataHora = new Date(c.data).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
+
+  const linhas = (c.notas || []).map((n) => `
+    <tr><td>${esc(n.descricao)}</td><td class="dir">${fmt(n.valor)} — QUITADA</td></tr>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: ${larguraMm}mm auto; margin: 0; }
+  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
+  .centro { text-align: center; }
+  .negrito { font-weight: bold; }
+  .dir { text-align: right; }
+  h1 { font-size: 15px; margin: 6px 0 2px; text-align: center; }
+  .info { text-align: center; font-size: 11px; margin: 0; }
+  .sep { border-top: 1px dashed #000; margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 1px 0; vertical-align: top; font-size: 11px; }
+  .destaque { font-size: 15px; font-weight: bold; }
+  .assinatura { margin-top: 34px; }
+  .linha-assinatura { border-top: 1px solid #000; margin: 0 8px 2px; }
+  .rodape { text-align: center; font-size: 10px; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>${esc(loja.nome)}</h1>
+  <p class="info">${esc(loja.endereco)}</p>
+  <p class="info">${esc(loja.telefone)}</p>
+  <div class="sep"></div>
+  <div class="centro negrito">PROMISSÓRIA — SALDO ATUALIZADO</div>
+  <p class="info">Cliente: ${esc(c.clienteNome)}</p>
+  <p class="info">Baixa nº ${c.baixaId} — ${dataHora}</p>
+  ${c.operador ? `<p class="info">Registrado por: ${esc(c.operador)}</p>` : ''}
+  <div class="sep"></div>
+  <table>${linhas}</table>
+  <div class="sep"></div>
+  <table>
+    <tr><td class="destaque">TOTAL QUITADO</td><td class="dir destaque">${fmt(c.total)}</td></tr>
+    <tr><td class="negrito">SALDO ATUAL</td><td class="dir negrito">R$ 0,00 — QUITADO</td></tr>
+  </table>
+  <div class="assinatura">
+    <div class="linha-assinatura"></div>
+    <div class="centro">${esc(c.clienteNome)}</div>
+  </div>
+  <div class="rodape">${esc(loja?.impRodape ?? 'Obrigado pela preferência!')}</div>
+</body>
+</html>`;
+}
+
+function imprimirPromissoriaBaixa(comprovante, loja) {
+  return previewImprimir(promissoriaBaixaHTML(comprovante, loja));
 }

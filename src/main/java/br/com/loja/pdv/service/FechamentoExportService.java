@@ -69,6 +69,10 @@ public class FechamentoExportService {
           .append(MOEDA.format(f.entradasFiado().total())).append('\n');
         sb.append("Retiradas (sangria);").append(f.retiradas().qtd()).append(';')
           .append(MOEDA.format(f.retiradas().total())).append('\n');
+        sb.append("Tênis à vista;").append(f.tenisAVista().qtd()).append(';')
+          .append(MOEDA.format(f.tenisAVista().total())).append('\n');
+        sb.append("Recebimento + Tênis à vista (entrou no caixa);;")
+          .append(MOEDA.format(f.recebimentoMaisTenisVista())).append('\n');
 
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
@@ -114,8 +118,12 @@ public class FechamentoExportService {
                         + f.recebimentoMes().qtd() + ")", f.recebimentoMes().total(), FONTE);
                 y = linhaValor(cs, y, direita, "Entradas de fiado  ("
                         + f.entradasFiado().qtd() + ")", f.entradasFiado().total(), FONTE);
-                linhaValor(cs, y, direita, "Retiradas / sangria  ("
+                y = linhaValor(cs, y, direita, "Retiradas / sangria  ("
                         + f.retiradas().qtd() + ")", f.retiradas().total(), FONTE);
+                y = linhaValor(cs, y, direita, "Tenis a vista  ("
+                        + f.tenisAVista().qtd() + ")", f.tenisAVista().total(), FONTE) - 6;
+                linhaValor(cs, y, direita, "RECEBIMENTO + TENIS A VISTA (entrou no caixa)",
+                        f.recebimentoMaisTenisVista(), NEGRITO);
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();

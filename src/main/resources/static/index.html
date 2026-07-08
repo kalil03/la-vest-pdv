@@ -365,6 +365,68 @@
       font-size: 17px; font-weight: 600; color: var(--muted-foreground);
       margin-right: 3px; vertical-align: 8px; letter-spacing: 0;
     }
+
+    /* ===== Subtela de confirmação: header + corpo rolável + rodapé fixo =====
+       O total e os botões ficam SEMPRE à vista (rodapé fixo); só o miolo rola
+       quando o caso é fiado/muitos itens — assim nunca é preciso rolar pra
+       chegar no "Confirmar". */
+    .modal-confirmar {
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 24px 48px rgba(0,0,0,.25);
+      width: 520px;
+      max-width: 94vw;
+      max-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: scale(0.98);
+      animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .mc-header {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 15px 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .mc-header h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--foreground); letter-spacing: -0.3px; }
+    .mc-fechar { background: none; border: 0; padding: 4px; cursor: pointer; color: var(--muted-foreground); line-height: 0; }
+    .mc-fechar:hover { color: var(--foreground); }
+
+    .mc-corpo {
+      flex: 1; min-height: 0; overflow-y: auto;
+      padding: 14px 22px;
+      display: flex; flex-direction: column; gap: 11px;
+    }
+    .mc-subtotal { display: flex; justify-content: space-between; align-items: baseline; }
+    .mc-subtotal span { color: var(--muted-foreground); text-transform: uppercase; font-weight: 600; font-size: 12px; letter-spacing: .5px; }
+    .mc-subtotal strong { font-family: 'JetBrains Mono', monospace; font-size: 16px; color: var(--foreground); }
+
+    .mc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .mc-campo label { display: block; font-size: 11px; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 5px; }
+
+    /* bloco de fiado: campos em grade limpa + lista de parcelas com rolagem própria */
+    .mc-fiado {
+      background: var(--secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .mc-fiado-grid { display: grid; grid-template-columns: 1.5fr 0.8fr; gap: 10px; }
+    .mc-parcelas-lista { max-height: 96px; overflow-y: auto; padding-right: 2px; }
+
+    .mc-rodape {
+      flex-shrink: 0;
+      padding: 13px 22px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--background);
+    }
+    .mc-total { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .mc-total span { color: var(--muted-foreground); text-transform: uppercase; font-weight: 700; font-size: 13px; letter-spacing: .5px; }
+    .mc-total strong { font-family: 'JetBrains Mono', monospace; font-size: 26px; color: var(--primary); font-weight: 800; letter-spacing: -1px; }
+    .mc-acoes { display: flex; gap: 12px; }
   </style>
 
   <script>
@@ -418,18 +480,20 @@
         </a>
         <a href="/contas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="receipt" class="w-[15px] h-[15px]"></i><span class="flex-1">A Receber</span>
-        </a>
-        <a href="/caixa.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
-          <i data-lucide="calculator" class="w-[15px] h-[15px]"></i><span class="flex-1">Caixa do dia</span>
-        </a>
-        <a href="/fechamento.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
-          <i data-lucide="calendar-check" class="w-[15px] h-[15px]"></i><span class="flex-1">Fechamento</span>
+        </a><a href="/notas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="file-text" class="w-[15px] h-[15px]"></i><span class="flex-1">Notas Fiscais</span>
         </a>
         <a href="/produtos.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="package" class="w-[15px] h-[15px]"></i><span class="flex-1">Produtos</span>
         </a>
         <a href="/clientes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="users" class="w-[15px] h-[15px]"></i><span class="flex-1">Clientes</span>
+        </a>
+        <a href="/caixa.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="calculator" class="w-[15px] h-[15px]"></i><span class="flex-1">Caixa do dia</span>
+        </a>
+        <a href="/fechamento.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="calendar-check" class="w-[15px] h-[15px]"></i><span class="flex-1">Fechamento</span>
         </a>
         <a href="/etiquetas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="tags" class="w-[15px] h-[15px]"></i><span class="flex-1">Etiquetas</span>
@@ -589,129 +653,124 @@
         </div>
       </div>
 
-      <!-- MODAL CONFIRMAÇÃO (REUTILIZANDO ESTILO CSS ORIGINAL MAS MELHORANDO) -->
+      <!-- MODAL CONFIRMAÇÃO — header + corpo rolável + rodapé fixo (total/botões sempre à vista) -->
       <div id="modal-overlay" class="modal-overlay" hidden>
-        <div class="modal !bg-background !border-border !border !rounded-xl !shadow-2xl" role="dialog"
-          aria-labelledby="modal-titulo">
-          <h2 id="modal-titulo"
-            class="!text-foreground !text-xl !font-bold !mb-6 !pb-4 !border-b !border-border flex items-center justify-between">
-            Confirmar Venda
-            <button onclick="document.getElementById('m-cancelar').click()"
-              class="text-muted-foreground hover:text-foreground">
+        <div class="modal-confirmar" role="dialog" aria-labelledby="modal-titulo">
+
+          <header class="mc-header">
+            <h2 id="modal-titulo">Confirmar Venda</h2>
+            <button type="button" class="mc-fechar" aria-label="Fechar"
+              onclick="document.getElementById('m-cancelar').click()">
               <i data-lucide="x" class="w-5 h-5"></i>
             </button>
-          </h2>
+          </header>
 
-          <div id="m-itens"
-            class="m-itens !text-foreground !font-mono !text-[13px] !bg-secondary !p-4 !rounded-lg !border !border-border">
-          </div>
-
-          <div class="flex justify-between items-center my-4 py-3 border-b border-t border-border">
-            <span class="text-muted-foreground font-semibold text-[13px] uppercase">Subtotal</span>
-            <strong id="m-subtotal" class="font-mono text-lg text-foreground"></strong>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4 mb-6">
-            <div class="col-span-2">
-              <label for="m-desconto"
-                class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Desconto</label>
-              <div class="flex">
-                <select id="m-desconto-modo"
-                  class="bg-secondary border border-border border-r-0 rounded-l-md px-2 text-[13px] text-foreground font-medium outline-none">
-                  <option value="R$">R$</option>
-                  <option value="%">%</option>
-                </select>
-                <input id="m-desconto" type="number" min="0" step="0.01" value="0"
-                  class="flex-1 w-full bg-background border border-border rounded-r-md px-3 py-2 text-[14px] font-mono focus:border-primary outline-none">
-              </div>
+          <div class="mc-corpo">
+            <div id="m-itens"
+              class="m-itens !text-foreground !font-mono !text-[13px] !bg-secondary !p-3 !rounded-lg !border !border-border">
             </div>
 
-            <div class="col-span-2">
-              <label for="m-forma" class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Forma
-                de Pagamento</label>
-              <div class="flex gap-3">
+            <div class="mc-subtotal">
+              <span>Subtotal</span>
+              <strong id="m-subtotal"></strong>
+            </div>
+
+            <div class="mc-grid">
+              <!-- Desconto e forma lado a lado: economiza altura e mantém os dois à vista -->
+              <div class="mc-campo">
+                <label for="m-desconto">Desconto</label>
+                <div class="flex">
+                  <select id="m-desconto-modo"
+                    class="bg-secondary border border-border border-r-0 rounded-l-md px-2 text-[13px] text-foreground font-medium outline-none">
+                    <option value="R$">R$</option>
+                    <option value="%">%</option>
+                  </select>
+                  <input id="m-desconto" type="number" min="0" step="0.01" value="0"
+                    class="flex-1 w-full bg-background border border-border rounded-r-md px-3 py-2 text-[14px] font-mono focus:border-primary outline-none">
+                </div>
+              </div>
+
+              <div class="mc-campo">
+                <label for="m-forma">Forma de Pagamento</label>
                 <select id="m-forma"
-                  class="flex-1 w-full bg-secondary border border-border rounded-md px-3 py-2 text-[14px] font-bold text-primary outline-none">
+                  class="w-full bg-secondary border border-border rounded-md px-3 py-2 text-[14px] font-bold text-primary outline-none">
                   <option value="DINHEIRO">Dinheiro</option>
                   <option value="PIX">PIX</option>
                   <option value="CARTAO">Cartão de Crédito/Débito</option>
                   <option value="FIADO">Fiado / Crediário Próprio</option>
                 </select>
-                <select id="m-parcelas-cartao" hidden
-                  class="w-1/3 bg-background border border-border rounded-md px-3 py-2 text-[13px] text-foreground font-medium outline-none"></select>
               </div>
-            </div>
 
-            <div id="m-fiado" hidden
-              class="col-span-2 bg-secondary/50 rounded-lg p-3 border border-border space-y-3 mt-2">
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label for="m-entrada"
-                    class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Entrada (R$)</label>
-                  <div class="flex">
-                    <input id="m-entrada" type="number" min="0" step="0.01" value="0"
-                      class="w-2/3 bg-background border border-border rounded-l-md px-2 py-1.5 text-[13px] font-mono focus:border-primary outline-none border-r-0">
-                    <select id="m-entrada-tipo"
-                      class="w-1/3 bg-background border border-border rounded-r-md px-1 py-1.5 text-[11px] font-medium outline-none">
-                      <option value="DINHEIRO">Din.</option>
-                      <option value="PIX">PIX</option>
-                      <option value="CARTAO">Cartão</option>
-                    </select>
+              <div id="m-cartao-wrap" class="mc-campo col-span-2" hidden>
+                <label for="m-parcelas-cartao">Parcelas do cartão</label>
+                <select id="m-parcelas-cartao"
+                  class="w-full bg-background border border-border rounded-md px-3 py-2 text-[13px] text-foreground font-medium outline-none"></select>
+              </div>
+
+              <div id="m-fiado" hidden class="mc-fiado col-span-2">
+                <div class="mc-fiado-grid">
+                  <div class="mc-campo">
+                    <label for="m-entrada">Entrada</label>
+                    <div class="flex">
+                      <input id="m-entrada" type="number" min="0" step="0.01" value="0"
+                        class="flex-1 min-w-0 bg-background border border-border rounded-l-md px-2 py-2 text-[13px] font-mono focus:border-primary outline-none border-r-0">
+                      <select id="m-entrada-tipo"
+                        class="bg-background border border-border rounded-r-md px-1 py-2 text-[11px] font-medium outline-none">
+                        <option value="DINHEIRO">Din.</option>
+                        <option value="PIX">PIX</option>
+                        <option value="CARTAO">Cartão</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
-                <div class="flex gap-2">
-                  <div class="w-1/3">
-                    <label for="m-num-parcelas"
-                      class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">Parcelas</label>
+                  <div class="mc-campo">
+                    <label for="m-num-parcelas">Parcelas</label>
                     <input id="m-num-parcelas" type="number" min="1" max="24" value="1"
-                      class="w-full bg-background border border-border rounded-md px-2 py-1.5 text-[13px] font-mono focus:border-primary outline-none text-center">
+                      class="w-full bg-background border border-border rounded-md px-2 py-2 text-[13px] font-mono focus:border-primary outline-none text-center">
                   </div>
-                  <div class="flex-1">
-                    <label for="m-primeiro-venc"
-                      class="block text-[10px] font-semibold text-muted-foreground uppercase mb-1">1º Vencimento</label>
+                  <div class="mc-campo col-span-2">
+                    <label for="m-primeiro-venc">1º Vencimento</label>
                     <input id="m-primeiro-venc" type="date"
-                      class="w-full bg-background border border-border rounded-md px-2 py-1.5 text-[12px] font-medium focus:border-primary outline-none">
+                      class="w-full bg-background border border-border rounded-md px-2 py-2 text-[12px] font-medium focus:border-primary outline-none">
                   </div>
                 </div>
+                <div class="mc-parcelas-lista">
+                  <table class="w-full text-left text-[12px]">
+                    <tbody id="m-parcelas-corpo" class="space-y-1 block"></tbody>
+                  </table>
+                </div>
               </div>
-              <div class="max-h-[100px] overflow-y-auto pr-1">
-                <table class="w-full text-left text-[12px]">
-                  <tbody id="m-parcelas-corpo" class="space-y-1 block"></tbody>
-                </table>
+
+              <div id="m-div-recebido" class="col-span-2 grid grid-cols-2 gap-3 border-t border-border pt-3">
+                <div class="mc-campo">
+                  <label for="m-recebido">Valor Recebido</label>
+                  <input id="m-recebido" type="number" min="0" step="0.01" value=""
+                    class="w-full bg-background border border-border rounded-md px-3 py-2 text-[16px] font-mono font-bold text-primary focus:border-primary outline-none">
+                </div>
+                <div class="mc-campo">
+                  <label>Troco</label>
+                  <strong id="m-troco"
+                    class="block w-full bg-secondary border border-border rounded-md px-3 py-2 text-[16px] font-mono font-bold text-foreground">R$
+                    0,00</strong>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div id="m-div-recebido" class="col-span-2 grid grid-cols-2 gap-4 border-t border-border pt-4 mt-2">
-              <div>
-                <label for="m-recebido"
-                  class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Valor Recebido</label>
-                <input id="m-recebido" type="number" min="0" step="0.01" value=""
-                  class="w-full bg-background border border-border rounded-md px-3 py-2 text-[16px] font-mono font-bold text-primary focus:border-primary outline-none">
-              </div>
-              <div>
-                <span class="block text-[11px] font-semibold text-muted-foreground uppercase mb-1.5">Troco</span>
-                <strong id="m-troco"
-                  class="block w-full bg-secondary border border-border rounded-md px-3 py-2 text-[16px] font-mono font-bold text-foreground">R$
-                  0,00</strong>
-              </div>
+          <footer class="mc-rodape">
+            <div class="mc-total">
+              <span>Total Final</span>
+              <strong id="m-total"></strong>
             </div>
-          </div>
-
-          <div class="m-linha total !mb-6 !pb-6 !border-b !border-border flex justify-between items-center">
-            <span class="text-muted-foreground font-bold text-[14px] uppercase tracking-wider">Total Final</span>
-            <strong id="m-total" class="font-mono text-[28px] text-primary"></strong>
-          </div>
-
-          <p id="m-erro" class="text-destructive font-medium text-[13px] mb-4 text-center" hidden></p>
-
-          <div class="m-acoes flex gap-3">
-            <button type="button" id="m-cancelar"
-              class="px-5 py-3 rounded-lg border border-border bg-background text-foreground font-semibold text-[14px] hover:bg-muted transition-colors">Voltar
-              <kbd class="ml-2 text-[10px] font-mono bg-secondary px-1.5 rounded">Esc</kbd></button>
-            <button type="button" id="m-confirmar"
-              class="flex-1 px-5 py-3 rounded-lg bg-primary text-primary-foreground font-bold text-[16px] shadow-lg hover:opacity-90 transition-opacity">Confirmar
-              Venda <kbd class="ml-2 text-[11px] font-mono bg-white/20 px-2 rounded">Enter</kbd></button>
-          </div>
+            <p id="m-erro" class="text-destructive font-medium text-[13px] mb-3 text-center" hidden></p>
+            <div class="mc-acoes">
+              <button type="button" id="m-cancelar"
+                class="px-5 py-3 rounded-lg border border-border bg-background text-foreground font-semibold text-[14px] hover:bg-muted transition-colors">Voltar
+                <kbd class="ml-2 text-[10px] font-mono bg-secondary px-1.5 rounded">Esc</kbd></button>
+              <button type="button" id="m-confirmar"
+                class="flex-1 px-5 py-3 rounded-lg bg-primary text-primary-foreground font-bold text-[16px] shadow-lg hover:opacity-90 transition-opacity">Confirmar
+                Venda <kbd class="ml-2 text-[11px] font-mono bg-white/20 px-2 rounded">Enter</kbd></button>
+            </div>
+          </footer>
         </div>
       </div>
     </main>

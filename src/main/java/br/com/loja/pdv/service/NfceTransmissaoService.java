@@ -11,6 +11,7 @@ import br.com.swconsultoria.nfe.exception.NfeException;
 import br.com.swconsultoria.nfe.schema_4.enviNFe.TEnviNFe;
 import br.com.swconsultoria.nfe.schema_4.enviNFe.TProtNFe;
 import br.com.swconsultoria.nfe.util.ConstantesUtil;
+import br.com.swconsultoria.nfe.util.XmlNfeUtil;
 import org.springframework.stereotype.Service;
 
 /**
@@ -28,7 +29,7 @@ public class NfceTransmissaoService {
     private static final java.util.Set<String> CSTAT_EM_PROCESSAMENTO = java.util.Set.of("103", "105");
 
     public record Resultado(boolean autorizada, boolean emProcessamento,
-                            String cStat, String xMotivo, String protocolo) {}
+                            String cStat, String xMotivo, String protocolo, String xml) {}
 
     private final FiscalProperties fiscal;
 
@@ -58,7 +59,20 @@ public class NfceTransmissaoService {
         String xMotivo = infProt != null ? infProt.getXMotivo() : retorno.getXMotivo();
         String protocolo = infProt != null ? infProt.getNProt() : null;
 
-        return new Resultado(CSTAT_AUTORIZADO.equals(cStat),
-                CSTAT_EM_PROCESSAMENTO.contains(cStat), cStat, xMotivo, protocolo);
+        boolean autorizada = CSTAT_AUTORIZADO.equals(cStat);
+        // nfeProc = NFe assinada + protocolo de autorização: é o XML que o contador
+        // importa. Só existe quando a nota foi de fato autorizada.
+        String xml = null;
+        if (autorizada) {
+            try {
+                xml = XmlNfeUtil.criaNfeProc(assinado, prot);
+            } catch (Exception e) {
+                // não derruba a autorização por causa do XML; fica recuperável depois
+                xml = null;
+            }
+        }
+
+        return new Resultado(autorizada, CSTAT_EM_PROCESSAMENTO.contains(cStat),
+                cStat, xMotivo, protocolo, xml);
     }
 }

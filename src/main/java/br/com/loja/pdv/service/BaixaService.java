@@ -143,6 +143,41 @@ public class BaixaService {
                 rs.getString("operador_reversao")));
     }
 
+    public record NotaBaixada(String descricao, BigDecimal valor) {}
+    public record ComprovanteBaixa(Long baixaId, String clienteNome, Instant data, String operador,
+                                   BigDecimal total, List<NotaBaixada> notas) {}
+
+    /**
+     * Dados para reimprimir a promissória com o saldo ATUALIZADO após a baixa —
+     * o operador grampeia na nota física do SET em vez de marcar à mão. Lista as
+     * notas que foram quitadas pela baixa (com sua descrição) e o total.
+     */
+    @Transactional(readOnly = true)
+    public ComprovanteBaixa comprovante(Long baixaId) {
+        BaixaFiado b = baixaRepo.findById(baixaId)
+                .orElseThrow(() -> new RegraNegocioException("Baixa não encontrada (id " + baixaId + ")"));
+        String clienteNome = clienteRepo.findById(b.getClienteId())
+                .map(Cliente::getNome).orElse("Cliente");
+        List<NotaBaixada> notas = new java.util.ArrayList<>();
+        for (BaixaFiadoItem it : b.getItens()) {
+            notas.add(new NotaBaixada(descreverNota(it), it.getValor()));
+        }
+        return new ComprovanteBaixa(b.getId(), clienteNome, b.getData(), b.getOperador(), b.getValor(), notas);
+    }
+
+    private String descreverNota(BaixaFiadoItem it) {
+        var p = new MapSqlParameterSource("id", it.getRefId());
+        if ("L".equals(it.getOrigem())) {
+            var doc = jdbc.query("SELECT documento FROM pagamento_fiado WHERE id = :id", p,
+                    (rs, i) -> rs.getString(1));
+            String d = doc.isEmpty() ? null : doc.get(0);
+            return "Nota do carnê (SET)" + (d != null && !d.isBlank() ? " nº " + d : "");
+        }
+        var linha = jdbc.query("SELECT venda_id, numero FROM parcela_fiado WHERE id = :id", p,
+                (rs, i) -> "Venda nº " + rs.getLong("venda_id") + " — " + rs.getInt("numero") + "ª parcela");
+        return linha.isEmpty() ? "Parcela de venda" : linha.get(0);
+    }
+
     private static BigDecimal nz(BigDecimal v) {
         return v == null ? BigDecimal.ZERO : v;
     }

@@ -346,6 +346,9 @@ async function selecionarCliente(c) {
     $clienteBadge.className = 'badge em-dia';
   }
   $clienteBadge.hidden = false;
+  // traz a situação (em dia/atrasado) para a área visível do painel — o campo
+  // cliente fica no meio da coluna e o badge nasce abaixo da dobra em telas menores
+  requestAnimationFrame(() => $clienteBadge.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   agendarRascunhoVenda();
 }
 
@@ -514,7 +517,7 @@ function atualizarModal(regerar) {
 
   $('m-subtotal').textContent = fmt(subtotalVenda());
   $('m-total').textContent = fmt(totalFinal());
-  $('m-parcelas-cartao').hidden = forma !== 'CARTAO';
+  $('m-cartao-wrap').hidden = forma !== 'CARTAO';
   $('m-fiado').hidden = forma !== 'FIADO';
   $('m-div-recebido').hidden = forma !== 'DINHEIRO';
   $('m-confirmar').textContent = '';
@@ -791,7 +794,14 @@ $('vf-nfce').addEventListener('click', async () => {
       toast(r.erro || r.mensagem || 'Falha ao emitir NFC-e', 'erro');
       return;
     }
-    toast(r.mensagem || 'NFC-e processada', r.status === 'AUTORIZADA' ? 'ok' : 'erro');
+    if (r.status === 'AUTORIZADA') {
+      toast(r.mensagem || 'NFC-e autorizada', 'ok');
+      // autorizada → vai direto pra subtela de impressão da DANFE (padrão NFC-e com QR)
+      if (r.danfe) await imprimirDanfeNfce(vendaFechada, loja, r.danfe);
+    } else {
+      // rejeitada/processando/pendente: mostra o motivo pra corrigir (ver menu de Notas)
+      toast(r.mensagem || 'NFC-e não autorizada', 'erro');
+    }
   } catch {
     toast('Falha de conexão ao emitir NFC-e', 'erro');
   } finally {

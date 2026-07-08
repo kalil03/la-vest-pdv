@@ -11,6 +11,8 @@ const dataHora = (x) => new Date(x).toLocaleString('pt-BR', { timeZone: 'America
 
 let clienteSel = null;
 let saldoSel = 0;
+let loja = { nome: 'Loja', endereco: '', telefone: '' };
+fetch('/api/config').then((r) => r.json()).then((c) => { loja = c; }).catch(() => {});
 
 // ---------- autocomplete cliente ----------
 let tCliente = null;
@@ -78,12 +80,23 @@ async function carregar() {
       <td class="text-[12px]">${b.motivo || '<span class="text-muted-foreground">—</span>'}</td>
       <td class="text-[12px]">${b.operador || '—'}</td>
       <td><span class="chip ${CHIP[b.status]}">${b.status === 'ATIVA' ? 'Ativa' : 'Revertida'}</span>${b.status === 'REVERTIDA' && b.dataReversao ? `<div class="text-[11px] text-muted-foreground mt-0.5">${dataHora(b.dataReversao)}</div>` : ''}</td>
-      <td>${b.status === 'ATIVA' ? `<button class="acao-btn" data-restaurar="${b.id}" title="Devolver a dívida ao cliente"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Restaurar</button>` : ''}</td>
+      <td style="white-space:nowrap;display:flex;gap:6px">
+        <button class="acao-btn" data-promissoria="${b.id}" title="Reimprimir promissória com o saldo atualizado (para grampear)"><i data-lucide="printer" class="w-3.5 h-3.5"></i> Promissória</button>
+        ${b.status === 'ATIVA' ? `<button class="acao-btn" data-restaurar="${b.id}" title="Devolver a dívida ao cliente"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Restaurar</button>` : ''}
+      </td>
     </tr>`).join('') || '<tr><td colspan="7" class="text-center text-muted-foreground py-10">Nenhuma baixa aqui.</td></tr>';
   lucide.createIcons();
 }
 
 $('lista').addEventListener('click', async (e) => {
+  const imp = e.target.closest('button[data-promissoria]');
+  if (imp) {
+    try {
+      const c = await (await fetch(`/api/baixas/${imp.dataset.promissoria}/comprovante`)).json();
+      await imprimirPromissoriaBaixa(c, loja);
+    } catch { toast('Falha ao gerar a promissória', 'erro'); }
+    return;
+  }
   const btn = e.target.closest('button[data-restaurar]');
   if (!btn) return;
   if (!confirm('Restaurar esta baixa? A dívida volta idêntica para o cliente.')) return;

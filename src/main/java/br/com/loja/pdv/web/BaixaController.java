@@ -32,4 +32,10 @@ public class BaixaController {
         service.restaurar(id, operador);
         return ResponseEntity.ok().build();
     }
+
+    /** Dados para reimprimir a promissória com o saldo atualizado (quitado) após a baixa. */
+    @GetMapping("/{id}/comprovante")
+    public BaixaService.ComprovanteBaixa comprovante(@PathVariable Long id) {
+        return service.comprovante(id);
+    }
 }

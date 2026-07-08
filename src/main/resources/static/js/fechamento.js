@@ -55,7 +55,13 @@ async function carregar() {
   $('fm-outros').innerHTML =
     outro('Recebimento de carnê no balcão', f.recebimentoMes, '') +
     outro('Entradas de fiado', f.entradasFiado, 'já incluídas no total das vendas') +
-    outro('Retiradas (sangria)', f.retiradas, 'dinheiro que saiu do caixa');
+    outro('Retiradas (sangria)', f.retiradas, 'dinheiro que saiu do caixa') +
+    outro('Tênis à vista', f.tenisAVista, 'vendas de tênis não fiado');
+
+  // dinheiro que entrou pela operação de tênis: recebimento de carnê + tênis à vista
+  $('fm-receb-tenis').textContent = fmt(f.recebimentoMaisTenisVista);
+  $('fm-receb-tenis-detalhe').textContent =
+    `${fmt(f.recebimentoMes.total)} de carnê + ${fmt(f.tenisAVista.total)} de tênis à vista`;
 }
 
 function exportar(formato) {

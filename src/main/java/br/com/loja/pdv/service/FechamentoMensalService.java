@@ -37,7 +37,8 @@ public class FechamentoMensalService {
                              List<LinhaCategoria> porCategoria,
                              long qtdVendas, BigDecimal totalGeral,
                              List<LinhaVendedor> porVendedor,
-                             Resumo recebimentoMes, Resumo entradasFiado, Resumo retiradas) {}
+                             Resumo recebimentoMes, Resumo entradasFiado, Resumo retiradas,
+                             Resumo tenisAVista, BigDecimal recebimentoMaisTenisVista) {}
 
     /** Ordem fixa das categorias na exibição: Geral, Tênis, Sem tipo. */
     private static int ordemCategoria(String c) {
@@ -111,8 +112,24 @@ public class FechamentoMensalService {
                 FROM retirada_caixa WHERE data >= :ini AND data < :fim
                 """, params);
 
+        // tênis vendido à vista (não fiado): entra no caixa no ato, ao contrário
+        // do tênis a prazo. Somado ao recebimento de carnê, dá o dinheiro que
+        // efetivamente entrou pela operação de tênis no mês.
+        Resumo tenisAVista = resumo("""
+                SELECT COUNT(*) AS qtd, COALESCE(SUM(v.total), 0) AS total
+                FROM venda v
+                WHERE v.cancelada_em IS NULL
+                  AND v.tipo_notinha = 'Tênis'
+                  AND v.forma_pagamento <> 'FIADO'
+                  AND v.data >= :ini AND v.data < :fim
+                """, params);
+
+        BigDecimal recebimentoMaisTenisVista =
+                recebimento.total().add(tenisAVista.total());
+
         return new Fechamento(ano, mes, categorias, qtdVendas, totalGeral,
-                vendedores, recebimento, entradas, retiradas);
+                vendedores, recebimento, entradas, retiradas,
+                tenisAVista, recebimentoMaisTenisVista);
     }
 
     private Resumo resumo(String sql, MapSqlParameterSource params) {

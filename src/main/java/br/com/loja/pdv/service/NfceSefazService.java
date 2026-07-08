@@ -100,6 +100,13 @@ public class NfceSefazService {
         return new NfceMontada(chave, nfe, marshal(nfe), qrCode);
     }
 
+    /** Regenera o conteúdo do QR Code a partir da chave (determinístico: chave +
+     *  CSC). Usado para reimprimir a DANFE de uma NFC-e já autorizada, sem
+     *  remontar o XML inteiro. */
+    public String qrCodeDe(String chave) {
+        return gerarQrCode(chave, fiscal.tpAmb());
+    }
+
     /** QR Code v2 (chave + hash SHA-1 de chave+CSC) — o que o app do consumidor valida. */
     private String gerarQrCode(String chave, String tpAmb) {
         if (fiscal.getCsc() == null || fiscal.getCsc().isBlank()

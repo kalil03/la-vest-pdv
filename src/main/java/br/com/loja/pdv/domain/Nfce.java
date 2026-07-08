@@ -39,6 +39,10 @@ public class Nfce {
     @Column(name = "xml_url")
     private String xmlUrl;
 
+    /** XML de distribuição autorizado (nfeProc) — o que o contador importa. */
+    @Column(name = "xml")
+    private String xml;
+
     private String mensagem;
 
     @Column(name = "criada_em", nullable = false)
@@ -66,6 +70,8 @@ public class Nfce {
     public void setDanfeUrl(String danfeUrl) { this.danfeUrl = danfeUrl; }
     public String getXmlUrl() { return xmlUrl; }
     public void setXmlUrl(String xmlUrl) { this.xmlUrl = xmlUrl; }
+    public String getXml() { return xml; }
+    public void setXml(String xml) { this.xml = xml; }
     public String getMensagem() { return mensagem; }
     public void setMensagem(String mensagem) { this.mensagem = mensagem; }
     public Instant getCriadaEm() { return criadaEm; }
