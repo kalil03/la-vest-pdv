@@ -486,18 +486,26 @@ async function confirmarRecebimento() {
     }
     const recibo = await resp.json();
 
-    // maior controle: primeiro a(s) promissoria(s) atualizada(s) das notas
-    // atingidas por este pagamento (pra grampear no notinha — via da loja),
-    // e só depois o recibo do cliente. Parcela migrada do SET (sem notinha)
-    // não tem venda nossa pra reimprimir.
-    const notasAfetadas = [...new Set(recibo.itens.map((i) => i.notinha).filter(Boolean))];
-    for (const notinha of notasAfetadas) {
-      const respVenda = await fetch(`/api/vendas/${notinha}`);
-      if (respVenda.ok) await imprimirRecibo(await respVenda.json(), loja);
-    }
-    await imprimirReciboCarne(recibo, loja);
-    toast(`Recebido ${fmt(recibo.valor)} de ${recibo.clienteNome} — saldo agora ${fmt(recibo.saldoRestante)}`, 'ok');
+    // pagamento gravado: fecha o modal e avisa ANTES de imprimir — problema de
+    // impressão daqui pra frente não pode parecer falha do recebimento (nem
+    // deixar o modal aberto convidando um segundo clique = pagamento em dobro)
     $('modal-receber').hidden = true;
+    toast(`Recebido ${fmt(recibo.valor)} de ${recibo.clienteNome} — saldo agora ${fmt(recibo.saldoRestante)}`, 'ok');
+
+    // maior controle: promissória(s) atualizada(s) das notas atingidas (via da
+    // loja, pra grampear no notinha) na frente, recibo do cliente por último —
+    // tudo num ÚNICO job de impressão com quebra de página entre as vias.
+    // Parcela migrada do SET (sem notinha) não tem venda nossa pra reimprimir.
+    try {
+      const notasAfetadas = [...new Set(recibo.itens.map((i) => i.notinha).filter(Boolean))];
+      const vendas = (await Promise.all(notasAfetadas.map((n) =>
+        fetch(`/api/vendas/${n}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      ))).filter(Boolean);
+      const paginas = [...vendas.map((v) => reciboHTML(v, loja)), reciboCarneHTML(recibo, loja)];
+      await previewImprimir(juntarDocumentos(paginas));
+    } catch {
+      toast('Recebimento OK, mas a impressão falhou — reimprima pela nota na lista', 'erro');
+    }
     await selecionarCliente(cliente);
   } catch {
     $('mr-erro').textContent = 'Sem conexão com o servidor';

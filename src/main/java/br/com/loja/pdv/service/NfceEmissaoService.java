@@ -15,9 +15,10 @@ import java.time.Instant;
 /**
  * Orquestra a emissão da NFC-e de uma venda: monta o XML, assina e transmite
  * à SEFAZ e guarda o resultado na tabela {@code nfce}. O certificado A1 vem
- * do arquivo .pfx configurado (fiscal.certificado-caminho/senha); sem isso,
- * cai para o repositório do Windows (sem senha, mas com um bug conhecido da
- * lib pra assinar a partir de lá — ver NfceTransmissaoService).
+ * do arquivo .pfx configurado (fiscal.certificado-caminho/senha — é o caminho
+ * usado em produção); sem essa config, tenta o repositório de certificados do
+ * Windows, que dispensa senha mas não funciona para ASSINAR nesta versão da
+ * lib (KeyStore "Windows-MY" recusa getEntry com PasswordProtection).
  */
 @Service
 public class NfceEmissaoService {
@@ -25,17 +26,22 @@ public class NfceEmissaoService {
     public enum Status {
         /** Dados do emitente não preenchidos: não dá nem para montar. */
         NAO_CONFIGURADO,
-        /** XML montado, mas o certificado A1 não foi encontrado no Windows. */
+        /** XML montado, mas o certificado A1 não pôde ser carregado. */
         PENDENTE_CERTIFICADO,
         /** Autorizada pela SEFAZ. */
         AUTORIZADA,
-        /** SEFAZ recebeu e rejeitou (cStat != 100). */
+        /** SEFAZ recebeu o lote e ainda está processando (cStat 103/105). */
+        PROCESSANDO,
+        /** SEFAZ recebeu e rejeitou (cStat de rejeição). */
         REJEITADA,
         /** Falha de rede/transmissão antes de obter resposta da SEFAZ. */
         ERRO_TRANSMISSAO
     }
 
     public record Resultado(Status status, String chaveAcesso, String mensagem) {}
+
+    /** Posição do cNF dentro da chave de 44: cUF(2) AAMM(4) CNPJ(14) mod(2) serie(3) nNF(9) tpEmis(1) cNF(8) cDV(1). */
+    private static final int CNF_INICIO = 35, CNF_FIM = 43;
 
     private final VendaRepository vendaRepository;
     private final NfceRepository nfceRepository;
@@ -63,11 +69,10 @@ public class NfceEmissaoService {
                     + "(CNPJ, inscrição estadual e endereço) nas configurações.");
         }
 
-        var existente = nfceRepository.findByVendaId(vendaId);
-        if (existente.isPresent() && existente.get().getStatus() == Nfce.Status.AUTORIZADO) {
-            Nfce ja = existente.get();
-            return new Resultado(Status.AUTORIZADA, ja.getChaveAcesso(),
-                    "NFC-e já autorizada anteriormente (protocolo " + ja.getProtocolo() + ")");
+        Nfce nfce = nfceRepository.findByVendaId(vendaId).orElse(null);
+        if (nfce != null && nfce.getStatus() == Nfce.Status.AUTORIZADO) {
+            return new Resultado(Status.AUTORIZADA, nfce.getChaveAcesso(),
+                    "NFC-e já autorizada anteriormente (protocolo " + nfce.getProtocolo() + ")");
         }
 
         Venda venda = vendaRepository.findById(vendaId)
@@ -79,7 +84,7 @@ public class NfceEmissaoService {
 
         // numeração provisória: enquanto não há série própria controlada, usamos o
         // id da venda como nNF (garante unicidade; revisar quando houver numeração fiscal real)
-        var montada = sefaz.montar(venda, vendaId.intValue());
+        var montada = sefaz.montar(venda, vendaId.intValue(), cnfDaTentativaAnterior(nfce));
 
         Certificado certificado;
         try {
@@ -96,27 +101,40 @@ public class NfceEmissaoService {
         try {
             resultado = transmissao.transmitir(montada, certificado);
         } catch (Exception e) {
-            salvar(venda, montada, Nfce.Status.ERRO, null, "Falha na transmissão: " + e.getMessage());
+            salvar(nfce, venda, montada, Nfce.Status.ERRO, null, "Falha na transmissão: " + e.getMessage());
             return new Resultado(Status.ERRO_TRANSMISSAO, montada.chaveAcesso(),
                     "Falha ao transmitir a NFC-e à SEFAZ: " + e.getMessage());
         }
 
         String ambiente = fiscal.isHomologacao() ? " — AMBIENTE DE HOMOLOGAÇÃO, sem valor fiscal" : "";
         if (resultado.autorizada()) {
-            salvar(venda, montada, Nfce.Status.AUTORIZADO, resultado.protocolo(), null);
+            salvar(nfce, venda, montada, Nfce.Status.AUTORIZADO, resultado.protocolo(), null);
             return new Resultado(Status.AUTORIZADA, montada.chaveAcesso(),
                     "NFC-e autorizada, protocolo " + resultado.protocolo() + ambiente);
         }
         String motivo = "[" + resultado.cStat() + "] " + resultado.xMotivo();
-        salvar(venda, montada, Nfce.Status.ERRO, null, motivo);
+        if (resultado.emProcessamento()) {
+            // ainda não é rejeição: a chave salva permite reconsultar sem duplicar
+            salvar(nfce, venda, montada, Nfce.Status.PROCESSANDO, null, motivo);
+            return new Resultado(Status.PROCESSANDO, montada.chaveAcesso(),
+                    "SEFAZ recebeu o lote e ainda está processando (" + motivo + ") — tente de novo em instantes" + ambiente);
+        }
+        salvar(nfce, venda, montada, Nfce.Status.ERRO, null, motivo);
         return new Resultado(Status.REJEITADA, montada.chaveAcesso(), "SEFAZ rejeitou a NFC-e: " + motivo + ambiente);
     }
 
-    private void salvar(Venda venda, NfceSefazService.NfceMontada montada, Nfce.Status status,
+    /** cNF usado na tentativa anterior (persistido dentro da chave) — reusa no
+     *  retry para reproduzir a mesma chave; senão a SEFAZ acusa duplicidade 539. */
+    private static String cnfDaTentativaAnterior(Nfce nfce) {
+        if (nfce == null || nfce.getChaveAcesso() == null || nfce.getChaveAcesso().length() != 44) return null;
+        return nfce.getChaveAcesso().substring(CNF_INICIO, CNF_FIM);
+    }
+
+    private void salvar(Nfce nfce, Venda venda, NfceSefazService.NfceMontada montada, Nfce.Status status,
                          String protocolo, String mensagem) {
-        Nfce nfce = nfceRepository.findByVendaId(venda.getId()).orElseGet(Nfce::new);
-        if (nfce.getVenda() == null) nfce.setVenda(venda);
-        if (nfce.getRef() == null) nfce.setRef("venda-" + venda.getId());
+        if (nfce == null) nfce = new Nfce();
+        nfce.setVenda(venda);
+        nfce.setRef("venda-" + venda.getId());
         nfce.setStatus(status);
         nfce.setChaveAcesso(montada.chaveAcesso());
         nfce.setProtocolo(protocolo);

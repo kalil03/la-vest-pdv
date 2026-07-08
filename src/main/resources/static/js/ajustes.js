@@ -44,11 +44,18 @@ async function enviar(url, body) {
   return resp.json();
 }
 
+// nomes vêm de cadastro livre — sem escapar, um nome com aspas/< quebra o HTML
+// (e vira XSS armazenado na tela de Ajustes)
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function linhaPessoa(nome, sub) {
   return `<div class="linha">
     <span class="mini-avatar" style="background:${corAvatar(nome)}">${iniciais(nome)}</span>
-    <span class="flex-1" style="flex:1">${nome}</span>
-    <span class="mono">${sub || ''}</span>
+    <span class="flex-1" style="flex:1">${escHtml(nome)}</span>
+    <span class="mono">${escHtml(sub || '')}</span>
   </div>`;
 }
 
@@ -102,11 +109,11 @@ async function carregarUsuarios() {
   $('lista-usuarios').innerHTML = usuarios.length
     ? usuarios.map((u) => `<div class="linha">
         <span class="mini-avatar" style="background:${corAvatar(u.nome)}">${iniciais(u.nome)}</span>
-        <span style="flex:1">${u.nome}</span>
-        <span class="mono">${u.login}</span>
-        <button type="button" class="u-acao" data-acao="senha" data-id="${u.id}" data-nome="${u.nome}"
+        <span style="flex:1">${escHtml(u.nome)}</span>
+        <span class="mono">${escHtml(u.login)}</span>
+        <button type="button" class="u-acao" data-acao="senha" data-id="${u.id}" data-nome="${escHtml(u.nome)}"
                 style="margin-left:8px; padding:3px 8px; font-size:11px; border:1px solid var(--border); border-radius:6px; background:transparent; cursor:pointer">Trocar senha</button>
-        <button type="button" class="u-acao" data-acao="desativar" data-id="${u.id}" data-nome="${u.nome}"
+        <button type="button" class="u-acao" data-acao="desativar" data-id="${u.id}" data-nome="${escHtml(u.nome)}"
                 style="padding:3px 8px; font-size:11px; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--destructive, #d4183d); cursor:pointer">Desativar</button>
       </div>`).join('')
     : '<div class="vazio-lista">Nenhum registro</div>';
@@ -156,17 +163,20 @@ $('form-usuario').addEventListener('submit', async (e) => {
 });
 
 // ---------- vendedores ----------
+let vendedoresCache = [];
+
 async function carregarVendedores() {
-  const vendedores = await (await fetch('/api/vendedores')).json();
-  $('qtd-vendedores').textContent = vendedores.length;
-  $('lista-vendedores').innerHTML = vendedores.length
-    ? vendedores.map((v) => `<div class="linha">
+  vendedoresCache = await (await fetch('/api/vendedores')).json();
+  $('qtd-vendedores').textContent = vendedoresCache.length;
+  // nome/cpf escapados: valor livre não pode quebrar atributo nem virar script
+  $('lista-vendedores').innerHTML = vendedoresCache.length
+    ? vendedoresCache.map((v) => `<div class="linha">
         <span class="mini-avatar" style="background:${corAvatar(v.nome)}">${iniciais(v.nome)}</span>
-        <span class="flex-1" style="flex:1">${v.nome}</span>
-        <span class="mono">${v.cpf || ''}</span>
-        <button type="button" class="u-acao" data-acao="editar" data-id="${v.id}" data-nome="${v.nome}" data-cpf="${v.cpf || ''}"
+        <span class="flex-1" style="flex:1">${escHtml(v.nome)}</span>
+        <span class="mono">${escHtml(v.cpf || '')}</span>
+        <button type="button" class="u-acao" data-acao="editar" data-id="${v.id}"
                 style="margin-left:8px; padding:3px 8px; font-size:11px; border:1px solid var(--border); border-radius:6px; background:transparent; cursor:pointer">Editar</button>
-        <button type="button" class="u-acao" data-acao="desativar" data-id="${v.id}" data-nome="${v.nome}"
+        <button type="button" class="u-acao" data-acao="desativar" data-id="${v.id}"
                 style="padding:3px 8px; font-size:11px; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--destructive, #d4183d); cursor:pointer">Remover</button>
       </div>`).join('')
     : '<div class="vazio-lista">Nenhum registro</div>';
@@ -175,7 +185,12 @@ async function carregarVendedores() {
 $('lista-vendedores').addEventListener('click', async (e) => {
   const btn = e.target.closest('.u-acao');
   if (!btn) return;
-  const { acao, id, nome, cpf } = btn.dataset;
+  const { acao, id } = btn.dataset;
+  // dados vêm do cache, não de atributos data-* — atributo truncaria nome com aspas
+  const vend = vendedoresCache.find((v) => String(v.id) === id);
+  if (!vend) return;
+  const nome = vend.nome;
+  const cpf = vend.cpf || '';
 
   if (acao === 'desativar') {
     if (!confirm(`Remover o vendedor "${nome}"? Vendas antigas continuam com ele, mas não aparece mais pra escolher.`)) return;

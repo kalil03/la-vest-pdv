@@ -32,6 +32,9 @@ class NfceXmlSefazTest {
         f.getEndereco().setCep("80000000");
         f.getNfce().setSerie(1);
         f.getNfce().setUrlQrcode("http://www.fazenda.pr.gov.br/nfce/qrcode");
+        // QR v2 leva hash de chave+CSC — sem CSC a montagem recusa (guarda explícita)
+        f.setCsc("CSC-DE-TESTE-NAO-E-REAL-123456");
+        f.setCscId("000001");
         return f;
     }
 
@@ -72,7 +75,8 @@ class NfceXmlSefazTest {
         // chave: 44 dígitos, UF 41 (PR), modelo 65
         assertThat(nfce.chaveAcesso()).hasSize(44).startsWith("41");
         assertThat(nfce.chaveAcesso().substring(20, 22)).isEqualTo("65");
-        assertThat(nfce.qrCode()).contains("?p=" + nfce.chaveAcesso() + "|3|2"); // QR v3, tpAmb=2
+        // QR v2: chave|2|tpAmb|idCsc|hash — o formato que o validador da SEFAZ-PR aceita
+        assertThat(nfce.qrCode()).contains("?p=" + nfce.chaveAcesso() + "|2|2|1|");
 
         String xml = nfce.xml();
         assertThat(xml).contains("<mod>65</mod>");

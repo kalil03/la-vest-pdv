@@ -28,9 +28,9 @@ public class FiscalProperties {
     private String cfopPadrao = "5102";
     /** Pasta com os XSDs da SEFAZ (validação local antes de transmitir). */
     private String pastaSchemas = "";
-    /** Caminho do .pfx do certificado A1. Vazio = usa o repositório do Windows
-     *  (certificado já instalado no usuário, sem senha — mas hoje com um bug
-     *  conhecido da lib pra assinar; preencher aqui assim que houver a senha). */
+    /** Caminho e senha do .pfx do certificado A1 — é o caminho usado em produção.
+     *  Vazio = tenta o repositório do Windows, que dispensa senha mas NÃO assina
+     *  nesta versão da lib (só serve de fallback para montar/validar). */
     private String certificadoCaminho = "";
     private String certificadoSenha = "";
 

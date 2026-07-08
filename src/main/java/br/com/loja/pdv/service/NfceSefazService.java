@@ -54,10 +54,20 @@ public class NfceSefazService {
      * @param numero número sequencial da NFC-e (nNF) — controlado pelo emitente
      */
     public NfceMontada montar(Venda venda, int numero) {
+        return montar(venda, numero, null);
+    }
+
+    /**
+     * @param cnfForcado cNF de uma tentativa anterior (extraído da chave salva),
+     *                   para o reenvio reproduzir a MESMA chave de acesso — sem
+     *                   isso, um retry após falha de rede gera chave nova e a
+     *                   SEFAZ rejeita por duplicidade (539) para sempre.
+     */
+    public NfceMontada montar(Venda venda, int numero, String cnfForcado) {
         EstadosEnum estado = EstadosEnum.valueOf(fiscal.getUf());
         LocalDateTime agora = LocalDateTime.ofInstant(
                 venda.getData() != null ? venda.getData() : java.time.Instant.now(), FUSO);
-        String cNF = gerarCodigoNumerico(numero);
+        String cNF = cnfForcado != null ? cnfForcado : gerarCodigoNumerico(numero);
 
         ChaveUtil chaveUtil = new ChaveUtil(estado, fiscal.getCnpj(), "65",
                 fiscal.getNfce().getSerie(), numero, UF_PADRAO, cNF, agora);
@@ -75,7 +85,8 @@ public class NfceSefazService {
         inf.setTotal(montarTotal(totalProdutos, descontoDe(venda)));
         inf.setTransp(montarTransp());
         inf.setPag(montarPag(venda));
-        inf.setInfRespTec(montarRespTecnico());
+        TInfRespTec respTec = montarRespTecnico();
+        if (respTec != null) inf.setInfRespTec(respTec);
 
         TNFe nfe = new TNFe();
         nfe.setInfNFe(inf);
@@ -91,6 +102,11 @@ public class NfceSefazService {
 
     /** QR Code v2 (chave + hash SHA-1 de chave+CSC) — o que o app do consumidor valida. */
     private String gerarQrCode(String chave, String tpAmb) {
+        if (fiscal.getCsc() == null || fiscal.getCsc().isBlank()
+                || fiscal.getCscId() == null || fiscal.getCscId().isBlank()) {
+            throw new IllegalStateException(
+                    "CSC da NFC-e não configurado (fiscal.csc / fiscal.csc-id) — sem ele o QR Code é inválido");
+        }
         try {
             return NFCeUtil.getCodeQRCode(chave, tpAmb, fiscal.getCscId(), fiscal.getCsc(),
                     fiscal.getNfce().getUrlQrcode());
@@ -254,9 +270,12 @@ public class NfceSefazService {
         return total;
     }
 
-    /** Exigido pela SEFAZ desde a NT2020.001 — identifica quem desenvolve/mantém o sistema. */
+    /** Exigido pela SEFAZ desde a NT2020.001 — identifica quem desenvolve/mantém o sistema.
+     *  Sem config (CNPJ vazio), omite o grupo inteiro: infRespTec parcial/vazio é
+     *  inválido no schema e derrubaria TODA emissão. */
     private TInfRespTec montarRespTecnico() {
         FiscalProperties.RespTecnico rt = fiscal.getRespTecnico();
+        if (!naoVazio(rt.getCnpj())) return null;
         TInfRespTec infRespTec = new TInfRespTec();
         infRespTec.setCNPJ(rt.getCnpj());
         infRespTec.setXContato(rt.getContato());

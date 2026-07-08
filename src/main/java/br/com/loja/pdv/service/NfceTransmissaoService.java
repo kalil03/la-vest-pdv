@@ -10,6 +10,7 @@ import br.com.swconsultoria.nfe.dom.enuns.EstadosEnum;
 import br.com.swconsultoria.nfe.exception.NfeException;
 import br.com.swconsultoria.nfe.schema_4.enviNFe.TEnviNFe;
 import br.com.swconsultoria.nfe.schema_4.enviNFe.TProtNFe;
+import br.com.swconsultoria.nfe.util.ConstantesUtil;
 import org.springframework.stereotype.Service;
 
 /**
@@ -20,10 +21,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class NfceTransmissaoService {
 
-    /** cStat 100 = autorizado o uso da NFC-e. Qualquer outro é rejeição/erro da SEFAZ. */
+    /** cStat 100 = autorizado o uso da NFC-e. */
     private static final String CSTAT_AUTORIZADO = "100";
+    /** 103/105 = lote recebido/em processamento: a SEFAZ ainda não decidiu —
+     *  não é rejeição, e retransmitir agora geraria duplicidade. */
+    private static final java.util.Set<String> CSTAT_EM_PROCESSAMENTO = java.util.Set.of("103", "105");
 
-    public record Resultado(boolean autorizada, String cStat, String xMotivo, String protocolo) {}
+    public record Resultado(boolean autorizada, boolean emProcessamento,
+                            String cStat, String xMotivo, String protocolo) {}
 
     private final FiscalProperties fiscal;
 
@@ -40,37 +45,20 @@ public class NfceTransmissaoService {
 
         TEnviNFe envio = new TEnviNFe();
         envio.getNFe().add(montada.nfe());
-        preencherEnvelope(envio);
+        envio.setIdLote("1");
+        envio.setIndSinc("1"); // NFC-e é sempre síncrona
+        envio.setVersao(ConstantesUtil.VERSAO.NFE);
 
         TEnviNFe assinado = Nfe.montaNfe(config, envio, true);
         var retorno = Nfe.enviarNfe(config, assinado, DocumentoEnum.NFCE);
 
         TProtNFe prot = retorno.getProtNFe();
-        String cStat = prot != null ? prot.getInfProt().getCStat() : retorno.getCStat();
-        String xMotivo = prot != null ? prot.getInfProt().getXMotivo() : retorno.getXMotivo();
-        String protocolo = prot != null ? prot.getInfProt().getNProt() : null;
+        TProtNFe.InfProt infProt = prot != null ? prot.getInfProt() : null;
+        String cStat = infProt != null ? infProt.getCStat() : retorno.getCStat();
+        String xMotivo = infProt != null ? infProt.getXMotivo() : retorno.getXMotivo();
+        String protocolo = infProt != null ? infProt.getNProt() : null;
 
-        return new Resultado(CSTAT_AUTORIZADO.equals(cStat), cStat, xMotivo, protocolo);
-    }
-
-    /**
-     * {@link TEnviNFe#idLote}, {@code indSinc} e {@code versao} são campos
-     * protected sem setter público nesta versão da lib — só dá pra preencher
-     * via reflexão. NFC-e exige indSinc=1 (síncrona).
-     */
-    private void preencherEnvelope(TEnviNFe envio) {
-        try {
-            setCampo(envio, "idLote", "1");
-            setCampo(envio, "indSinc", "1");
-            setCampo(envio, "versao", br.com.swconsultoria.nfe.util.ConstantesUtil.VERSAO.NFE);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Falha ao montar o envelope da NFC-e: " + e.getMessage(), e);
-        }
-    }
-
-    private void setCampo(Object alvo, String campo, String valor) throws ReflectiveOperationException {
-        var field = TEnviNFe.class.getDeclaredField(campo);
-        field.setAccessible(true);
-        field.set(alvo, valor);
+        return new Resultado(CSTAT_AUTORIZADO.equals(cStat),
+                CSTAT_EM_PROCESSAMENTO.contains(cStat), cStat, xMotivo, protocolo);
     }
 }

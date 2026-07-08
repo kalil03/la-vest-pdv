@@ -149,9 +149,31 @@ function imprimirRecibo(venda, loja) {
  * "Cancelar" fecha SEM imprimir (o registro já foi gravado antes).
  * Autocontido (estilos inline) para servir qualquer tela.
  */
+/**
+ * Junta vários documentos térmicos num ÚNICO job de impressão, com quebra de
+ * página entre eles (a térmica corta/avança entre as vias). Encadear jobs
+ * separados na MP-4200 derrubava o segundo ("Falha na impressão"); um job só
+ * elimina o problema na raiz — e o operador confere tudo num preview só.
+ */
+function juntarDocumentos(htmls) {
+  if (htmls.length === 1) return htmls[0];
+  const parser = new DOMParser();
+  const docs = htmls.map((h) => parser.parseFromString(h, 'text/html'));
+  const estilos = [...new Set(docs.map((d) => d.head.querySelector('style')?.textContent || ''))].join('\n');
+  const paginas = docs.map((d, i) =>
+    `<div style="${i < docs.length - 1 ? 'break-after: page;' : ''}">${d.body.innerHTML}</div>`).join('');
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>${estilos}</style></head><body>${paginas}</body></html>`;
+}
+
+// preview aberto no momento — abrir outro fecha o anterior DE VERDADE
+// (listener removido + promise resolvida); só remover o nó do DOM deixava um
+// listener órfão de Enter/F10 que disparava impressão fantasma e travava
+// pra sempre quem estivesse aguardando a promise antiga
+let fecharPreviewAberto = null;
+
 function previewImprimir(html) {
   return new Promise((resolve) => {
-  document.getElementById('preview-cupom')?.remove();
+  fecharPreviewAberto?.();
   const overlay = document.createElement('div');
   overlay.id = 'preview-cupom';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;';
@@ -178,19 +200,14 @@ function previewImprimir(html) {
     try { frame.style.height = Math.max(220, frame.contentDocument.body.scrollHeight + 30) + 'px'; } catch (e) { /* cross-origin não acontece com srcdoc */ }
   });
 
-  const fechar = () => {
+  const limpar = () => {
     document.removeEventListener('keydown', teclas, true);
     overlay.remove();
-    resolve();
+    fecharPreviewAberto = null;
   };
-  // não resolve na hora do clique: só depois que a impressão anterior teve
-  // tempo de sair de verdade — imprimir duas vias em sequência rápida nessa
-  // térmica derruba a segunda ("Falha na impressão")
-  const imprimir = () => {
-    document.removeEventListener('keydown', teclas, true);
-    overlay.remove();
-    imprimirHTML(html, resolve);
-  };
+  const fechar = () => { limpar(); resolve(); };
+  const imprimir = () => { limpar(); imprimirHTML(html); resolve(); };
+  fecharPreviewAberto = fechar;
   const teclas = (e) => {
     // captura: enquanto o preview está aberto, os atalhos da página (F10 etc.) não valem
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fechar(); }
@@ -203,10 +220,8 @@ function previewImprimir(html) {
   });
 }
 
-/** Impressão genérica via iframe oculto (sem popup). Só chama aoTerminar depois
- *  de dar tempo real da impressão sair — pra poder encadear vias sem atropelar
- *  a térmica com dois jobs quase simultâneos. */
-function imprimirHTML(html, aoTerminar) {
+/** Impressão genérica via iframe oculto (sem popup). */
+function imprimirHTML(html) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.right = '0';
@@ -218,7 +233,7 @@ function imprimirHTML(html, aoTerminar) {
   iframe.onload = () => {
     iframe.contentWindow.focus();
     iframe.contentWindow.print();
-    setTimeout(() => { iframe.remove(); if (aoTerminar) aoTerminar(); }, 2500);
+    setTimeout(() => iframe.remove(), 3000);
   };
   document.body.appendChild(iframe);
 }
