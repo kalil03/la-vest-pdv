@@ -403,7 +403,7 @@ function danfeNfceHTML(venda, loja, danfe) {
   <div class="caixa">
     <div class="centro negrito">${esc(danfe.razaoSocial || loja.nome)}</div>
     <p class="info">${esc(danfe.endereco || loja.endereco || '')}</p>
-    <p class="info">CNPJ: ${esc(danfe.cnpj || '')}${danfe.inscricaoEstadual ? ' - IE: ' + esc(danfe.inscricaoEstadual) : ''}${loja.telefone ? ' - TEL: ' + esc(loja.telefone) : ''}</p>
+    <p class="info">CNPJ: ${esc(danfe.cnpj || '')}${danfe.inscricaoEstadual ? ' - IE: ' + esc(danfe.inscricaoEstadual) : ''}${danfe.fone ? ' - TEL: ' + esc(danfe.fone) : ''}</p>
   </div>
   <div class="titulo">DANFE NFC-e - Documento Auxiliar da<br>Nota Fiscal Eletrônica de Consumidor Final</div>
   <div class="sub">Não permite aproveitamento de crédito do ICMS</div>

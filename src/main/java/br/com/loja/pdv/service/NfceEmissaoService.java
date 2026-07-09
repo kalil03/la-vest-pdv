@@ -46,8 +46,8 @@ public class NfceEmissaoService {
      *  identidade fiscal do emitente, chave, protocolo e o QR Code já em SVG.
      *  Preenchido só quando a nota está AUTORIZADA; caso contrário fica {@code null}. */
     public record Danfe(String razaoSocial, String cnpj, String inscricaoEstadual, String endereco,
-                        String chave, String chaveFormatada, String protocolo, String dataAutorizacao,
-                        String qrCodeSvg, String urlConsulta, boolean homologacao) {}
+                        String fone, String chave, String chaveFormatada, String protocolo,
+                        String dataAutorizacao, String qrCodeSvg, String urlConsulta, boolean homologacao) {}
 
     private static final DateTimeFormatter DATA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
@@ -151,8 +151,17 @@ public class NfceEmissaoService {
         String data = LocalDateTime.ofInstant(
                 autorizadaEm != null ? autorizadaEm : Instant.now(), br.com.loja.pdv.Fuso.LOJA).format(DATA_HORA);
         return new Danfe(fiscal.getRazaoSocial(), fiscal.getCnpj(), fiscal.getInscricaoEstadual(),
-                enderecoLinha(), chave, formatarChave(chave), protocolo, data,
-                svg, fiscal.getNfce().getUrlQrcode(), fiscal.isHomologacao());
+                enderecoLinha(), formatarFone(fiscal.getEndereco().getFone()), chave, formatarChave(chave),
+                protocolo, data, svg, fiscal.getNfce().getUrlQrcode(), fiscal.isHomologacao());
+    }
+
+    /** Telefone do cadastro fiscal formatado: (DD) XXXXX-XXXX / (DD) XXXX-XXXX. */
+    private static String formatarFone(String fone) {
+        if (fone == null) return "";
+        String d = fone.replaceAll("\\D", "");
+        if (d.length() == 11) return "(" + d.substring(0, 2) + ") " + d.substring(2, 7) + "-" + d.substring(7);
+        if (d.length() == 10) return "(" + d.substring(0, 2) + ") " + d.substring(2, 6) + "-" + d.substring(6);
+        return fone;
     }
 
     private String enderecoLinha() {
