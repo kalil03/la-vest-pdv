@@ -321,7 +321,8 @@ criarAutocomplete(
   async (q) => (await fetch(`/api/clientes?q=${encodeURIComponent(q)}`)).json(),
   (c) => `<span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;" title="${c.nome}">${c.nome}</span>` +
     (Number(c.saldoDevedor) > 0 ? `<span class="sem-estoque" style="margin-left: auto; white-space: nowrap; background: #fee2e2; color: #dc2626; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">deve ${fmt(c.saldoDevedor)}</span>` : ''),
-  selecionarCliente
+  // ao escolher o cliente (Enter ou clique), já pula para o Vendedor
+  (c) => { selecionarCliente(c); $('c-vendedor').focus(); }
 );
 
 async function selecionarCliente(c) {
