@@ -108,7 +108,7 @@ function reciboHTML(venda, loja) {
   .cabtab { font-size: 12px; margin-top: 5px; }
   .total td { font-size: 16px; padding-top: 4px; }
   .promtexto { font-size: 12px; margin: 8px 2px; text-align: justify; line-height: 1.35; }
-  .assinatura { margin-top: 34px; }
+  .assinatura { margin-top: 60px; }
   .linha-assinatura { border-top: 1.5px solid #000; margin: 0 10px 3px; }
   .rodape { text-align: center; font-size: 12px; margin-top: 10px; }
 </style>
@@ -310,7 +310,7 @@ function reciboCarneHTML(r, loja) {
   td { padding: 1px 0; vertical-align: top; font-size: 13px; }
   .destaque { font-size: 15px; font-weight: bold; }
   .texto { font-size: 12px; margin: 6px 0; }
-  .assinatura { margin-top: 34px; }
+  .assinatura { margin-top: 60px; }
   .linha-assinatura { border-top: 1.5px solid #000; margin: 0 8px 2px; }
   .rodape { text-align: center; font-size: 12px; margin-top: 8px; }
   .nota-bloco { margin: 6px 0; padding-bottom: 4px; border-bottom: 1.5px solid #000; }
@@ -477,7 +477,7 @@ function promissoriaBaixaHTML(c, loja) {
   table { width: 100%; border-collapse: collapse; }
   td { padding: 1px 0; vertical-align: top; font-size: 13px; }
   .destaque { font-size: 15px; font-weight: bold; }
-  .assinatura { margin-top: 34px; }
+  .assinatura { margin-top: 60px; }
   .linha-assinatura { border-top: 1.5px solid #000; margin: 0 8px 2px; }
   .rodape { text-align: center; font-size: 12px; margin-top: 8px; }
 </style>
