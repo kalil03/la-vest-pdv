@@ -4,48 +4,56 @@
  * sem biblioteca ESC/POS. A área útil de impressão fica em ~72mm.
  */
 
+/**
+ * Comprovante de venda no layout do sistema antigo (Set) — cupom NÃO fiscal,
+ * 80mm: cabeçalho da loja em caixa, dados da venda, itens (código/descrição/
+ * qtde/unit/total), totais (Sub-Total/Desconto/TOTAL/Pago/Troco) e a tabela de
+ * parcelas. Sem o texto de "Reconheço dever" (era outro documento no Set).
+ * Para o fiado JÁ com pagamento (reimpressão pelo carnê), mostra a via da loja
+ * ATUALIZADA com o saldo por parcela e o que resta da nota (para grampear).
+ */
 function reciboHTML(venda, loja) {
   const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const dataHora = new Date(venda.data).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-  const dataBr = (iso) => {
-    const [a, m, d] = iso.split('-');
-    return `${d}/${m}/${a}`;
-  };
+  const dataObj = new Date(venda.data);
+  const dataStr = dataObj.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const horaStr = dataObj.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  const dataBr = (iso) => { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; };
 
+  const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
+  const fiado = venda.formaPagamento === 'FIADO';
+
+  // itens: 2 linhas por produto (código+descrição / qtde x unit = total)
   const linhasItens = venda.itens.map((i) => `
-    <tr>
-      <td colspan="3" class="desc">${esc(i.descricao)}</td>
-    </tr>
+    <tr><td colspan="3" class="desc">${esc(i.codigo || '')}  ${esc(i.descricao)}</td></tr>
     <tr>
       <td>${i.quantidade} x ${fmt(i.precoUnit)}</td>
       <td></td>
       <td class="dir">${fmt(i.subtotal)}</td>
     </tr>`).join('');
 
-  const temDesconto = Number(venda.desconto) > 0;
-  const linhasTotais = `
-    ${temDesconto ? `
-    <tr><td>Subtotal</td><td></td><td class="dir">${fmt(venda.subtotal)}</td></tr>
-    <tr><td>Desconto</td><td></td><td class="dir">-${fmt(venda.desconto)}</td></tr>` : ''}
-    <tr class="total">
-      <td>TOTAL</td><td></td><td class="dir">${fmt(venda.total)}</td>
-    </tr>`;
+  // "Pago" no balcão: à vista é o total; no fiado é a entrada (o resto vira parcela)
+  const pago = fiado ? Number(venda.entrada || 0) : Number(venda.total);
+  const troco = 0;
 
-  const fiado = venda.formaPagamento === 'FIADO';
-
-  // nota que já recebeu pagamento: a reimpressão vira a VIA DA LOJA atualizada,
-  // com o que resta por parcela — na venda original (nada pago) nada disso aparece
+  // parcelas em aberto → nota já teve pagamento (reimpressão do carnê): via da loja atualizada
   const temPagamento = fiado && venda.parcelas.some(
     (p) => p.valorAberto != null && Number(p.valorAberto) < Number(p.valor));
 
   const linhasParcelas = fiado && venda.parcelas.length
     ? venda.parcelas.map((p) => {
         const situacao = temPagamento
-          ? (Number(p.valorAberto) === 0 ? ' — PAGA' : ` — resta ${fmt(p.valorAberto)}`)
+          ? (Number(p.valorAberto) === 0 ? ' PAGA' : ` resta ${fmt(p.valorAberto)}`)
           : '';
-        return `<tr><td>${p.numero}ª parcela</td><td>${dataBr(p.vencimento)}</td><td class="dir">${fmt(p.valor)}${situacao}</td></tr>`;
+        return `<tr><td>${p.numero}ª</td><td>${dataBr(p.vencimento)}</td><td class="dir">${fmt(p.valor)}${situacao}</td></tr>`;
       }).join('')
     : '';
+
+  const blocoParcelas = fiado && linhasParcelas ? `
+    <div class="cabtab">FORMA DE PAGTO: CREDIÁRIO (FIADO)</div>
+    <table>
+      <tr class="th"><td>PARC.</td><td>VENCTO</td><td class="dir">VALOR</td></tr>
+      ${linhasParcelas}
+    </table>` : '';
 
   const pagoParcelas = fiado
     ? venda.parcelas.reduce((s, p) => s + (Number(p.valor) - Number(p.valorAberto ?? p.valor)), 0)
@@ -61,26 +69,9 @@ function reciboHTML(venda, loja) {
       <tr class="total"><td>RESTA DESTA NOTA</td><td></td><td class="dir">${fmt(restaNota)}</td></tr>
     </table>` : '';
 
-  const blocoFiado = fiado ? `
-    <div class="sep"></div>
-    <div class="centro negrito">PROMISSÓRIA</div>
-    <p class="texto">
-      Reconheço dever a importância de <b>${fmt(venda.total)}</b>
-      referente às mercadorias acima descritas.
-    </p>
-    ${venda.observacao ? `<p class="texto">Obs.: <b>${esc(venda.observacao)}</b></p>` : ''}
-    ${venda.entrada ? `<p class="texto">Entrada: <b>${fmt(venda.entrada)}</b></p>` : ''}
-    ${linhasParcelas ? `<table>${linhasParcelas}</table>` : ''}
-    ${blocoAtualizada}
-    <div class="assinatura">
-      <div class="linha-assinatura"></div>
-      <div class="centro">${esc(venda.clienteNome || '')}</div>
-    </div>` : '';
-
-  const pagamento = rotuloForma(venda.formaPagamento) +
-    (venda.formaPagamento === 'CARTAO' && venda.parcelasCartao > 1 ? ` ${venda.parcelasCartao}x` : '');
-
-  const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
+  const pagamentoAVista = !fiado
+    ? rotuloForma(venda.formaPagamento) + (venda.formaPagamento === 'CARTAO' && venda.parcelasCartao > 1 ? ` ${venda.parcelasCartao}x` : '')
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -88,43 +79,57 @@ function reciboHTML(venda, loja) {
 <meta charset="UTF-8">
 <style>
   @page { size: ${larguraMm}mm auto; margin: 0; }
-  body {
-    width: ${larguraMm - 8}mm;
-    margin: 0 auto;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    color: #000;
-  }
+  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
   .centro { text-align: center; }
   .negrito { font-weight: bold; }
   .dir { text-align: right; }
-  h1 { font-size: 15px; margin: 6px 0 2px; text-align: center; }
-  .info { text-align: center; font-size: 11px; margin: 0; }
-  .sep { border-top: 1px dashed #000; margin: 6px 0; }
+  .caixa { border: 1px solid #000; border-radius: 7px; padding: 4px 8px; margin: 4px 0; }
+  .lojanome { text-align: center; font-weight: bold; font-size: 13px; }
+  .info { text-align: center; font-size: 10px; margin: 0; }
+  .titulo { text-align: center; font-weight: bold; font-size: 12px; margin: 5px 0 3px; }
+  .sep { border-top: 1px dashed #000; margin: 5px 0; }
   table { width: 100%; border-collapse: collapse; }
-  td { padding: 1px 0; vertical-align: top; }
+  td { padding: 1px 0; vertical-align: top; font-size: 11px; }
   .desc { font-weight: bold; }
-  .total td { font-size: 15px; font-weight: bold; padding-top: 4px; }
-  .texto { font-size: 11px; margin: 6px 0; }
-  .assinatura { margin-top: 36px; }
-  .linha-assinatura { border-top: 1px solid #000; margin: 0 8px 2px; }
+  .th td { font-weight: bold; border-bottom: 1px solid #000; font-size: 10px; }
+  .cabtab { font-weight: bold; font-size: 10px; margin-top: 4px; }
+  .total td { font-size: 14px; font-weight: bold; padding-top: 3px; }
   .rodape { text-align: center; font-size: 10px; margin-top: 8px; }
 </style>
 </head>
 <body>
-  <h1>${esc(loja.nome)}</h1>
-  <p class="info">${esc(loja.endereco)}</p>
-  <p class="info">${esc(loja.telefone)}</p>
+  <div class="caixa">
+    <div class="lojanome">${esc(loja.nome)}</div>
+    <p class="info">${esc(loja.endereco)}</p>
+    <p class="info">${esc(loja.telefone)}</p>
+  </div>
+  <div class="titulo">CUPOM NÃO FISCAL</div>
+  <div class="caixa">
+    <table>
+      <tr><td style="width:70px">Número:</td><td>${venda.id}</td></tr>
+      <tr><td>Data:</td><td>${dataStr} - ${horaStr}</td></tr>
+      ${venda.clienteNome ? `<tr><td>Cliente:</td><td>${esc(venda.clienteNome)}</td></tr>` : ''}
+      ${venda.vendedorNome ? `<tr><td>Vendedor:</td><td>${esc(venda.vendedorNome)}</td></tr>` : ''}
+    </table>
+  </div>
+  <table>
+    <tr class="th"><td>CÓDIGO</td><td>DESCRIÇÃO</td><td class="dir">VL.TOTAL</td></tr>
+    ${linhasItens}
+  </table>
   <div class="sep"></div>
-  <p class="info">Venda nº ${venda.id} — ${dataHora}</p>
-  ${venda.clienteNome ? `<p class="info">Cliente: ${esc(venda.clienteNome)}</p>` : ''}
-  ${venda.vendedorNome ? `<p class="info">Vendedor(a): ${esc(venda.vendedorNome)}</p>` : ''}
+  <table>
+    <tr><td>Qtd. Total de Itens:</td><td></td><td class="dir">${venda.itens.length}</td></tr>
+    <tr><td>Sub-Total:</td><td></td><td class="dir">${fmt(venda.subtotal)}</td></tr>
+    <tr><td>Desconto:</td><td></td><td class="dir">${fmt(venda.desconto)}</td></tr>
+    <tr class="total"><td>TOTAL:</td><td></td><td class="dir">${fmt(venda.total)}</td></tr>
+    <tr><td>Pago:</td><td></td><td class="dir">${fmt(pago)}</td></tr>
+    <tr><td>Troco:</td><td></td><td class="dir">${fmt(troco)}</td></tr>
+  </table>
+  ${pagamentoAVista ? `<div class="sep"></div><p class="info">Forma de pagamento: ${pagamentoAVista}</p>` : ''}
+  ${blocoParcelas}
+  ${blocoAtualizada}
   <div class="sep"></div>
-  <table>${linhasItens}${linhasTotais}</table>
-  <div class="sep"></div>
-  <p class="info">Pagamento: ${pagamento}</p>
-  ${blocoFiado}
-  <div class="rodape">${esc(loja?.impRodape ?? 'Obrigado pela preferência!')}</div>
+  <div class="rodape">Agradecemos a Preferência<br>Volte Sempre</div>
 </body>
 </html>`;
 }
@@ -334,23 +339,19 @@ function danfeNfceHTML(venda, loja, danfe) {
   const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
 
-  const linhasItens = venda.itens.map((i, idx) => `
-    <tr><td colspan="3" class="desc">${idx + 1}. ${esc(i.codigo || '')} ${esc(i.descricao)}</td></tr>
-    <tr><td>${i.quantidade} x ${fmt(i.precoUnit)}</td><td></td><td class="dir">${fmt(i.subtotal)}</td></tr>`).join('');
+  // número (nNF) e série saem da própria chave: cUF(2)AAMM(4)CNPJ(14)mod(2)serie(3)nNF(9)...
+  const chave = danfe.chave || '';
+  const serie = chave.length === 44 ? parseInt(chave.slice(22, 25), 10) : null;
+  const numero = chave.length === 44 ? parseInt(chave.slice(25, 34), 10) : null;
 
-  const temDesconto = Number(venda.desconto) > 0;
-  const totais = `
-    ${temDesconto ? `
-    <tr><td>Subtotal</td><td></td><td class="dir">${fmt(venda.subtotal)}</td></tr>
-    <tr><td>Desconto</td><td></td><td class="dir">-${fmt(venda.desconto)}</td></tr>` : ''}
-    <tr class="total"><td>TOTAL R$</td><td></td><td class="dir">${fmt(venda.total)}</td></tr>`;
+  // itens: 2 linhas (código+descrição / qtde un x unit = total) — cabe em 80mm
+  const linhasItens = venda.itens.map((i) => `
+    <tr><td colspan="3" class="desc">${esc(i.codigo || '')}  ${esc(i.descricao)}</td></tr>
+    <tr><td>${i.quantidade} UN x ${fmt(i.precoUnit)}</td><td></td><td class="dir">${fmt(i.subtotal)}</td></tr>`).join('');
 
-  const consumidor = venda.clienteNome
-    ? `Consumidor: ${esc(venda.clienteNome)}`
-    : 'CONSUMIDOR NÃO IDENTIFICADO';
-
+  const consumidor = venda.clienteNome ? esc(venda.clienteNome) : 'CONSUMIDOR NÃO IDENTIFICADO';
   const aviso = danfe.homologacao
-    ? `<div class="centro negrito" style="margin:6px 0">EMITIDA EM AMBIENTE DE HOMOLOGAÇÃO<br>SEM VALOR FISCAL</div>` : '';
+    ? `<div class="centro negrito" style="margin:5px 0">EMITIDA EM HOMOLOGAÇÃO<br>SEM VALOR FISCAL</div>` : '';
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -362,37 +363,62 @@ function danfeNfceHTML(venda, loja, danfe) {
   .centro { text-align: center; }
   .negrito { font-weight: bold; }
   .dir { text-align: right; }
+  .caixa { border: 1px solid #000; padding: 4px 8px; margin: 4px 0; }
   .info { text-align: center; font-size: 10px; margin: 0; }
-  .sep { border-top: 1px dashed #000; margin: 5px 0; }
+  .titulo { text-align: center; font-weight: bold; font-size: 11px; margin: 5px 0 2px; }
+  .sub { text-align: center; font-size: 9px; margin: 0 0 4px; }
+  .sep { border-top: 1px solid #000; margin: 5px 0; }
   table { width: 100%; border-collapse: collapse; }
   td { padding: 1px 0; vertical-align: top; font-size: 11px; }
   .desc { font-weight: bold; }
-  .total td { font-size: 14px; font-weight: bold; padding-top: 3px; }
-  .titulo { text-align: center; font-weight: bold; font-size: 11px; margin: 4px 0; }
-  .chave { font-size: 10px; word-break: break-all; text-align: center; margin: 3px 0; }
-  .qr { display: flex; justify-content: center; margin: 6px 0; }
+  .th td { font-weight: bold; border-bottom: 1px solid #000; font-size: 9px; }
+  .total td { font-size: 12px; font-weight: bold; }
+  .rotulo { text-align: center; font-weight: bold; font-size: 10px; margin-top: 4px; }
+  .chave { font-size: 11px; word-break: break-all; text-align: center; letter-spacing: .5px; margin: 2px 0; }
+  .qr { display: flex; justify-content: center; margin: 6px 0 2px; }
   .qr svg { width: ${Math.min(50, larguraMm - 20)}mm; height: ${Math.min(50, larguraMm - 20)}mm; }
 </style>
 </head>
 <body>
-  <div class="centro negrito">${esc(danfe.razaoSocial || loja.nome)}</div>
-  <p class="info">CNPJ ${esc(danfe.cnpj || '')}${danfe.inscricaoEstadual ? ' — IE ' + esc(danfe.inscricaoEstadual) : ''}</p>
-  <p class="info">${esc(danfe.endereco || loja.endereco || '')}</p>
+  <div class="caixa">
+    <div class="centro negrito">${esc(danfe.razaoSocial || loja.nome)}</div>
+    <p class="info">${esc(danfe.endereco || loja.endereco || '')}</p>
+    <p class="info">CNPJ: ${esc(danfe.cnpj || '')}${danfe.inscricaoEstadual ? ' - IE: ' + esc(danfe.inscricaoEstadual) : ''}${loja.telefone ? ' - TEL: ' + esc(loja.telefone) : ''}</p>
+  </div>
+  <div class="titulo">DANFE NFC-e - Documento Auxiliar da<br>Nota Fiscal Eletrônica de Consumidor Final</div>
+  <div class="sub">Não permite aproveitamento de crédito do ICMS</div>
   <div class="sep"></div>
-  <div class="titulo">DANFE NFC-e — Documento Auxiliar da<br>Nota Fiscal de Consumidor Eletrônica</div>
+  <table>
+    <tr class="th"><td>CÓD / DESCRIÇÃO</td><td></td><td class="dir">VL.TOTAL</td></tr>
+    ${linhasItens}
+  </table>
   <div class="sep"></div>
-  <table>${linhasItens}${totais}</table>
-  <div class="sep"></div>
-  <p class="info">Pagamento: ${rotuloForma(venda.formaPagamento)}</p>
+  <table>
+    <tr><td>Qtd. Total de Itens:</td><td></td><td class="dir">${venda.itens.length}</td></tr>
+    <tr class="total"><td>Valor Total R$:</td><td></td><td class="dir">${fmt(venda.total)}</td></tr>
+    <tr><td>Valor Desconto R$:</td><td></td><td class="dir">${fmt(venda.desconto)}</td></tr>
+  </table>
+  <table>
+    <tr class="th"><td>Forma de Pagamento</td><td class="dir">Valor Pago</td></tr>
+    <tr><td>${rotuloForma(venda.formaPagamento)}</td><td class="dir">${fmt(venda.total)}</td></tr>
+  </table>
   <div class="sep"></div>
   ${aviso}
-  <div class="centro" style="font-size:10px">Consulte pela Chave de Acesso em:</div>
-  <div class="info">${esc(danfe.urlConsulta || '')}</div>
-  <div class="chave negrito">${esc(danfe.chaveFormatada || danfe.chave || '')}</div>
-  <p class="info">${esc(consumidor)}</p>
-  ${danfe.protocolo ? `<p class="info">Protocolo de autorização: ${esc(danfe.protocolo)}</p>` : ''}
-  ${danfe.dataAutorizacao ? `<p class="info">${esc(danfe.dataAutorizacao)}</p>` : ''}
+  <p class="info">${numero != null ? `Número: ${numero} - Série: ${serie}` : ''}</p>
+  <p class="info">Emissão: ${esc(danfe.dataAutorizacao || '')} - Via Consumidor</p>
+  <div class="sep"></div>
+  <p class="info">Consulte pela chave de acesso em:</p>
+  <p class="info">${esc(danfe.urlConsulta || '')}</p>
+  <div class="rotulo">CHAVE DE ACESSO</div>
+  <div class="chave">${esc(danfe.chaveFormatada || chave)}</div>
+  <div class="sep"></div>
+  <div class="rotulo">CONSUMIDOR</div>
+  <p class="info">${consumidor}</p>
+  <div class="sep"></div>
   <div class="qr">${danfe.qrCodeSvg || ''}</div>
+  <p class="info">Consulta via leitor de QR Code</p>
+  <div class="rotulo">Protocolo de Autorização</div>
+  <p class="info">${esc(danfe.protocolo || '')}${danfe.dataAutorizacao ? ' - ' + esc(danfe.dataAutorizacao) : ''}</p>
 </body>
 </html>`;
 }
