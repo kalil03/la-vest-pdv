@@ -45,4 +45,17 @@ public class ProdutoController {
     public ProdutoDTO atualizar(@PathVariable Long id, @RequestBody @Valid NovoProdutoRequest req) {
         return produtoService.atualizar(id, req);
     }
+
+    /** Produtos (com dados fiscais) de uma venda — para a tela de correção da NFC-e. */
+    @GetMapping("/da-venda/{vendaId}")
+    public List<ProdutoService.ProdutoFiscal> daVenda(@PathVariable Long vendaId) {
+        return produtoService.produtosDaVenda(vendaId);
+    }
+
+    /** Corrige só os campos fiscais do produto (NCM, CFOP, CSOSN, unidade, origem, CEST). */
+    @PatchMapping("/{id}/fiscal")
+    public ProdutoService.ProdutoFiscal atualizarFiscal(
+            @PathVariable Long id, @RequestBody ProdutoService.ProdutoFiscalUpdate req) {
+        return produtoService.atualizarFiscal(id, req);
+    }
 }

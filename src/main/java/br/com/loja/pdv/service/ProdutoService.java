@@ -7,6 +7,8 @@ import br.com.loja.pdv.repository.MarcaRepository;
 import br.com.loja.pdv.repository.ProdutoRepository;
 import br.com.loja.pdv.web.dto.NovoProdutoRequest;
 import br.com.loja.pdv.web.dto.ProdutoDTO;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,10 +24,56 @@ public class ProdutoService {
 
     private final ProdutoRepository produtoRepository;
     private final MarcaRepository marcaRepository;
+    private final NamedParameterJdbcTemplate jdbc;
 
-    public ProdutoService(ProdutoRepository produtoRepository, MarcaRepository marcaRepository) {
+    public ProdutoService(ProdutoRepository produtoRepository, MarcaRepository marcaRepository,
+                          NamedParameterJdbcTemplate jdbc) {
         this.produtoRepository = produtoRepository;
         this.marcaRepository = marcaRepository;
+        this.jdbc = jdbc;
+    }
+
+    /** Dados fiscais de um produto (o que costuma travar a NFC-e). */
+    public record ProdutoFiscal(Long id, String codigo, String nome, String ncm, String cfop,
+                                String csosn, String unidade, Integer origem, String cest) {}
+
+    public record ProdutoFiscalUpdate(String ncm, String cfop, String csosn, String unidade,
+                                      Integer origem, String cest) {}
+
+    /** Produtos distintos que compõem uma venda, com seus campos fiscais — para a
+     *  tela de correção/reemissão da NFC-e. */
+    @Transactional(readOnly = true)
+    public List<ProdutoFiscal> produtosDaVenda(Long vendaId) {
+        return jdbc.query("""
+                SELECT DISTINCT p.id, p.codigo, p.nome, p.ncm, p.cfop, p.csosn, p.unidade, p.origem, p.cest
+                FROM item_venda iv
+                JOIN variacao v ON v.id = iv.variacao_id
+                JOIN produto p ON p.id = v.produto_id
+                WHERE iv.venda_id = :vendaId
+                ORDER BY p.codigo
+                """, new MapSqlParameterSource("vendaId", vendaId),
+                (rs, i) -> new ProdutoFiscal(rs.getLong("id"), rs.getString("codigo"), rs.getString("nome"),
+                        rs.getString("ncm"), rs.getString("cfop"), rs.getString("csosn"),
+                        rs.getString("unidade"), (Integer) rs.getObject("origem"), rs.getString("cest")));
+    }
+
+    /** Atualiza SÓ os campos fiscais do produto (não mexe em preço/variações).
+     *  CFOP/CSOSN em branco voltam a null → usam o padrão da loja (5102/102). */
+    @Transactional
+    public ProdutoFiscal atualizarFiscal(Long id, ProdutoFiscalUpdate req) {
+        Produto p = produtoRepository.findById(id)
+                .orElseThrow(() -> new RegraNegocioException("Produto não encontrado (id " + id + ")"));
+        if (emBranco(req.ncm())) {
+            throw new RegraNegocioException("NCM é obrigatório para a NFC-e");
+        }
+        p.setNcm(req.ncm().trim());
+        p.setCfop(limpar(req.cfop()));
+        p.setCsosn(limpar(req.csosn()));
+        if (!emBranco(req.unidade())) p.setUnidade(req.unidade().trim().toUpperCase());
+        if (req.origem() != null) p.setOrigem(req.origem());
+        p.setCest(limpar(req.cest()));
+        return new ProdutoFiscal(p.getId(), p.getCodigo(), p.getNome(), p.getNcm(), p.getCfop(),
+                p.getCsosn(), p.getUnidade(), p.getOrigem(), p.getCest());
     }
 
     @Transactional

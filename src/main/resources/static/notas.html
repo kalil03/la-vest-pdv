@@ -40,6 +40,25 @@
     .acao-btn:hover:not(:disabled) { background: var(--secondary); }
     .acao-btn:disabled { opacity: .5; cursor: not-allowed; }
     .acao-btn.primario { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+
+    /* editor de dados fiscais da nota */
+    .ed-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 20px; }
+    .ed-modal { background: var(--background); border: 1px solid var(--border); border-radius: 14px; width: 880px; max-width: 96vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 48px rgba(0,0,0,.3); }
+    .ed-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .ed-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+    .ed-sub { margin: 3px 0 0; font-size: 12px; color: var(--muted-foreground); }
+    .ed-x { background: none; border: 0; cursor: pointer; color: var(--muted-foreground); line-height: 0; padding: 4px; }
+    .ed-x:hover { color: var(--foreground); }
+    .ed-erro { margin: 12px 20px 0; padding: 10px 12px; border-radius: 8px; background: var(--bad-bg); color: var(--bad); font-size: 12.5px; font-weight: 500; }
+    .ed-corpo { flex: 1; overflow: auto; padding: 14px 20px; }
+    .ed-hint { font-size: 12px; color: var(--muted-foreground); margin: 0 0 12px; }
+    .ed-tab-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+    .ed-tab { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .ed-tab th { text-align: left; padding: 8px 10px; background: var(--secondary); color: var(--muted-foreground); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .ed-tab td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .ed-inp { font-size: 12.5px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); outline: none; }
+    .ed-inp:focus { border-color: var(--primary); }
+    .ed-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); }
   </style>
   <script>
     tailwind.config = { theme: { extend: { colors: {
@@ -160,6 +179,36 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- EDITOR DE DADOS FISCAIS DA NOTA (corrigir produto + reemitir) -->
+  <div id="ed-overlay" class="ed-overlay" hidden>
+    <div class="ed-modal" role="dialog" aria-labelledby="ed-titulo">
+      <header class="ed-head">
+        <div>
+          <h2 id="ed-titulo">Editar nota — Venda nº <span id="ed-venda"></span></h2>
+          <p id="ed-sub" class="ed-sub"></p>
+        </div>
+        <button class="ed-x" id="ed-fechar" aria-label="Fechar"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </header>
+      <div id="ed-erro-box" class="ed-erro" hidden></div>
+      <div class="ed-corpo">
+        <p class="ed-hint">Corrija os dados fiscais dos produtos (o que costuma travar a NFC-e) e reemita. As correções valem também para as próximas notas. CFOP/CSOSN em branco usam o padrão da loja (5102 / 102).</p>
+        <div class="ed-tab-wrap">
+          <table class="ed-tab">
+            <thead>
+              <tr><th>Código</th><th>Descrição</th><th>NCM *</th><th>CFOP</th><th>CSOSN</th><th>UN</th><th>Origem</th></tr>
+            </thead>
+            <tbody id="ed-produtos"></tbody>
+          </table>
+        </div>
+      </div>
+      <footer class="ed-foot">
+        <button class="acao-btn" id="ed-cancelar">Cancelar</button>
+        <button class="acao-btn" id="ed-salvar">Salvar correções</button>
+        <button class="acao-btn primario" id="ed-reemitir"><i data-lucide="send" class="w-3.5 h-3.5"></i> Salvar e reemitir</button>
+      </footer>
+    </div>
   </div>
 
   <div id="toast" class="toast" hidden></div>

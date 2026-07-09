@@ -41,9 +41,13 @@ async function carregar() {
   }
   $('nf-vazio').hidden = linhas.length > 0;
   $('nf-conteudo').hidden = linhas.length === 0;
+  notasMap = {};
+  linhas.forEach((n) => { notasMap[n.vendaId] = n; });
   $('nf-corpo').innerHTML = linhas.map(linhaHTML).join('');
   lucide.createIcons();
 }
+
+let notasMap = {};
 
 function linhaHTML(n) {
   const [cls, rot] = CHIP[n.status] || ['canc', n.status];
@@ -74,7 +78,7 @@ function linhaHTML(n) {
     <td style="max-width:280px">${motivo}</td>
     <td style="white-space:nowrap;display:flex;gap:6px;flex-wrap:wrap">
       ${acoes}
-      <a class="acao-btn" href="/produtos.html" title="Corrigir dados do produto (NCM, CFOP, código)"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></a>
+      <button class="acao-btn" data-editar="${n.vendaId}" title="Editar dados fiscais dos produtos e reemitir"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Editar</button>
     </td>
   </tr>`;
 }
@@ -127,9 +131,86 @@ $('nf-corpo').addEventListener('click', (e) => {
   const danfe = e.target.closest('[data-danfe]');
   const reem = e.target.closest('[data-reemitir]');
   const canc = e.target.closest('[data-cancelar]');
+  const edit = e.target.closest('[data-editar]');
   if (danfe) reimprimirDanfe(danfe.dataset.danfe);
   else if (reem) reemitir(reem.dataset.reemitir);
   else if (canc) cancelar(canc.dataset.cancelar);
+  else if (edit) abrirEditor(edit.dataset.editar);
+});
+
+// ---------- editor de dados fiscais da nota (corrigir produto + reemitir) ----------
+const ORIGENS = [
+  [0, '0 - Nacional'], [1, '1 - Estrang. importação direta'], [2, '2 - Estrang. mercado interno'],
+  [3, '3 - Nacional, imp. 40–70%'], [4, '4 - Nacional (PPB)'], [5, '5 - Nacional, imp. ≤40%'],
+  [6, '6 - Estrang. imp. sem similar'], [7, '7 - Estrang. merc. sem similar'], [8, '8 - Nacional, imp. >70%'],
+];
+
+function edRowHTML(p) {
+  const orig = p.origem == null ? 0 : p.origem;
+  const opts = ORIGENS.map(([v, l]) => `<option value="${v}"${v === orig ? ' selected' : ''}>${l}</option>`).join('');
+  return `<tr data-id="${p.id}">
+    <td class="mono">${esc(p.codigo || '')}</td>
+    <td style="max-width:170px">${esc(p.nome || '')}</td>
+    <td><input name="ncm" class="ed-inp" value="${esc(p.ncm || '')}" placeholder="8 dígitos" style="width:92px"></td>
+    <td><input name="cfop" class="ed-inp" value="${esc(p.cfop || '')}" placeholder="5102" style="width:58px"></td>
+    <td><input name="csosn" class="ed-inp" value="${esc(p.csosn || '')}" placeholder="102" style="width:52px"></td>
+    <td><input name="un" class="ed-inp" value="${esc(p.unidade || 'UN')}" style="width:46px"></td>
+    <td><select name="origem" class="ed-inp" style="width:180px">${opts}</select></td>
+  </tr>`;
+}
+
+async function abrirEditor(vendaId) {
+  const n = notasMap[vendaId];
+  $('ed-venda').textContent = vendaId;
+  $('ed-sub').textContent = n ? `${n.clienteNome || 'Consumidor'} · ${(CHIP[n.status] || [])[1] || n.status} · ${fmt(n.total)}` : '';
+  const box = $('ed-erro-box');
+  if (n && n.status !== 'AUTORIZADO' && n.mensagem) { box.textContent = 'Motivo da rejeição: ' + n.mensagem; box.hidden = false; }
+  else box.hidden = true;
+  $('ed-produtos').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted-foreground);padding:14px">Carregando…</td></tr>';
+  $('ed-overlay').dataset.venda = vendaId;
+  $('ed-overlay').hidden = false;
+  try {
+    const prods = await (await fetch(`/api/produtos/da-venda/${vendaId}`)).json();
+    $('ed-produtos').innerHTML = prods.length
+      ? prods.map(edRowHTML).join('')
+      : '<tr><td colspan="7" style="text-align:center;padding:14px">Nenhum produto encontrado nesta venda.</td></tr>';
+  } catch {
+    $('ed-produtos').innerHTML = '<tr><td colspan="7" style="color:var(--bad);padding:14px">Falha ao carregar os produtos.</td></tr>';
+  }
+  lucide.createIcons();
+}
+
+function fecharEditor() { $('ed-overlay').hidden = true; }
+
+async function salvarFiscal() {
+  const rows = [...$('ed-produtos').querySelectorAll('tr[data-id]')];
+  for (const tr of rows) {
+    const g = (name) => { const el = tr.querySelector(`[name="${name}"]`); return el ? el.value.trim() : ''; };
+    const body = { ncm: g('ncm'), cfop: g('cfop'), csosn: g('csosn'), unidade: g('un'), origem: Number(g('origem')) || 0 };
+    const resp = await fetch(`/api/produtos/${tr.dataset.id}/fiscal`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({}));
+      toast(e.erro || 'Erro ao salvar um produto', 'erro');
+      return false;
+    }
+  }
+  return true;
+}
+
+$('ed-fechar').addEventListener('click', fecharEditor);
+$('ed-cancelar').addEventListener('click', fecharEditor);
+$('ed-overlay').addEventListener('click', (e) => { if (e.target.id === 'ed-overlay') fecharEditor(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('ed-overlay').hidden) fecharEditor(); });
+$('ed-salvar').addEventListener('click', async () => {
+  if (await salvarFiscal()) { toast('Correções salvas', 'ok'); fecharEditor(); carregar(); }
+});
+$('ed-reemitir').addEventListener('click', async () => {
+  if (!(await salvarFiscal())) return;
+  const vid = $('ed-overlay').dataset.venda;
+  fecharEditor();
+  await reemitir(vid);
 });
 
 $('nf-status').addEventListener('change', carregar);
