@@ -73,28 +73,44 @@ function reciboHTML(venda, loja) {
     ? rotuloForma(venda.formaPagamento) + (venda.formaPagamento === 'CARTAO' && venda.parcelasCartao > 1 ? ` ${venda.parcelasCartao}x` : '')
     : '';
 
+  // fiado é PROMISSÓRIA: reconhecimento da dívida + linha de assinatura do cliente
+  const titulo = fiado ? 'PROMISSÓRIA' : 'CUPOM NÃO FISCAL';
+  const blocoAssinatura = fiado ? `
+    <div class="promtexto">Reconheço dever a importância de <span class="negrito">${fmt(venda.total)}</span> referente às mercadorias acima descritas, a pagar nas parcelas/condições indicadas.</div>
+    ${venda.observacao ? `<div class="promtexto">Obs.: ${esc(venda.observacao)}</div>` : ''}
+    <div class="assinatura">
+      <div class="linha-assinatura"></div>
+      <div class="centro">${esc(venda.clienteNome || '')}</div>
+      <div class="centro" style="font-size:11px">Assinatura do(a) cliente</div>
+    </div>` : '';
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <style>
   @page { size: ${larguraMm}mm auto; margin: 0; }
-  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* tudo em negrito e tamanho uniforme: na térmica o traço fino sai fraco/falhado */
+  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold; color: #000; }
   .centro { text-align: center; }
   .negrito { font-weight: bold; }
   .dir { text-align: right; }
-  .caixa { border: 1px solid #000; border-radius: 7px; padding: 4px 8px; margin: 4px 0; }
-  .lojanome { text-align: center; font-weight: bold; font-size: 13px; }
-  .info { text-align: center; font-size: 10px; margin: 0; }
-  .titulo { text-align: center; font-weight: bold; font-size: 12px; margin: 5px 0 3px; }
-  .sep { border-top: 1px dashed #000; margin: 5px 0; }
+  .caixa { border: 1.5px solid #000; border-radius: 6px; padding: 5px 8px; margin: 5px 0; }
+  .lojanome { text-align: center; font-size: 15px; }
+  .info { text-align: center; font-size: 12px; margin: 0; }
+  .titulo { text-align: center; font-size: 15px; margin: 6px 0 4px; letter-spacing: 1px; }
+  .sep { border-top: 1.5px solid #000; margin: 6px 0; }
   table { width: 100%; border-collapse: collapse; }
-  td { padding: 1px 0; vertical-align: top; font-size: 11px; }
-  .desc { font-weight: bold; }
-  .th td { font-weight: bold; border-bottom: 1px solid #000; font-size: 10px; }
-  .cabtab { font-weight: bold; font-size: 10px; margin-top: 4px; }
-  .total td { font-size: 14px; font-weight: bold; padding-top: 3px; }
-  .rodape { text-align: center; font-size: 10px; margin-top: 8px; }
+  td { padding: 1px 0; vertical-align: top; font-size: 13px; }
+  .desc { font-size: 13px; }
+  .th td { border-bottom: 1.5px solid #000; font-size: 12px; }
+  .cabtab { font-size: 12px; margin-top: 5px; }
+  .total td { font-size: 16px; padding-top: 4px; }
+  .promtexto { font-size: 12px; margin: 8px 2px; text-align: justify; line-height: 1.35; }
+  .assinatura { margin-top: 34px; }
+  .linha-assinatura { border-top: 1.5px solid #000; margin: 0 10px 3px; }
+  .rodape { text-align: center; font-size: 12px; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -103,7 +119,7 @@ function reciboHTML(venda, loja) {
     <p class="info">${esc(loja.endereco)}</p>
     <p class="info">${esc(loja.telefone)}</p>
   </div>
-  <div class="titulo">CUPOM NÃO FISCAL</div>
+  <div class="titulo">${titulo}</div>
   <div class="caixa">
     <table>
       <tr><td style="width:70px">Número:</td><td>${venda.id}</td></tr>
@@ -128,6 +144,7 @@ function reciboHTML(venda, loja) {
   ${pagamentoAVista ? `<div class="sep"></div><p class="info">Forma de pagamento: ${pagamentoAVista}</p>` : ''}
   ${blocoParcelas}
   ${blocoAtualizada}
+  ${blocoAssinatura}
   <div class="sep"></div>
   <div class="rodape">Agradecemos a Preferência<br>Volte Sempre</div>
 </body>
@@ -282,20 +299,21 @@ function reciboCarneHTML(r, loja) {
 <meta charset="UTF-8">
 <style>
   @page { size: ${larguraMm}mm auto; margin: 0; }
-  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold; color: #000; }
   .centro { text-align: center; }
   .dir { text-align: right; }
   h1 { font-size: 15px; margin: 6px 0 2px; text-align: center; }
-  .info { text-align: center; font-size: 11px; margin: 0; }
-  .sep { border-top: 1px dashed #000; margin: 6px 0; }
+  .info { text-align: center; font-size: 12px; margin: 0; }
+  .sep { border-top: 1.5px solid #000; margin: 6px 0; }
   table { width: 100%; border-collapse: collapse; }
-  td { padding: 1px 0; vertical-align: top; font-size: 11px; }
+  td { padding: 1px 0; vertical-align: top; font-size: 13px; }
   .destaque { font-size: 15px; font-weight: bold; }
-  .texto { font-size: 11px; margin: 6px 0; }
+  .texto { font-size: 12px; margin: 6px 0; }
   .assinatura { margin-top: 34px; }
-  .linha-assinatura { border-top: 1px solid #000; margin: 0 8px 2px; }
-  .rodape { text-align: center; font-size: 10px; margin-top: 8px; }
-  .nota-bloco { margin: 6px 0; padding-bottom: 4px; border-bottom: 1px dashed #000; }
+  .linha-assinatura { border-top: 1.5px solid #000; margin: 0 8px 2px; }
+  .rodape { text-align: center; font-size: 12px; margin-top: 8px; }
+  .nota-bloco { margin: 6px 0; padding-bottom: 4px; border-bottom: 1.5px solid #000; }
 </style>
 </head>
 <body>
@@ -359,22 +377,24 @@ function danfeNfceHTML(venda, loja, danfe) {
 <meta charset="UTF-8">
 <style>
   @page { size: ${larguraMm}mm auto; margin: 0; }
-  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* negrito uniforme: traço fino sai fraco/falhado na térmica */
+  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold; color: #000; }
   .centro { text-align: center; }
   .negrito { font-weight: bold; }
   .dir { text-align: right; }
-  .caixa { border: 1px solid #000; padding: 4px 8px; margin: 4px 0; }
-  .info { text-align: center; font-size: 10px; margin: 0; }
-  .titulo { text-align: center; font-weight: bold; font-size: 11px; margin: 5px 0 2px; }
-  .sub { text-align: center; font-size: 9px; margin: 0 0 4px; }
-  .sep { border-top: 1px solid #000; margin: 5px 0; }
+  .caixa { border: 1.5px solid #000; padding: 5px 8px; margin: 5px 0; }
+  .info { text-align: center; font-size: 12px; margin: 0; }
+  .titulo { text-align: center; font-size: 13px; margin: 6px 0 2px; }
+  .sub { text-align: center; font-size: 12px; margin: 0 0 5px; }
+  .sep { border-top: 1.5px solid #000; margin: 6px 0; }
   table { width: 100%; border-collapse: collapse; }
-  td { padding: 1px 0; vertical-align: top; font-size: 11px; }
-  .desc { font-weight: bold; }
-  .th td { font-weight: bold; border-bottom: 1px solid #000; font-size: 9px; }
-  .total td { font-size: 12px; font-weight: bold; }
-  .rotulo { text-align: center; font-weight: bold; font-size: 10px; margin-top: 4px; }
-  .chave { font-size: 11px; word-break: break-all; text-align: center; letter-spacing: .5px; margin: 2px 0; }
+  td { padding: 1px 0; vertical-align: top; font-size: 13px; }
+  .desc { font-size: 13px; }
+  .th td { border-bottom: 1.5px solid #000; font-size: 12px; }
+  .total td { font-size: 14px; }
+  .rotulo { text-align: center; font-size: 12px; margin-top: 5px; }
+  .chave { font-size: 13px; word-break: break-all; text-align: center; letter-spacing: .5px; margin: 3px 0; }
   .qr { display: flex; justify-content: center; margin: 6px 0 2px; }
   .qr svg { width: ${Math.min(50, larguraMm - 20)}mm; height: ${Math.min(50, larguraMm - 20)}mm; }
 </style>
@@ -446,19 +466,20 @@ function promissoriaBaixaHTML(c, loja) {
 <meta charset="UTF-8">
 <style>
   @page { size: ${larguraMm}mm auto; margin: 0; }
-  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold; color: #000; }
   .centro { text-align: center; }
   .negrito { font-weight: bold; }
   .dir { text-align: right; }
   h1 { font-size: 15px; margin: 6px 0 2px; text-align: center; }
-  .info { text-align: center; font-size: 11px; margin: 0; }
-  .sep { border-top: 1px dashed #000; margin: 6px 0; }
+  .info { text-align: center; font-size: 12px; margin: 0; }
+  .sep { border-top: 1.5px solid #000; margin: 6px 0; }
   table { width: 100%; border-collapse: collapse; }
-  td { padding: 1px 0; vertical-align: top; font-size: 11px; }
+  td { padding: 1px 0; vertical-align: top; font-size: 13px; }
   .destaque { font-size: 15px; font-weight: bold; }
   .assinatura { margin-top: 34px; }
-  .linha-assinatura { border-top: 1px solid #000; margin: 0 8px 2px; }
-  .rodape { text-align: center; font-size: 10px; margin-top: 8px; }
+  .linha-assinatura { border-top: 1.5px solid #000; margin: 0 8px 2px; }
+  .rodape { text-align: center; font-size: 12px; margin-top: 8px; }
 </style>
 </head>
 <body>
