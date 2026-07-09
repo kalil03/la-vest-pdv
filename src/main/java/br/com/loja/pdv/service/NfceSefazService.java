@@ -185,14 +185,34 @@ public class NfceSefazService {
         return dest;
     }
 
-    /** Cria os itens (det), retornando a soma dos valores brutos dos produtos. */
+    /** Cria os itens (det), retornando a soma dos valores brutos dos produtos.
+     *  O desconto da venda é RATEADO entre os itens (prod.vDesc) proporcional ao
+     *  valor bruto — a SEFAZ exige que a soma dos vDesc dos itens seja igual ao
+     *  vDesc do total (senão rejeita 537). O último item recebe o resíduo do
+     *  arredondamento para fechar exatamente com o desconto informado. */
     private BigDecimal adicionarItens(Venda venda, TNFe.InfNFe inf) {
+        BigDecimal descontoTotal = descontoDe(venda);
+        BigDecimal somaBruta = BigDecimal.ZERO;
+        for (ItemVenda it : venda.getItens()) somaBruta = somaBruta.add(it.getSubtotal());
+
         BigDecimal totalProdutos = BigDecimal.ZERO;
+        BigDecimal descAcumulado = BigDecimal.ZERO;
         int numero = 1;
+        int n = venda.getItens().size();
         for (ItemVenda item : venda.getItens()) {
+            BigDecimal descItem;
+            if (descontoTotal.signum() == 0 || somaBruta.signum() == 0) {
+                descItem = BigDecimal.ZERO;
+            } else if (numero == n) {
+                descItem = descontoTotal.subtract(descAcumulado);   // resíduo no último
+            } else {
+                descItem = descontoTotal.multiply(item.getSubtotal())
+                        .divide(somaBruta, 2, RoundingMode.HALF_UP);
+                descAcumulado = descAcumulado.add(descItem);
+            }
             TNFe.InfNFe.Det det = new TNFe.InfNFe.Det();
             det.setNItem(String.valueOf(numero));
-            det.setProd(montarProd(item, numero == 1));
+            det.setProd(montarProd(item, numero == 1, descItem));
             det.setImposto(montarImposto(item));
             inf.getDet().add(det);
             totalProdutos = totalProdutos.add(item.getSubtotal());
@@ -201,7 +221,7 @@ public class NfceSefazService {
         return totalProdutos;
     }
 
-    private TNFe.InfNFe.Det.Prod montarProd(ItemVenda item, boolean primeiro) {
+    private TNFe.InfNFe.Det.Prod montarProd(ItemVenda item, boolean primeiro, BigDecimal descItem) {
         Produto p = item.getVariacao().getProduto();
         TNFe.InfNFe.Det.Prod prod = new TNFe.InfNFe.Det.Prod();
         prod.setCProd(p.getCodigo());
@@ -219,6 +239,7 @@ public class NfceSefazService {
         prod.setUTrib(unidade);
         prod.setQTrib(quantidade(item.getQuantidade()));
         prod.setVUnTrib(moeda(item.getPrecoUnit()));
+        if (descItem != null && descItem.signum() > 0) prod.setVDesc(moeda(descItem));
         prod.setIndTot("1");                      // compõe o total da nota
         return prod;
     }
@@ -299,9 +320,18 @@ public class NfceSefazService {
     }
 
     private TNFe.InfNFe.Pag montarPag(Venda venda) {
+        FormaPagamento forma = venda.getFormaPagamento();
         TNFe.InfNFe.Pag.DetPag detPag = new TNFe.InfNFe.Pag.DetPag();
-        detPag.setTPag(formaPagamentoSefaz(venda.getFormaPagamento()));
+        detPag.setTPag(formaPagamentoSefaz(forma));
         detPag.setVPag(moeda(venda.getTotal()));
+        // Cartão e PIX exigem o grupo <card> com tpIntegra (SEFAZ rejeita 391 sem ele).
+        // tpIntegra=2 = pagamento NÃO integrado ao sistema (maquininha/PIX avulsos) —
+        // é o que a loja usa (mesmo padrão do sistema legado).
+        if (forma == FormaPagamento.CARTAO || forma == FormaPagamento.PIX) {
+            TNFe.InfNFe.Pag.DetPag.Card card = new TNFe.InfNFe.Pag.DetPag.Card();
+            card.setTpIntegra("2");
+            detPag.setCard(card);
+        }
         TNFe.InfNFe.Pag pag = new TNFe.InfNFe.Pag();
         pag.getDetPag().add(detPag);
         return pag;
@@ -312,7 +342,7 @@ public class NfceSefazService {
         return switch (f) {
             case DINHEIRO -> "01";
             case PIX -> "17";
-            case CARTAO -> "99";                  // genérico; sem distinguir crédito/débito
+            case CARTAO -> "04";                  // cartão (padrão do legado; não distingue crédito/débito)
             case FIADO -> "05";                   // crédito loja (crediário próprio)
         };
     }
