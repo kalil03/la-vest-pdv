@@ -20,60 +20,107 @@ function toast(msg, tipo) {
   setTimeout(() => { t.hidden = true; }, 4000);
 }
 
+// só DINHEIRO fica no caixa físico; PIX e CARTÃO "saem" (viram recebível, não dinheiro)
+const naoEntraNaGaveta = (f) => f === 'PIX' || f === 'CARTAO';
+
 async function carregar() {
   if (!$('cx-data').value) $('cx-data').value = new Date().toLocaleDateString('sv-SE');
   mov = await (await fetch(`/api/vendas/caixa-dia?data=${$('cx-data').value}`)).json();
 
-  const vazio = (cols) => `<tr><td colspan="${cols}" class="text-center text-muted-foreground py-5">Nada neste dia</td></tr>`;
-  const resumoFormas = (lista) => lista
-    .map((l) => `${ROTULO[l.rotulo] || l.rotulo} ${fmt(l.total)} (${l.qtd}×)`).join(' · ');
+  let tAvista = 0, tAPrazo = 0, tReceb = 0, tRetirada = 0;
+  const linhas = [];
 
-  // linha a linha, com quem comprou/pagou
-  $('cx-vendas').innerHTML = (mov.vendasDia || []).map((v) => `
-    <tr><td class="mono text-muted-foreground">${v.id}</td>
-        <td class="font-medium">${v.cliente ?? '<span class="text-muted-foreground">Consumidor</span>'}</td>
-        <td><span class="chip forma">${ROTULO[v.formaPagamento] || v.formaPagamento}</span></td>
-        <td class="num font-semibold">${fmt(v.total)}</td></tr>`).join('') || vazio(4);
+  // vendas do dia — CADA UMA em UMA coluna: dinheiro→À VISTA, cartão/PIX→RETIRADA (saída), fiado→A PRAZO
+  (mov.vendasDia || []).forEach((v) => {
+    const cli = v.cliente || 'Consumidor';
+    const total = Number(v.total);
+    const vend = v.vendedor || '';
+    const forma = ROTULO[v.formaPagamento] || v.formaPagamento;
+    if (v.formaPagamento === 'FIADO') {
+      tAPrazo += total;
+      linhas.push(`<tr class="fiado">
+        <td>${vend}</td><td class="num">${v.id}</td><td>${cli} · FIADO (a prazo)</td>
+        <td class="num">${fmt(total)}</td><td class="num"></td><td class="num"></td><td class="num"></td></tr>`);
+    } else if (naoEntraNaGaveta(v.formaPagamento)) {
+      tRetirada += total;
+      linhas.push(`<tr>
+        <td>${vend}</td><td class="num">${v.id}</td>
+        <td>${cli} · ${forma} <span style="color:#b45309">(não entra na gaveta)</span></td>
+        <td class="num"></td><td class="num"></td><td class="num"></td><td class="num">${fmt(total)}</td></tr>`);
+    } else {
+      tAvista += total;
+      linhas.push(`<tr>
+        <td>${vend}</td><td class="num">${v.id}</td><td>${cli} · ${forma}</td>
+        <td class="num"></td><td class="num"></td><td class="num">${fmt(total)}</td><td class="num"></td></tr>`);
+    }
+  });
 
-  $('cx-recebimentos').innerHTML = (mov.recebimentosDia || []).map((r) => `
-    <tr><td class="font-medium">${r.cliente}${r.vendaEntrada ? ` <span class="text-muted-foreground text-[11px]">entrada da venda nº ${r.vendaEntrada}</span>` : ''}</td>
-        <td><span class="chip forma">${ROTULO[r.tipo] || r.tipo}</span></td>
-        <td class="num font-semibold">${fmt(r.valor)}</td></tr>`).join('') || vazio(3);
+  // recebimentos de carnê / entradas — dinheiro→RECEBIMENTO; cartão/PIX→RETIRADA (saída)
+  (mov.recebimentosDia || []).forEach((r) => {
+    const valor = Number(r.valor);
+    const forma = ROTULO[r.tipo] || r.tipo;
+    const desc = `${r.cliente} · recebimento${r.vendaEntrada ? ` (entrada venda nº ${r.vendaEntrada})` : ''} · ${forma}`;
+    const nota = r.recibo != null ? `recibo ${r.recibo}` : '';
+    if (naoEntraNaGaveta(r.tipo)) {
+      tRetirada += valor;
+      linhas.push(`<tr><td></td><td class="num">${nota}</td>
+        <td>${desc} <span style="color:#b45309">(não entra na gaveta)</span></td>
+        <td class="num"></td><td class="num"></td><td class="num"></td><td class="num">${fmt(valor)}</td></tr>`);
+    } else {
+      tReceb += valor;
+      linhas.push(`<tr><td></td><td class="num">${nota}</td><td>${desc}</td>
+        <td class="num"></td><td class="num">${fmt(valor)}</td><td class="num"></td><td class="num"></td></tr>`);
+    }
+  });
 
-  $('cx-vendas-formas').textContent = resumoFormas(mov.vendasPorForma);
-  $('cx-receb-formas').textContent = resumoFormas(mov.recebimentosPorTipo);
-  $('cx-total-vendas').textContent = fmt(mov.totalVendas);
-  $('cx-total-receb').textContent = fmt(mov.totalRecebimentos);
-  $('cx-entrou').textContent = fmt(mov.entrouNoCaixa);
+  // devoluções de dias anteriores em dinheiro (dinheiro que saiu da gaveta hoje)
+  (mov.saidasCrossDay || []).forEach((s) => {
+    if (s.formaPagamento !== 'DINHEIRO') return;
+    const total = Number(s.total);
+    tRetirada += total;
+    linhas.push(`<tr>
+      <td></td><td class="num">${s.vendaId}</td>
+      <td>Devolução da venda nº ${s.vendaId} (${new Date(s.diaVenda + 'T12:00:00').toLocaleDateString('pt-BR')})</td>
+      <td class="num"></td><td class="num"></td><td class="num"></td><td class="num">${fmt(total)}</td></tr>`);
+  });
 
-  $('cx-saidas').innerHTML = (mov.saidasCrossDay || []).map((s) => `
-    <tr><td>Venda nº <b>${s.vendaId}</b> (de ${new Date(s.diaVenda + 'T12:00:00').toLocaleDateString('pt-BR')})</td>
-        <td>${ROTULO[s.formaPagamento] || s.formaPagamento}</td>
-        <td class="num font-semibold" style="color: var(--bad)">− ${fmt(s.total)}</td></tr>`).join('')
-    || '<tr><td colspan="3" class="text-center text-muted-foreground py-5">Nenhuma devolução de dias anteriores hoje</td></tr>';
+  // retiradas do dono (tira dinheiro pra depositar)
+  (mov.retiradasDia || []).forEach((r) => {
+    const valor = Number(r.valor);
+    tRetirada += valor;
+    const hora = new Date(r.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+    linhas.push(`<tr>
+      <td></td><td></td>
+      <td>RETIRADA · ${r.motivo || 'depósito'}${r.operador ? ` (${r.operador})` : ''} · ${hora}</td>
+      <td class="num"></td><td class="num"></td><td class="num"></td><td class="num">${fmt(valor)}</td></tr>`);
+  });
 
-  $('cx-retiradas').innerHTML = (mov.retiradasDia || []).map((r) => `
-    <tr><td class="mono">${new Date(r.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}</td>
-        <td>${r.motivo ?? '<span class="text-muted-foreground">sem motivo</span>'}${r.operador ? ` <span class="text-muted-foreground text-[11px]">por ${r.operador}</span>` : ''}</td>
-        <td class="num font-semibold" style="color: var(--bad)">− ${fmt(r.valor)}</td></tr>`).join('')
-    || '<tr><td colspan="3" class="text-center text-muted-foreground py-5">Nenhuma retirada neste dia</td></tr>';
-  $('cx-total-retiradas').textContent = fmt(mov.totalRetiradas || 0);
+  $('cx-mov').innerHTML = linhas.join('') || '<tr><td colspan="7" class="vazio">Nada neste dia</td></tr>';
+  $('cx-t-avista').textContent = fmt(tAvista);
+  $('cx-t-aprazo').textContent = fmt(tAPrazo);
+  $('cx-t-receb').textContent = fmt(tReceb);
+  $('cx-t-retirada').textContent = fmt(tRetirada);
 
-  // saldo anterior: 1º o fechamento já gravado deste dia, senão a contagem do último fechamento
+  // resumo (rótulos da planilha)
+  $('cx-venda-dia').textContent = fmt(mov.totalVendas);        // à prazo + à vista
+  $('cx-recebimento').textContent = fmt(mov.entrouNoCaixa);    // à vista + recebimentos
+  $('cx-saida-loja').textContent = fmt(tRetirada);             // tudo que saiu (não-dinheiro + retiradas)
+
+  // saldo anterior + fechamento já gravado
   const f = mov.fechamento;
   const saldoIni = f ? f.saldoAnterior : (mov.saldoAnteriorSugerido ?? 0);
   $('cf-saldo-anterior').value = Number(saldoIni).toFixed(2).replace('.', ',');
   formatarMoeda($('cf-saldo-anterior'));
   $('cf-sugestao').textContent = f
-    ? 'Vindo do fechamento já gravado deste dia'
+    ? 'Saldo anterior vindo do fechamento já gravado deste dia'
     : (mov.saldoAnteriorSugerido != null
         ? `Sugerido: contagem do último fechamento (${fmt(mov.saldoAnteriorSugerido)})`
-        : 'Nenhum fechamento anterior — digite o valor que ficou na gaveta');
+        : 'Nenhum fechamento anterior — digite o que ficou na gaveta');
 
   if (f) {
     $('cf-contagem').value = Number(f.contagem).toFixed(2).replace('.', ',');
     formatarMoeda($('cf-contagem'));
-    $('cf-status').textContent = `Caixa deste dia já foi fechado${f.operador ? ' por ' + f.operador : ''} — dá para refazer`;
+    $('cf-status').textContent = `Caixa deste dia já fechado${f.operador ? ' por ' + f.operador : ''} — dá para refazer`;
     $('cf-fechar').textContent = 'Refazer o fechamento';
   } else {
     $('cf-contagem').value = '';
@@ -84,37 +131,23 @@ async function carregar() {
   recalcular();
 }
 
-/** Espelho da conta do servidor: esperado = saldo anterior + entradas − saídas. */
+/** SALDO FINAL = saldo anterior + dinheiro que entrou − dinheiro que saiu (só cash).
+ *  Igual a: saldo anterior + À vista + Recebimento − Saída loja. */
 function recalcular() {
   if (!mov) return;
   const saldoAnterior = lerMoeda($('cf-saldo-anterior'));
   const esperado = Math.round((saldoAnterior + Number(mov.entradasDinheiro) - Number(mov.saidasDinheiro)) * 100) / 100;
-
-  $('cf-entradas').textContent = fmt(mov.entradasDinheiro);
-  $('cf-saidas').textContent = `− ${fmt(mov.saidasDinheiro)}`;
   $('cf-esperado').textContent = fmt(esperado);
 
-  const box = $('cf-diferenca-box');
+  const el = $('cx-sobrou');
   if (!$('cf-contagem').value.trim()) {
-    $('cf-diferenca').textContent = '—';
-    $('cf-diferenca-rotulo').textContent = 'digite a contagem da gaveta';
-    box.style.background = 'var(--muted)';
-    $('cf-diferenca').style.color = 'var(--foreground)';
+    el.textContent = '—';
+    el.style.color = 'var(--muted-foreground)';
     return;
   }
-  const diferenca = Math.round((lerMoeda($('cf-contagem')) - esperado) * 100) / 100;
-  $('cf-diferenca').textContent = fmt(diferenca);
-  if (diferenca === 0) {
-    box.style.background = 'var(--ok-bg)';
-    $('cf-diferenca').style.color = 'var(--ok)';
-    $('cf-diferenca-rotulo').textContent = 'Confere ✓';
-  } else {
-    box.style.background = 'var(--bad-bg)';
-    $('cf-diferenca').style.color = 'var(--bad)';
-    $('cf-diferenca-rotulo').textContent = diferenca > 0
-      ? 'SOBRA na gaveta em relação ao esperado'
-      : 'FALTA na gaveta em relação ao esperado';
-  }
+  const sobrou = Math.round((lerMoeda($('cf-contagem')) - esperado) * 100) / 100;
+  el.textContent = fmt(sobrou);
+  el.style.color = sobrou < 0 ? 'var(--bad)' : 'var(--ok)';
 }
 
 let fechando = false;

@@ -45,6 +45,29 @@
     .conf-input:focus { outline: none; border-color: var(--primary); }
     .conf-linha { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: 14px; }
     .conf-linha .v { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+
+    /* ===== aparência de planilha "MOVIMENTO DO DIA" ===== */
+    .planilha { border: 1px solid #9a9a9a; border-radius: 4px; overflow: hidden; background: #fff; }
+    .pl-titulo { text-align: center; font-weight: 700; font-style: italic; background: #d9d9d9; padding: 7px; border-bottom: 1px solid #9a9a9a; letter-spacing: .5px; color: #222; }
+    .pl-tab { width: 100%; border-collapse: collapse; font-size: 12.5px; color: #222; }
+    .pl-tab th { background: #d9d9d9; font-weight: 700; padding: 6px 8px; border: 1px solid #b3b3b3; text-align: left; font-size: 10.5px; text-transform: uppercase; vertical-align: middle; }
+    .pl-tab td { padding: 5px 8px; border: 1px solid #dcdcdc; vertical-align: middle; }
+    .pl-tab .num { text-align: right; font-family: 'JetBrains Mono', monospace; white-space: nowrap; }
+    .pl-tab tbody tr:nth-child(even) { background: #fafafa; }
+    .pl-tab .fiado td { color: #888; font-style: italic; }
+    .pl-tab tfoot td { font-weight: 800; background: #ececec; border-top: 2px solid #9a9a9a; }
+    .pl-tab .vazio { text-align: center; color: #999; padding: 16px; font-style: italic; }
+
+    /* bloco de resumo (rótulos à direita, como na planilha) */
+    .pl-resumo { margin: 22px 0 0 auto; max-width: 560px; border: 1px solid #b3b3b3; border-radius: 4px; overflow: hidden; }
+    .pl-lin { display: grid; grid-template-columns: 1fr 150px; align-items: stretch; border-bottom: 1px solid #d8d8d8; }
+    .pl-lin:last-child { border-bottom: none; }
+    .pl-lin .rot { text-align: right; font-style: italic; font-weight: 700; padding: 8px 12px; background: #fff; font-size: 12.5px; border-right: 1px solid #d8d8d8; color: #333; display: flex; align-items: center; justify-content: flex-end; }
+    .pl-lin .val { text-align: right; font-family: 'JetBrains Mono', monospace; padding: 8px 12px; background: #fafafa; font-weight: 600; color: #222; display: flex; align-items: center; justify-content: flex-end; }
+    .pl-lin .pl-inp { border: 0; text-align: right; font-family: 'JetBrains Mono', monospace; padding: 8px 12px; background: #fffde7; font-weight: 700; outline: none; width: 100%; font-size: 13px; color: #222; }
+    .pl-lin .pl-inp:focus { background: #fff8c4; box-shadow: inset 0 0 0 2px var(--primary); }
+    .pl-lin.destaque .rot { background: #f0fdf4; }
+    .pl-lin.destaque .val { background: #e8f5e9; font-weight: 800; font-size: 15px; }
   </style>
   <script>
     tailwind.config = {
@@ -86,8 +109,6 @@
         </a>
         <a href="/contas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="receipt" class="w-[15px] h-[15px]"></i><span class="flex-1">A Receber</span>
-        </a><a href="/notas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
-          <i data-lucide="file-text" class="w-[15px] h-[15px]"></i><span class="flex-1">Notas Fiscais</span>
         </a>
         <a href="/produtos.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="package" class="w-[15px] h-[15px]"></i><span class="flex-1">Produtos</span>
@@ -142,106 +163,63 @@
       </div>
 
       <div class="flex-1 overflow-y-auto p-8">
-        <div class="max-w-5xl mx-auto flex flex-col gap-5">
+        <div class="max-w-4xl mx-auto flex flex-col gap-4">
 
-        <!-- MOVIMENTO DO DIA: linha a linha, com quem comprou/pagou -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <div class="bg-background border border-border rounded-xl overflow-hidden">
-            <div class="px-4 py-3 border-b border-border"><h3 class="m-0 text-[13px] font-semibold">Vendas do dia</h3></div>
-            <table class="tab-contas">
-              <thead><tr><th>Nº</th><th>Cliente</th><th>Forma</th><th class="num">Valor</th></tr></thead>
-              <tbody id="cx-vendas"></tbody>
+          <!-- registrar retirada (dono tira dinheiro pra depositar) -->
+          <div class="flex items-center justify-end gap-2 flex-wrap">
+            <span class="text-[12px] text-muted-foreground">Retirada (dono tira dinheiro p/ depositar):</span>
+            <input id="rt-valor" inputmode="decimal" placeholder="R$ 0,00" style="width: 110px; text-align: right; font-family: 'JetBrains Mono', monospace; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px">
+            <input id="rt-motivo" placeholder="Motivo (opcional)" style="width: 220px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px">
+            <button id="rt-registrar" class="px-3 py-2 rounded-lg font-semibold text-[13px] text-white cursor-pointer border-0" style="background: var(--primary)">Registrar retirada</button>
+          </div>
+
+          <!-- MOVIMENTO DO DIA (formato planilha) -->
+          <div class="planilha">
+            <div class="pl-titulo">MOVIMENTO DO DIA</div>
+            <table class="pl-tab">
+              <thead>
+                <tr>
+                  <th style="width: 66px">Vend</th>
+                  <th style="width: 60px">Nº nota</th>
+                  <th>Nome do cliente · Dinheiro/Cartão/PIX · Tipo da saída (Débito/Crédito, Retirada)</th>
+                  <th class="num" style="width: 100px">A prazo</th>
+                  <th class="num" style="width: 112px">Recebimento</th>
+                  <th class="num" style="width: 100px">À vista</th>
+                  <th class="num" style="width: 100px">Retirada</th>
+                </tr>
+              </thead>
+              <tbody id="cx-mov"></tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" style="text-align: right">TOTAIS →</td>
+                  <td class="num" id="cx-t-aprazo">—</td>
+                  <td class="num" id="cx-t-receb">—</td>
+                  <td class="num" id="cx-t-avista">—</td>
+                  <td class="num" id="cx-t-retirada">—</td>
+                </tr>
+              </tfoot>
             </table>
-            <div class="px-4 py-3 bg-secondary border-t border-border">
-              <div class="flex justify-between text-[13px] font-bold"><span>Total vendido</span><span id="cx-total-vendas" class="mono"></span></div>
-              <div id="cx-vendas-formas" class="text-[11px] text-muted-foreground mt-1"></div>
-            </div>
           </div>
-          <div class="bg-background border border-border rounded-xl overflow-hidden">
-            <div class="px-4 py-3 border-b border-border"><h3 class="m-0 text-[13px] font-semibold">Recebimentos de carnê e entradas</h3></div>
-            <table class="tab-contas">
-              <thead><tr><th>Cliente</th><th>Forma</th><th class="num">Valor</th></tr></thead>
-              <tbody id="cx-recebimentos"></tbody>
-            </table>
-            <div class="px-4 py-3 bg-secondary border-t border-border">
-              <div class="flex justify-between text-[13px] font-bold"><span>Total recebido</span><span id="cx-total-receb" class="mono"></span></div>
-              <div id="cx-receb-formas" class="text-[11px] text-muted-foreground mt-1"></div>
-            </div>
+          <p class="text-[11px] text-muted-foreground m-0">
+            Cada movimento entra em <b>uma coluna só</b>. Cartão (débito/crédito) e PIX contam como <b>saída</b> — não entram na gaveta. Só o dinheiro fica no caixa físico (o <b>SALDO FINAL</b>).
+          </p>
+
+          <!-- RESUMO (formato planilha) -->
+          <div class="pl-resumo">
+            <div class="pl-lin"><div class="rot">VENDA DO DIA (VENDA À PRAZO E À VISTA)</div><div class="val" id="cx-venda-dia">—</div></div>
+            <div class="pl-lin"><div class="rot">RECEBIMENTO (VENDA À VISTA / RECEBIMENTO)</div><div class="val" id="cx-recebimento">—</div></div>
+            <div class="pl-lin"><div class="rot">SAÍDA LOJA</div><div class="val" id="cx-saida-loja">—</div></div>
+            <div class="pl-lin"><div class="rot">SALDO ANTERIOR</div><input id="cf-saldo-anterior" class="pl-inp" inputmode="decimal" placeholder="R$ 0,00"></div>
+            <div class="pl-lin"><div class="rot">SALDO FINAL (esperado na gaveta)</div><div class="val" id="cf-esperado">—</div></div>
+            <div class="pl-lin"><div class="rot">SOMA DO CAIXA (contagem)</div><input id="cf-contagem" class="pl-inp" inputmode="decimal" placeholder="R$ 0,00"></div>
+            <div class="pl-lin destaque"><div class="rot">SOBROU</div><div class="val" id="cx-sobrou">—</div></div>
           </div>
-        </div>
+          <p id="cf-sugestao" class="text-[11px] text-muted-foreground text-right m-0"></p>
 
-        <div class="kpi" style="border-width: 2px">
-          <div class="rotulo">Entrou no caixa (à vista + carnê) — fiado vendido não é dinheiro na gaveta</div>
-          <div id="cx-entrou" class="valor" style="color: var(--ok); font-size: 28px">—</div>
-        </div>
-
-        <!-- SAÍDAS: devoluções de vendas de dias anteriores -->
-        <div class="bg-background border border-border rounded-xl overflow-hidden">
-          <div class="px-4 py-3 border-b border-border">
-            <h3 class="m-0 text-[13px] font-semibold">Devoluções de dias anteriores (dinheiro que saiu da gaveta hoje)</h3>
-            <p class="m-0 mt-1 text-[11px] text-muted-foreground">Estorno de venda de HOJE já se anula sozinho nas listas acima; aqui aparecem só as vendas de OUTROS dias estornadas hoje.</p>
+          <div class="flex items-center justify-end gap-3 mt-1">
+            <span id="cf-status" class="text-[12px] text-muted-foreground"></span>
+            <button id="cf-fechar" class="py-2.5 px-6 rounded-xl font-bold text-[14px] text-white cursor-pointer border-0" style="background: var(--primary)">Fechar o caixa</button>
           </div>
-          <table class="tab-contas"><tbody id="cx-saidas"></tbody></table>
-        </div>
-
-        <!-- RETIRADAS (SANGRIA) -->
-        <div class="bg-background border border-border rounded-xl overflow-hidden">
-          <div class="px-4 py-3 border-b border-border flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h3 class="m-0 text-[13px] font-semibold">Retiradas do dia (sangria)</h3>
-              <p class="m-0 mt-1 text-[11px] text-muted-foreground">Dinheiro tirado da gaveta — entra como saída na conferência abaixo.</p>
-            </div>
-            <div class="filtros-bar flex items-center gap-2">
-              <input id="rt-valor" inputmode="decimal" placeholder="R$ 0,00" style="width: 110px; text-align: right; font-family: 'JetBrains Mono', monospace">
-              <input id="rt-motivo" placeholder="Motivo (ex.: pagamento fornecedor)" style="width: 240px">
-              <button id="rt-registrar" class="px-3 py-2 rounded-lg font-semibold text-[13px] text-white cursor-pointer border-0" style="background: var(--primary)">Registrar retirada</button>
-            </div>
-          </div>
-          <table class="tab-contas"><tbody id="cx-retiradas"></tbody></table>
-          <div class="flex justify-between px-4 py-3 bg-secondary border-t border-border text-[13px] font-bold">
-            <span>Total retirado</span><span id="cx-total-retiradas" class="mono"></span>
-          </div>
-        </div>
-
-        <!-- CONFERÊNCIA DO DINHEIRO -->
-        <div class="bg-background border-2 border-border rounded-xl p-5">
-          <h3 class="m-0 mb-4 text-[15px] font-bold flex items-center gap-2">
-            <i data-lucide="banknote" class="w-4 h-4"></i> Conferência do dinheiro na gaveta
-          </h3>
-
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <label class="block text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                Saldo anterior (dinheiro que ficou de ontem)</label>
-              <input id="cf-saldo-anterior" class="conf-input" inputmode="decimal" placeholder="R$ 0,00">
-              <p id="cf-sugestao" class="m-0 mt-1 text-[11px] text-muted-foreground"></p>
-
-              <div class="mt-4 border-t border-border pt-2">
-                <div class="conf-linha"><span>+ Entrou em dinheiro hoje (vendas + carnê)</span><span id="cf-entradas" class="v">—</span></div>
-                <div class="conf-linha"><span>− Saiu em dinheiro (devoluções de dias anteriores)</span><span id="cf-saidas" class="v">—</span></div>
-                <div class="conf-linha border-t border-border pt-2" style="font-size: 16px; font-weight: 700">
-                  <span>= Esperado na gaveta</span><span id="cf-esperado" class="v" style="font-size: 18px">—</span>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-[12px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                Contagem do caixa (quanto tem na gaveta agora)</label>
-              <input id="cf-contagem" class="conf-input" inputmode="decimal" placeholder="R$ 0,00">
-
-              <div id="cf-diferenca-box" class="mt-4 rounded-xl p-4 text-center" style="background: var(--muted)">
-                <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Diferença</div>
-                <div id="cf-diferenca" class="mono" style="font-size: 26px; font-weight: 800">—</div>
-                <div id="cf-diferenca-rotulo" class="text-[12px] font-medium mt-1"></div>
-              </div>
-
-              <button id="cf-fechar" class="mt-4 w-full py-3 rounded-xl font-bold text-[15px] text-white cursor-pointer border-0"
-                      style="background: var(--primary)">Fechar o caixa</button>
-              <p id="cf-status" class="m-0 mt-2 text-[12px] text-center text-muted-foreground"></p>
-            </div>
-          </div>
-        </div>
 
         </div>
       </div>

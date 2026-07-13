@@ -39,7 +39,7 @@ public class VendaConsultaService {
     public record SaidaEstorno(Long vendaId, LocalDate diaVenda, String formaPagamento, BigDecimal total) {}
 
     /** Uma venda do dia, com quem comprou (null = à vista sem cliente). */
-    public record VendaDia(Long id, String cliente, String formaPagamento, BigDecimal total) {}
+    public record VendaDia(Long id, String cliente, String vendedor, String formaPagamento, BigDecimal total) {}
 
     /** Sangria: dinheiro retirado da gaveta — saída na conferência. */
     public record Retirada(Long id, Instant data, BigDecimal valor, String motivo, String operador) {}
@@ -54,7 +54,7 @@ public class VendaConsultaService {
             String operador) {}
 
     /** Um recebimento/entrada do dia, com quem pagou. */
-    public record RecebimentoDia(String cliente, String tipo, BigDecimal valor, Long vendaEntrada) {}
+    public record RecebimentoDia(Long recibo, String cliente, String tipo, BigDecimal valor, Long vendaEntrada) {}
 
     public record Fechamento(BigDecimal saldoAnterior, BigDecimal contagem, BigDecimal esperado,
                              BigDecimal diferenca, String operador, Instant fechadoEm) {}
@@ -117,18 +117,19 @@ public class VendaConsultaService {
 
         // as mesmas vendas/recebimentos, linha a linha, com QUEM comprou/pagou
         List<VendaDia> vendasDia = jdbc.query("""
-                SELECT v.id, c.nome AS cliente, v.forma_pagamento, v.total
+                SELECT v.id, c.nome AS cliente, vd.nome AS vendedor, v.forma_pagamento, v.total
                 FROM venda v
                 LEFT JOIN cliente c ON c.id = v.cliente_id
+                LEFT JOIN vendedor vd ON vd.id = v.vendedor_id
                 WHERE v.cancelada_em IS NULL
                   AND CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
                 ORDER BY v.id
                 """, params,
-                (rs, i) -> new VendaDia(rs.getLong("id"), rs.getString("cliente"),
+                (rs, i) -> new VendaDia(rs.getLong("id"), rs.getString("cliente"), rs.getString("vendedor"),
                         rs.getString("forma_pagamento"), rs.getBigDecimal("total")));
 
         List<RecebimentoDia> recebimentosDia = jdbc.query("""
-                SELECT c.nome AS cliente, p.tipo, p.valor, p.venda_id
+                SELECT p.id, c.nome AS cliente, p.tipo, p.valor, p.venda_id
                 FROM pagamento_fiado p
                 JOIN cliente c ON c.id = p.cliente_id
                 LEFT JOIN venda vx ON vx.id = p.venda_id
@@ -137,7 +138,7 @@ public class VendaConsultaService {
                   AND CAST(p.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
                 ORDER BY p.id
                 """, params,
-                (rs, i) -> new RecebimentoDia(rs.getString("cliente"), rs.getString("tipo"),
+                (rs, i) -> new RecebimentoDia(rs.getLong("id"), rs.getString("cliente"), rs.getString("tipo"),
                         rs.getBigDecimal("valor"),
                         rs.getObject("venda_id") == null ? null : rs.getLong("venda_id")));
 
