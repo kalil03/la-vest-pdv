@@ -383,8 +383,13 @@ async function abrirModalReceber() {
   $('mr-erro').hidden = true;
 
   const total = round2(selecionadas.reduce((s, p) => s + Number(p.valorAberto), 0));
+  // o modal abre com o MESMO valor mostrado no painel (o que o operador digitou
+  // em "Valor a receber"), não com o total cheio das parcelas — assim os dois
+  // nunca divergem. Se não digitou nada, cai no total selecionado.
+  const digitado = valorDigitado();
+  const limiteInicial = digitado > 0 ? Math.min(round2(digitado), total) : total;
   const $limite = $('mr-limite');
-  $limite.value = total.toFixed(2).replace('.', ',');
+  $limite.value = limiteInicial.toFixed(2).replace('.', ',');
   instalarMoeda($limite); // só instala uma vez (moeda.js ignora repetição)
   formatarMoeda($limite);
   
@@ -413,7 +418,8 @@ async function abrirModalReceber() {
     $limite.addEventListener('input', aplicarWaterfall);
   }
 
-  $('mr-soma-abatimentos').textContent = fmt(total);
+  // distribui o limite inicial nas parcelas (ordem de seleção) e atualiza a soma
+  aplicarWaterfall();
   $('modal-receber').hidden = false;
   $limite.focus();
 }
@@ -501,8 +507,14 @@ async function confirmarRecebimento() {
       const vendas = (await Promise.all(notasAfetadas.map((n) =>
         fetch(`/api/vendas/${n}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
       ))).filter(Boolean);
-      const paginas = [...vendas.map((v) => reciboHTML(v, loja)), reciboCarneHTML(recibo, loja)];
-      await previewImprimir(juntarDocumentos(paginas));
+      // 1º) promissória(s) atualizada(s) — via da loja com o saldo de hoje (pra grampear).
+      // 2º) depois de ~3s, o recibo do cliente (valor pago, data/hora e saldo restante),
+      //     em job separado pra a impressora térmica cortar entre um e outro.
+      if (vendas.length) {
+        await previewImprimir(juntarDocumentos(vendas.map((v) => reciboHTML(v, loja))));
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+      await previewImprimir(reciboCarneHTML(recibo, loja));
     } catch {
       toast('Recebimento OK, mas a impressão falhou — reimprima pela nota na lista', 'erro');
     }
