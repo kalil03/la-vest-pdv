@@ -9,6 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -43,6 +46,16 @@ public class BaixaService {
                            String operadorReversao) {}
 
     public record DarBaixaRequest(Long clienteId, String motivo, String operador) {}
+
+    /**
+     * Baixa/ajuste de UMA notinha (conjunto de parcelas), para a conferência da
+     * gaveta. refs vêm da tela como "V123"/"L45" (id da parcela_fiado / do
+     * DEBITO_INICIAL). manterAberto = quanto ainda falta de verdade: null ou 0
+     * baixa a notinha inteira; um valor menor que o saldo baixa só a diferença
+     * (das parcelas mais antigas primeiro). É a mesma BaixaFiado reversível.
+     */
+    public record BaixaNotinhaRequest(List<String> refs, BigDecimal manterAberto,
+                                      String operador, String motivo) {}
 
     /** Dá baixa em todo o saldo em aberto do cliente. Reversível via restaurar(). */
     @Transactional
@@ -87,6 +100,98 @@ public class BaixaService {
         pag.setValor(total);
         pag.setTipo(TipoPagamentoFiado.BAIXA);
         pag.setDetalhe("Baixa por incobrabilidade"
+                + (baixa.getMotivo() != null ? " — " + baixa.getMotivo() : ""));
+        pagamentoRepo.saveAndFlush(pag);
+
+        baixa.setPagamentoId(pag.getId());
+        baixaRepo.save(baixa);
+        return toDTO(baixa, cliente.getNome());
+    }
+
+    /** Uma parcela resolvida de uma notinha, com o que falta e o vencimento (para o FIFO). */
+    private record Linha(String origem, Long id, BigDecimal aberto, LocalDate venc, Long clienteId) {}
+
+    /** Baixa (total) ou ajuste (parcial) de uma notinha. Reversível via restaurar(). */
+    @Transactional
+    public BaixaDTO baixarNotinha(BaixaNotinhaRequest req) {
+        if (req.refs() == null || req.refs().isEmpty()) {
+            throw new RegraNegocioException("Nenhuma notinha selecionada");
+        }
+
+        List<Linha> linhas = new ArrayList<>();
+        for (String ref : req.refs()) {
+            if (ref == null || ref.length() < 2) throw new RegraNegocioException("Referência inválida: " + ref);
+            String origem = ref.substring(0, 1);
+            Long id = Long.valueOf(ref.substring(1));
+            if ("V".equals(origem)) {
+                ParcelaFiado pf = parcelaRepo.findById(id)
+                        .orElseThrow(() -> new RegraNegocioException("Parcela " + ref + " não encontrada"));
+                linhas.add(new Linha("V", id, nz(pf.getValorAberto()), pf.getVencimento(),
+                        pf.getVenda().getCliente().getId()));
+            } else if ("L".equals(origem)) {
+                PagamentoFiado p = pagamentoRepo.findById(id)
+                        .orElseThrow(() -> new RegraNegocioException("Lançamento " + ref + " não encontrado"));
+                linhas.add(new Linha("L", id, nz(p.getValorAberto()),
+                        LocalDate.ofInstant(p.getData(), br.com.loja.pdv.Fuso.LOJA),
+                        p.getCliente().getId()));
+            } else {
+                throw new RegraNegocioException("Referência inválida: " + ref);
+            }
+        }
+
+        Long clienteId = linhas.get(0).clienteId();
+        if (linhas.stream().anyMatch(l -> !clienteId.equals(l.clienteId()))) {
+            throw new RegraNegocioException("A notinha mistura clientes diferentes");
+        }
+        Cliente cliente = clienteRepo.findById(clienteId)
+                .orElseThrow(() -> new RegraNegocioException("Cliente não encontrado"));
+
+        BigDecimal totalAberto = linhas.stream().map(Linha::aberto).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalAberto.signum() <= 0) {
+            throw new RegraNegocioException("Esta notinha não tem saldo em aberto");
+        }
+
+        BigDecimal manter = req.manterAberto() == null ? BigDecimal.ZERO : req.manterAberto();
+        if (manter.signum() < 0) manter = BigDecimal.ZERO;
+        if (manter.compareTo(totalAberto) >= 0) {
+            throw new RegraNegocioException("O valor a manter é igual ou maior que o saldo atual da notinha ("
+                    + totalAberto + "). Para baixar tudo use \"Dar baixa\"; para aumentar a dívida use o carnê/venda.");
+        }
+        BigDecimal aBaixar = totalAberto.subtract(manter);
+
+        // FIFO: baixa/ajusta das parcelas mais antigas primeiro
+        linhas.sort(Comparator.comparing(Linha::venc).thenComparing(Linha::id));
+
+        BaixaFiado baixa = new BaixaFiado();
+        baixa.setClienteId(clienteId);
+        baixa.setOperador(req.operador());
+        baixa.setMotivo(req.motivo() == null || req.motivo().isBlank() ? null : req.motivo().trim());
+
+        BigDecimal restante = aBaixar;
+        BigDecimal baixado = BigDecimal.ZERO;
+        for (Linha l : linhas) {
+            if (restante.signum() <= 0) break;
+            BigDecimal tira = l.aberto().min(restante);
+            if (tira.signum() <= 0) continue;
+            if ("V".equals(l.origem())) {
+                ParcelaFiado pf = parcelaRepo.findById(l.id()).orElseThrow();
+                pf.setValorAberto(nz(pf.getValorAberto()).subtract(tira));
+            } else {
+                PagamentoFiado p = pagamentoRepo.findById(l.id()).orElseThrow();
+                p.setValorAberto(nz(p.getValorAberto()).subtract(tira));
+            }
+            baixa.getItens().add(new BaixaFiadoItem(baixa, l.origem(), l.id(), tira));
+            restante = restante.subtract(tira);
+            baixado = baixado.add(tira);
+        }
+        baixa.setValor(baixado);
+
+        boolean ajuste = manter.signum() > 0;
+        PagamentoFiado pag = new PagamentoFiado();
+        pag.setCliente(cliente);
+        pag.setValor(baixado);
+        pag.setTipo(TipoPagamentoFiado.BAIXA);
+        pag.setDetalhe((ajuste ? "Ajuste de saldo (conferência da gaveta)" : "Baixa (conferência da gaveta)")
                 + (baixa.getMotivo() != null ? " — " + baixa.getMotivo() : ""));
         pagamentoRepo.saveAndFlush(pag);
 

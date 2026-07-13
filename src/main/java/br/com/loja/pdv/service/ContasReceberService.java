@@ -33,6 +33,13 @@ public class ContasReceberService {
 
     public record Pagina(List<Conta> contas, long total, int pagina, int porPagina, Totais totais) {}
 
+    /** Uma notinha em aberto, agrupando suas parcelas, para a conferência da gaveta. */
+    public record NotinhaAberta(String chave, String origem, Long clienteId, String clienteNome,
+                                String rotulo, String tipo, LocalDate vencimento,
+                                BigDecimal totalAberto, List<String> refs) {}
+
+    public record PaginaGaveta(List<NotinhaAberta> notinhas, long total, int pagina, int porPagina) {}
+
     /** Todas as parcelas, das duas origens, já com valor em aberto. */
     private static final String FONTE = """
             SELECT 'L' || p.id AS id, c.id AS cliente_id, c.nome AS cliente_nome,
@@ -106,6 +113,56 @@ public class ContasReceberService {
                 "SELECT COUNT(*) FROM (" + FONTE + ") t " + filtro, params, Long.class);
 
         return new Pagina(contas, total == null ? 0 : total, Math.max(1, pagina), porPagina, totais());
+    }
+
+    /**
+     * Conferência da gaveta: as notinhas EM ABERTO agrupadas (venda = mesmo
+     * venda_id; carnê SET = mesmo prefixo do documento antes da "/"), em ordem
+     * alfabética por cliente. Cada linha carrega os refs ("V123"/"L45") das
+     * parcelas que a compõem, para a baixa/ajuste agir só nelas.
+     */
+    @Transactional(readOnly = true)
+    public PaginaGaveta gaveta(String q, int pagina) {
+        // conferência é uma passada única A→Z: joga tudo numa página só (hoje ~4 mil
+        // notinhas), sem obrigar a paginar no meio da conferência com a gaveta.
+        int porPagina = 20000;
+        var params = new MapSqlParameterSource()
+                .addValue("q", q == null ? "" : q.trim())
+                .addValue("limite", porPagina)
+                .addValue("offset", Math.max(0, pagina - 1) * porPagina);
+
+        // linhas em aberto, já com a chave da notinha e um rótulo legível
+        String linhas = "SELECT t.*, left(t.id, 1) AS origem, "
+                + "CASE WHEN left(t.id, 1) = 'V' THEN 'V' || t.notinha "
+                + "     ELSE 'L:' || t.cliente_id || ':' "
+                + "          || COALESCE(NULLIF(split_part(t.documento, '/', 1), ''), t.id) END AS notinha_key, "
+                + "CASE WHEN left(t.id, 1) = 'V' THEN 'Nº ' || t.notinha "
+                + "     ELSE COALESCE(NULLIF(split_part(t.documento, '/', 1), ''), 's/nº') END AS rotulo "
+                + "FROM (" + FONTE + ") t WHERE t.valor_aberto > 0";
+
+        String agrupado = "SELECT notinha_key, MIN(origem) AS origem, cliente_id, "
+                + "MIN(cliente_nome) AS cliente_nome, MIN(rotulo) AS rotulo, MIN(tipo_notinha) AS tipo, "
+                + "MIN(vencimento) AS vencimento, SUM(valor_aberto) AS total_aberto, "
+                + "array_agg(id ORDER BY vencimento, id) AS refs "
+                + "FROM (" + linhas + ") g "
+                + "WHERE (:q = '' OR unaccent(cliente_nome) ILIKE unaccent('%' || :q || '%') "
+                + "       OR rotulo ILIKE '%' || :q || '%') "
+                + "GROUP BY notinha_key, cliente_id";
+
+        List<NotinhaAberta> notinhas = jdbc.query(
+                agrupado + " ORDER BY unaccent(lower(MIN(cliente_nome))), MIN(vencimento), notinha_key "
+                        + "LIMIT :limite OFFSET :offset",
+                params,
+                (rs, i) -> new NotinhaAberta(
+                        rs.getString("notinha_key"), rs.getString("origem"),
+                        rs.getLong("cliente_id"), rs.getString("cliente_nome"),
+                        rs.getString("rotulo"), rs.getString("tipo"),
+                        rs.getDate("vencimento").toLocalDate(),
+                        rs.getBigDecimal("total_aberto"),
+                        List.of((String[]) rs.getArray("refs").getArray())));
+
+        Long total = jdbc.queryForObject("SELECT COUNT(*) FROM (" + agrupado + ") z", params, Long.class);
+        return new PaginaGaveta(notinhas, total == null ? 0 : total, Math.max(1, pagina), porPagina);
     }
 
     /** KPIs gerais (sem filtro): retrato do crediário inteiro. */

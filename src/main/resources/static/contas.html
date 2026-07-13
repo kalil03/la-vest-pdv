@@ -41,6 +41,9 @@
     .tab-contas td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
     .tab-contas tbody tr { cursor: pointer; transition: background .12s; }
     .tab-contas tbody tr:hover { background: var(--hover); }
+    /* conferida na gaveta: fica amarela pra saber onde já passou */
+    .tab-contas tbody tr.conferida,
+    .tab-contas tbody tr.conferida:hover { background: #fef9c3; box-shadow: inset 3px 0 0 #eab308; }
     .tab-contas .num { text-align: right; font-family: 'JetBrains Mono', monospace; }
 
     .filtros-bar input, .filtros-bar select {
@@ -111,8 +114,6 @@
           <i data-lucide="receipt" class="w-[15px] h-[15px] text-primary"></i>
           <span class="flex-1 font-medium">A Receber</span>
           <i data-lucide="chevron-right" class="w-3 h-3 text-primary"></i>
-        </a><a href="/notas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
-          <i data-lucide="file-text" class="w-[15px] h-[15px]"></i><span class="flex-1">Notas Fiscais</span>
         </a>
         <a href="/produtos.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="package" class="w-[15px] h-[15px]"></i><span class="flex-1">Produtos</span>
@@ -175,6 +176,7 @@
           <div class="abas">
             <button id="aba-parcelas" class="ativa" type="button">Parcelas</button>
             <button id="aba-vendas" type="button">Vendas</button>
+            <button id="aba-gaveta" type="button">Conferir gaveta</button>
           </div>
 
           <div id="painel-parcelas" class="flex flex-col gap-5">
@@ -279,6 +281,44 @@
                   <thead><tr><th>Venda</th><th>Quando</th><th>Operador</th><th>Motivo</th><th>Cliente</th><th>Itens</th><th class="num">Valor</th></tr></thead>
                   <tbody id="estornos-corpo"></tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- ABA CONFERIR GAVETA: conciliação das notinhas físicas -->
+          <div id="painel-gaveta" class="flex flex-col gap-5" hidden>
+            <div class="bg-warn-bg border border-border rounded-xl p-3 text-[12px]" style="background: var(--warn-bg); color: var(--warn)">
+              <strong>Conferência da gaveta</strong> — vá em ordem alfabética conferindo com as notinhas físicas.
+              <b>Não está na gaveta</b> → <b>Dar baixa</b> (some daqui). <b>Está, mas já pagou parte</b> → <b>Ajustar saldo</b> (digite quanto ainda falta).
+              <b>Está e valor certo</b> → <b>clique na linha</b> pra marcar como conferida (amarela). Tudo é reversível na tela de <a href="/baixas.html" class="underline">Baixas</a> e não entra no caixa do dia.
+            </div>
+            <div class="filtros-bar flex flex-wrap gap-2 items-center bg-background border border-border rounded-xl p-3">
+              <div class="relative flex-1 min-w-[220px]">
+                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"></i>
+                <input id="g-q" placeholder="Cliente ou nº da notinha" class="!pl-8 w-full">
+              </div>
+              <button id="g-limpar" class="pag-btn">Limpar</button>
+            </div>
+
+            <div class="bg-background border border-border rounded-xl overflow-hidden">
+              <div class="max-h-[76vh] overflow-y-auto">
+                <table class="tab-contas">
+                  <thead>
+                    <tr>
+                      <th>Cliente</th><th>Notinha</th><th>Venc. + antigo</th>
+                      <th class="num">Em aberto</th><th style="width:230px">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="g-lista"></tbody>
+                </table>
+              </div>
+              <div class="flex items-center justify-between px-4 py-3 bg-secondary border-t border-border">
+                <span id="g-pag-info" class="text-[12px] text-muted-foreground font-medium">—</span>
+                <div class="flex items-center gap-3">
+                  <span id="g-soma" class="mono text-[13px] font-bold"></span>
+                  <button id="g-pag-ant" class="pag-btn" disabled>‹ Anterior</button>
+                  <button id="g-pag-prox" class="pag-btn" disabled>Próxima ›</button>
+                </div>
               </div>
             </div>
           </div>

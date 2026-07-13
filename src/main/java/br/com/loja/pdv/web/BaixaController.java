@@ -26,6 +26,12 @@ public class BaixaController {
         return service.darBaixa(req);
     }
 
+    /** Baixa (total) ou ajuste (parcial) de uma notinha — conferência da gaveta. */
+    @PostMapping("/notinha")
+    public BaixaService.BaixaDTO baixarNotinha(@RequestBody BaixaService.BaixaNotinhaRequest req) {
+        return service.baixarNotinha(req);
+    }
+
     @PostMapping("/{id}/restaurar")
     public ResponseEntity<Void> restaurar(@PathVariable Long id,
                                           @RequestParam(required = false) String operador) {

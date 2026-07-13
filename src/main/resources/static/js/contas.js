@@ -98,13 +98,15 @@ const dataHoraBr = (iso) => new Date(iso).toLocaleString('pt-BR', { day: '2-digi
 // alternância de abas (o Caixa do dia virou tela própria: /caixa.html)
 $('aba-parcelas').addEventListener('click', () => alternarAba('parcelas'));
 $('aba-vendas').addEventListener('click', () => alternarAba('vendas'));
+$('aba-gaveta').addEventListener('click', () => alternarAba('gaveta'));
 
 function alternarAba(qual) {
-  for (const aba of ['parcelas', 'vendas']) {
+  for (const aba of ['parcelas', 'vendas', 'gaveta']) {
     $(`aba-${aba}`).classList.toggle('ativa', qual === aba);
     $(`painel-${aba}`).hidden = qual !== aba;
   }
   if (qual === 'vendas') carregarVendas();
+  if (qual === 'gaveta') carregarGaveta();
 }
 
 async function carregarVendas() {
@@ -287,3 +289,186 @@ async function carregarEstornos() {
     </tr>`).join('')
     || '<tr><td colspan="7" class="text-center text-muted-foreground py-6">Nenhum estorno registrado</td></tr>';
 }
+
+// ============================================================
+// Aba CONFERIR GAVETA: conciliação das notinhas físicas
+// ============================================================
+let gPagina = 1;
+let gTotalPaginas = 1;
+let gNotinhas = [];
+
+// notinhas já conferidas (amarelas) — só marcador visual, guardado no navegador
+// pra não perder o progresso da passada A→Z se recarregar a tela
+const conferidas = new Set(JSON.parse(localStorage.getItem('pdv.gaveta.conferidas') || '[]'));
+function salvarConferidas() {
+  localStorage.setItem('pdv.gaveta.conferidas', JSON.stringify([...conferidas]));
+}
+
+// aceita "90", "90,00" ou "1.234,56" (padrão BR)
+function lerValorBr(raw) {
+  let s = String(raw).trim().replace(/[^\d.,]/g, '');
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const v = parseFloat(s);
+  return Number.isFinite(v) ? v : NaN;
+}
+
+let gPorChave = new Map(); // chave -> notinha (mesma referência das linhas do DOM)
+
+const LINHA_VAZIA_GAVETA = '<tr id="g-vazio"><td colspan="5" class="text-center text-muted-foreground py-8">Nenhuma notinha em aberto — gaveta conferida 🎉</td></tr>';
+
+function linhaGavetaHTML(n) {
+  return `
+    <tr data-chave="${n.chave}"${conferidas.has(n.chave) ? ' class="conferida"' : ''}>
+      <td class="font-medium">${n.clienteNome}</td>
+      <td class="mono">${n.rotulo}${n.origem === 'L' ? ' <span class="chip forma">carnê</span>' : ''}${n.tipo ? ` <span class="chip forma">${n.tipo}</span>` : ''}</td>
+      <td class="mono">${dataBr(n.vencimento)}</td>
+      <td class="num font-semibold" data-col="aberto">${fmt(n.totalAberto)}</td>
+      <td>
+        <button class="acao-btn" data-acao="ajustar">Ajustar saldo</button>
+        <button class="acao-btn perigo" data-acao="baixa">Dar baixa</button>
+      </td>
+    </tr>`;
+}
+
+/** Rodapé recalculado a partir do que RESTA na tela (linhas somem sem recarregar). */
+function atualizarRodapeGaveta() {
+  const linhas = [...$('g-lista').querySelectorAll('tr[data-chave]')];
+  const soma = linhas.reduce((s, tr) => s + Number(gPorChave.get(tr.dataset.chave)?.totalAberto || 0), 0);
+  $('g-pag-info').textContent = linhas.length
+    ? `${linhas.length.toLocaleString('pt-BR')} notinha${linhas.length > 1 ? 's' : ''} em aberto na tela`
+    : 'Nenhuma notinha em aberto';
+  $('g-soma').textContent = linhas.length ? `Σ ${fmt(soma)}` : '';
+}
+
+async function carregarGaveta() {
+  const params = new URLSearchParams({ pagina: gPagina });
+  if ($('g-q').value.trim()) params.set('q', $('g-q').value.trim());
+
+  const r = await (await fetch(`/api/contas-receber/gaveta?${params}`)).json();
+  gNotinhas = r.notinhas;
+  gPorChave = new Map(r.notinhas.map((n) => [n.chave, n]));
+
+  $('g-lista').innerHTML = r.notinhas.map(linhaGavetaHTML).join('') || LINHA_VAZIA_GAVETA;
+
+  gTotalPaginas = Math.max(1, Math.ceil(r.total / r.porPagina));
+  $('g-pag-ant').disabled = r.pagina <= 1;
+  $('g-pag-prox').disabled = r.pagina >= gTotalPaginas;
+  atualizarRodapeGaveta();
+  if (window.lucide) lucide.createIcons();
+}
+
+async function baixarNotinha(refs, manterAberto) {
+  const resp = await fetch('/api/baixas/notinha', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      refs,
+      manterAberto: manterAberto == null ? null : manterAberto,
+      operador: window.usuarioLogado?.nome || '',
+      motivo: 'conferência da gaveta',
+    }),
+  });
+  if (!resp.ok) {
+    const erro = await resp.json().catch(() => ({}));
+    toastContas(erro.erro || 'Não foi possível concluir', 'erro');
+    return false;
+  }
+  return true;
+}
+
+$('g-lista').addEventListener('click', (e) => {
+  const tr = e.target.closest('tr[data-chave]');
+  if (!tr) return;
+  const n = gPorChave.get(tr.dataset.chave);
+  if (!n) return;
+
+  const btn = e.target.closest('button[data-acao]');
+  if (btn) {
+    if (btn.dataset.acao === 'baixa') {
+      confirmarAcao(`Dar baixa na notinha ${n.rotulo} de ${n.clienteNome}? Zera o saldo de ${fmt(n.totalAberto)}. Dá para desfazer em Baixas.`, async () => {
+        if (await baixarNotinha(n.refs, null)) {
+          conferidas.delete(n.chave); salvarConferidas();
+          gPorChave.delete(n.chave);
+          tr.remove(); // some só daqui — a baixa continua reversível em Baixas
+          if (!$('g-lista').querySelector('tr[data-chave]')) $('g-lista').innerHTML = LINHA_VAZIA_GAVETA;
+          atualizarRodapeGaveta();
+          carregar(); // KPIs
+          toastContas(`Notinha ${n.rotulo} baixada`, 'ok');
+        }
+      });
+    } else if (btn.dataset.acao === 'ajustar') {
+      abrirAjuste(n, tr);
+    }
+    return;
+  }
+  // clique na linha (fora dos botões): marca/desmarca como conferida (amarela)
+  if (conferidas.has(n.chave)) { conferidas.delete(n.chave); tr.classList.remove('conferida'); }
+  else { conferidas.add(n.chave); tr.classList.add('conferida'); }
+  salvarConferidas();
+});
+
+/** Modal simples: digita quanto AINDA falta na notinha; baixa só a diferença. */
+function abrirAjuste(n, tr) {
+  const overlay = document.createElement('div');
+  overlay.className = 'fixed inset-0 z-[100] flex items-center justify-center';
+  overlay.style.background = 'rgba(0,0,0,.55)';
+  overlay.innerHTML = `
+    <div style="background: var(--background); border: 1px solid var(--border)" class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 flex flex-col gap-4">
+      <div>
+        <p class="text-[15px] font-bold m-0">Ajustar saldo — ${n.rotulo}</p>
+        <p class="text-[12px] text-muted-foreground m-0 mt-1">${n.clienteNome} · hoje consta ${fmt(n.totalAberto)} em aberto</p>
+      </div>
+      <label class="text-[13px] font-medium">Quanto ainda falta de verdade?
+        <input id="aj-valor" inputmode="decimal" class="mt-1 w-full text-right font-bold text-[16px] mono border border-border rounded-lg px-3 py-2 outline-none focus:border-primary" placeholder="0,00">
+      </label>
+      <p id="aj-erro" class="text-[12px] text-destructive m-0" hidden></p>
+      <div class="flex gap-3">
+        <button id="aj-nao" class="flex-1 py-2 rounded-lg font-semibold text-[13px]" style="background: var(--muted)">Cancelar</button>
+        <button id="aj-sim" class="flex-1 py-2 rounded-lg font-semibold text-[13px] text-white" style="background: var(--primary)">Ajustar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const inp = overlay.querySelector('#aj-valor');
+  const erro = overlay.querySelector('#aj-erro');
+  const fechar = () => { overlay.remove(); document.removeEventListener('keydown', esc); };
+  const esc = (ev) => { if (ev.key === 'Escape') fechar(); };
+  document.addEventListener('keydown', esc);
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) fechar(); });
+  overlay.querySelector('#aj-nao').onclick = fechar;
+  inp.focus();
+
+  const confirmar = async () => {
+    const v = lerValorBr(inp.value);
+    if (Number.isNaN(v) || v < 0) {
+      erro.textContent = 'Digite um valor válido (ex: 90,00).'; erro.hidden = false; return;
+    }
+    if (v >= Number(n.totalAberto)) {
+      erro.textContent = `Precisa ser menor que ${fmt(n.totalAberto)}. Para zerar, use "Dar baixa".`;
+      erro.hidden = false; return;
+    }
+    overlay.querySelector('#aj-sim').disabled = true;
+    if (await baixarNotinha(n.refs, v.toFixed(2))) {
+      n.totalAberto = v; // mesma referência do mapa: rodapé/soma já enxergam o novo valor
+      tr.querySelector('[data-col="aberto"]').textContent = fmt(v);
+      conferidas.add(n.chave); salvarConferidas(); // ajustou = conferiu → amarela
+      tr.classList.add('conferida');
+      atualizarRodapeGaveta();
+      fechar();
+      carregar(); // KPIs
+      toastContas(`Notinha ${n.rotulo} ajustada para ${fmt(v)}`, 'ok');
+    } else {
+      overlay.querySelector('#aj-sim').disabled = false;
+    }
+  };
+  overlay.querySelector('#aj-sim').onclick = confirmar;
+  inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); confirmar(); } });
+}
+
+let gTimer = null;
+$('g-q').addEventListener('input', () => {
+  clearTimeout(gTimer);
+  gTimer = setTimeout(() => { gPagina = 1; carregarGaveta(); }, 250);
+});
+$('g-limpar').addEventListener('click', () => { $('g-q').value = ''; gPagina = 1; carregarGaveta(); });
+$('g-pag-ant').addEventListener('click', () => { if (gPagina > 1) { gPagina--; carregarGaveta(); } });
+$('g-pag-prox').addEventListener('click', () => { if (gPagina < gTotalPaginas) { gPagina++; carregarGaveta(); } });

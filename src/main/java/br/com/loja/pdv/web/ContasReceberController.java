@@ -27,4 +27,12 @@ public class ContasReceberController {
             @RequestParam(defaultValue = "1") int pagina) {
         return service.listar(q, status, de, ate, tipo, pagina);
     }
+
+    /** Conferência da gaveta: notinhas em aberto agrupadas, em ordem alfabética. */
+    @GetMapping("/api/contas-receber/gaveta")
+    public ContasReceberService.PaginaGaveta gaveta(
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "1") int pagina) {
+        return service.gaveta(q, pagina);
+    }
 }
