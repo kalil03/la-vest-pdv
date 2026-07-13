@@ -200,7 +200,24 @@
       display: flex;
       flex-direction: column;
       gap: 5px;
+      overflow: hidden;            /* nada de rolar o painel inteiro */
+      min-height: 0;
+    }
+    /* só os CAMPOS rolam (quando a tela é baixa); o rodapé com total/formas/botão
+       fica sempre fixo e à vista, sem precisar rolar pra fechar a venda */
+    .pv-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
       overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .pv-rodape {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
     }
     /* campos do painel: label + input compactos, pra caber sem rolar */
     .painel-venda label { margin-bottom: 3px !important; }
@@ -240,7 +257,7 @@
       white-space: nowrap;
     }
     .acoes-fechada button:hover { background: var(--secondary); }
-    /* NFC-e é a ação principal pós-venda — destaque na cor primária */
+    /* Reimprimir é a ação principal pós-venda — destaque na cor primária */
     .acoes-fechada .destaque { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
     .acoes-fechada .destaque:hover { background: color-mix(in srgb, var(--primary) 88%, #000); }
     .acoes-fechada .destrutivo { color: var(--destructive); border-color: color-mix(in srgb, var(--destructive) 35%, transparent); }
@@ -249,8 +266,8 @@
 
     #v-codigo[readonly] { background: var(--secondary) !important; text-align: center; font-family: 'JetBrains Mono', monospace; font-weight: 700; }
 
-    /* o divisor empurra total/formas/botão para o pé do painel */
-    .painel-divisor { height: 1px; background: var(--border); margin-top: auto; }
+    /* separador entre os campos e o rodapé fixo do painel */
+    .painel-divisor { height: 1px; background: var(--border); margin: 3px 0 2px; }
 
     .total-linha-caixa {
       display: flex;
@@ -480,8 +497,6 @@
         </a>
         <a href="/contas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="receipt" class="w-[15px] h-[15px]"></i><span class="flex-1">A Receber</span>
-        </a><a href="/notas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
-          <i data-lucide="file-text" class="w-[15px] h-[15px]"></i><span class="flex-1">Notas Fiscais</span>
         </a>
         <a href="/produtos.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="package" class="w-[15px] h-[15px]"></i><span class="flex-1">Produtos</span>
@@ -573,6 +588,8 @@
 
           <!-- DIREITA: PAINEL DA VENDA -->
           <aside class="painel-venda">
+            <!-- campos (rolam se a tela for baixa) -->
+            <div class="pv-scroll">
             <div class="flex gap-3">
               <div class="flex-1 min-w-0">
                 <label for="v-codigo" class="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Código</label>
@@ -623,6 +640,10 @@
                 class="!w-full !px-3 !py-2 !font-medium !text-[14px] !bg-background !border !border-border !rounded-lg !outline-none focus:!border-primary !transition-colors">
             </div>
 
+            </div><!-- /pv-scroll -->
+
+            <!-- rodapé fixo: total, formas e ações sempre à vista -->
+            <div class="pv-rodape">
             <div class="painel-divisor"></div>
 
             <div class="total-linha-caixa !mb-0">
@@ -642,13 +663,13 @@
             </button>
 
             <div id="acoes-fechada" class="acoes-fechada" hidden>
-              <button id="vf-nfce" type="button" class="destaque"><i data-lucide="file-text" class="w-3.5 h-3.5"></i> Emitir NFC-e</button>
-              <button id="vf-recibo" type="button"><i data-lucide="printer" class="w-3.5 h-3.5"></i> Reimprimir recibo</button>
+              <button id="vf-recibo" type="button" class="destaque largo"><i data-lucide="printer" class="w-3.5 h-3.5"></i> Reimprimir recibo</button>
               <button id="vf-editar" type="button"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Editar venda</button>
               <button id="vf-cancelar" type="button" class="destrutivo"><i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Cancelar venda</button>
             </div>
 
             <button id="nova-venda" type="button" class="btn-nova inativa">Nova venda <kbd>F10</kbd></button>
+            </div><!-- /pv-rodape -->
           </aside>
         </div>
       </div>

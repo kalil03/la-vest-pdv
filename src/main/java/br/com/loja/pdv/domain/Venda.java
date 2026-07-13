@@ -47,6 +47,9 @@ public class Venda {
     @Column(name = "tipo_notinha")
     private String tipoNotinha;
 
+    /** CPF do consumidor p/ a NFC-e (informado no rodapé da venda); só dígitos, opcional. */
+    private String cpf;
+
     /**
      * Estorno é marcação, nunca DELETE: preenchido = a venda saiu de todas as
      * somas financeiras (filtro cancelada_em IS NULL), mas o registro e a
@@ -100,6 +103,8 @@ public class Venda {
     public void setParcelasCartao(Integer parcelasCartao) { this.parcelasCartao = parcelasCartao; }
     public String getObservacao() { return observacao; }
     public void setObservacao(String observacao) { this.observacao = observacao; }
+    public String getCpf() { return cpf; }
+    public void setCpf(String cpf) { this.cpf = cpf; }
     public List<ItemVenda> getItens() { return itens; }
     public List<ParcelaFiado> getParcelas() { return parcelas; }
 }

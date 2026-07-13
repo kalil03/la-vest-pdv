@@ -74,6 +74,13 @@ public class NfceEmissaoService {
 
     @Transactional
     public Resultado emitir(Long vendaId) {
+        return emitir(vendaId, null);
+    }
+
+    /** {@code cpfInformado}: CPF do consumidor digitado no rodapé da venda (opcional).
+     *  Vira o destinatário da NFC-e; se vazio, cai no CPF do cliente cadastrado. */
+    @Transactional
+    public Resultado emitir(Long vendaId, String cpfInformado) {
         if (fiscal.getCnpj() == null || fiscal.getCnpj().isBlank()) {
             return new Resultado(Status.NAO_CONFIGURADO, null,
                     "Antes de emitir, preencha os dados fiscais do emitente "
@@ -93,6 +100,12 @@ public class NfceEmissaoService {
                 .orElseThrow(() -> new IllegalArgumentException("Venda nº " + vendaId + " não encontrada"));
         if (venda.getCanceladaEm() != null) {
             throw new RegraNegocioException("Venda nº " + vendaId + " foi estornada — não emite NFC-e");
+        }
+        // CPF informado no rodapé da venda: grava (só dígitos) para virar o
+        // destinatário da nota e ficar disponível numa reemissão futura
+        if (cpfInformado != null) {
+            String digitos = cpfInformado.replaceAll("\\D", "");
+            if (!digitos.isEmpty()) venda.setCpf(digitos);
         }
         venda.getItens().size(); // força carregar os itens dentro da transação
 

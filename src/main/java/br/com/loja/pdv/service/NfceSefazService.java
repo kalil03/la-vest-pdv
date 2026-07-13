@@ -65,8 +65,10 @@ public class NfceSefazService {
      */
     public NfceMontada montar(Venda venda, int numero, String cnfForcado) {
         EstadosEnum estado = EstadosEnum.valueOf(fiscal.getUf());
-        LocalDateTime agora = LocalDateTime.ofInstant(
-                venda.getData() != null ? venda.getData() : java.time.Instant.now(), FUSO);
+        // dhEmi da NFC-e tem que ser ~agora: a SEFAZ tolera só 5 min de atraso ([704]).
+        // A data da venda é a data COMERCIAL (pode ser retroativa no fiado, ou antiga
+        // numa reemissão), então a emissão fiscal usa o momento atual, não venda.getData().
+        LocalDateTime agora = LocalDateTime.now(FUSO);
         String cNF = cnfForcado != null ? cnfForcado : gerarCodigoNumerico(numero);
 
         ChaveUtil chaveUtil = new ChaveUtil(estado, fiscal.getCnpj(), "65",
@@ -78,8 +80,9 @@ public class NfceSefazService {
         inf.setId("NFe" + chave);
         inf.setIde(montarIde(estado, numero, cNF, chaveUtil.getDigitoVerificador(), agora));
         inf.setEmit(montarEmit(estado));
-        if (venda.getCliente() != null && temCpf(venda.getCliente())) {
-            inf.setDest(montarDest(venda.getCliente()));
+        String cpfDest = cpfDestinatario(venda);
+        if (cpfDest != null) {
+            inf.setDest(montarDest(cpfDest, venda.getCliente() != null ? venda.getCliente().getNome() : null));
         }
         BigDecimal totalProdutos = adicionarItens(venda, inf);
         inf.setTotal(montarTotal(totalProdutos, descontoDe(venda)));
@@ -176,11 +179,26 @@ public class NfceSefazService {
         return emit;
     }
 
-    private TNFe.InfNFe.Dest montarDest(Cliente cliente) {
+    /** CPF que vai como destinatário: o informado no rodapé da venda tem prioridade;
+     *  senão o do cliente cadastrado. Devolve só dígitos, ou null se não há CPF. */
+    private String cpfDestinatario(Venda venda) {
+        if (naoVazio(venda.getCpf())) {
+            String d = soDigitos(venda.getCpf());
+            if (!d.isEmpty()) return d;
+        }
+        if (venda.getCliente() != null && temCpf(venda.getCliente())) {
+            return soDigitos(venda.getCliente().getCpf());
+        }
+        return null;
+    }
+
+    private TNFe.InfNFe.Dest montarDest(String cpf, String nome) {
         TNFe.InfNFe.Dest dest = new TNFe.InfNFe.Dest();
-        dest.setCPF(soDigitos(cliente.getCpf()));
-        // Em homologação a razão social do destinatário deve ser o aviso padrão.
-        dest.setXNome(fiscal.isHomologacao() ? AVISO_HOMOLOGACAO : cliente.getNome());
+        dest.setCPF(cpf);
+        // Em homologação a razão social do destinatário deve ser o aviso padrão;
+        // em produção, o nome do cliente (se houver) — na NFC-e o xNome é opcional.
+        if (fiscal.isHomologacao()) dest.setXNome(AVISO_HOMOLOGACAO);
+        else if (naoVazio(nome)) dest.setXNome(nome);
         dest.setIndIEDest("9");                  // não contribuinte
         return dest;
     }

@@ -14,16 +14,13 @@ public class VendaController {
     private final VendaService vendaService;
     private final br.com.loja.pdv.service.VendaConsultaService consultaService;
     private final br.com.loja.pdv.repository.EstornoRepository estornoRepository;
-    private final br.com.loja.pdv.service.NfceEmissaoService nfceEmissaoService;
 
     public VendaController(VendaService vendaService,
                            br.com.loja.pdv.service.VendaConsultaService consultaService,
-                           br.com.loja.pdv.repository.EstornoRepository estornoRepository,
-                           br.com.loja.pdv.service.NfceEmissaoService nfceEmissaoService) {
+                           br.com.loja.pdv.repository.EstornoRepository estornoRepository) {
         this.vendaService = vendaService;
         this.consultaService = consultaService;
         this.estornoRepository = estornoRepository;
-        this.nfceEmissaoService = nfceEmissaoService;
     }
 
     @GetMapping
@@ -50,10 +47,14 @@ public class VendaController {
         return vendaService.buscarResumo(id);
     }
 
-    /** Emite (por ora, monta) a NFC-e da venda. Retorna status + chave + mensagem. */
+    /** DESATIVADO: notas fiscais voltaram a ser emitidas pelo sistema antigo (Set).
+     *  O endpoint fica só para responder com clareza a qualquer chamada residual
+     *  (JS antigo em cache); o histórico na tabela nfce permanece intacto. */
     @PostMapping("/{id}/nfce")
-    public br.com.loja.pdv.service.NfceEmissaoService.Resultado emitirNfce(@PathVariable Long id) {
-        return nfceEmissaoService.emitir(id);
+    public org.springframework.http.ResponseEntity<java.util.Map<String, String>> emitirNfce(
+            @PathVariable Long id) {
+        return org.springframework.http.ResponseEntity.status(410).body(java.util.Map.of(
+                "erro", "Emissão de NFC-e desativada neste sistema — a nota fiscal é emitida pelo Set."));
     }
 
     /** Cancela a venda: devolve estoque e apaga lançamentos — atômico, com auditoria. */

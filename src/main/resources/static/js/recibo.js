@@ -123,7 +123,7 @@ function reciboHTML(venda, loja) {
   <div class="caixa">
     <table>
       <tr><td style="width:70px">Número:</td><td>${venda.id}</td></tr>
-      <tr><td>Data:</td><td>${dataStr} - ${horaStr}</td></tr>
+      <tr><td>Data:</td><td>${fiado ? dataStr : `${dataStr} - ${horaStr}`}</td></tr>
       ${venda.clienteNome ? `<tr><td>Cliente:</td><td>${esc(venda.clienteNome)}</td></tr>` : ''}
       ${venda.vendedorNome ? `<tr><td>Vendedor:</td><td>${esc(venda.vendedorNome)}</td></tr>` : ''}
     </table>
@@ -193,59 +193,13 @@ function juntarDocumentos(htmls) {
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>${estilos}</style></head><body>${paginas}</body></html>`;
 }
 
-// preview aberto no momento — abrir outro fecha o anterior DE VERDADE
-// (listener removido + promise resolvida); só remover o nó do DOM deixava um
-// listener órfão de Enter/F10 que disparava impressão fantasma e travava
-// pra sempre quem estivesse aguardando a promise antiga
-let fecharPreviewAberto = null;
-
+// Impressão DIRETA, sem a tela "Confira antes de imprimir". O usuário pediu para
+// tirar essa prévia — era uma etapa a mais, já que a impressão (kiosk / diálogo
+// do navegador) vem logo em seguida. Mantido o nome da função para não mexer em
+// todos os chamadores; devolve uma promise já resolvida.
 function previewImprimir(html) {
-  return new Promise((resolve) => {
-  fecharPreviewAberto?.();
-  const overlay = document.createElement('div');
-  overlay.id = 'preview-cupom';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;';
-  overlay.innerHTML = `
-    <div style="background:#fff;color:#111;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.35);width:420px;max-width:94vw;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;font-family:Inter,system-ui,sans-serif">
-      <div style="padding:12px 16px;border-bottom:1px solid #e5e5ea;font-weight:700;font-size:15px">Confira antes de imprimir</div>
-      <div style="flex:1;overflow:auto;background:#9a9aa0;padding:14px;display:flex;justify-content:center">
-        <iframe style="width:330px;height:460px;border:0;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.35);flex-shrink:0"></iframe>
-      </div>
-      <div style="padding:10px 16px;font-size:12px;color:#6b6b70;border-top:1px solid #e5e5ea">
-        Já está gravado no sistema — "Cancelar" cancela só a IMPRESSÃO, não a venda/recebimento.
-      </div>
-      <div style="display:flex;gap:10px;padding:0 16px 14px">
-        <button data-acao="cancelar" style="flex:1;padding:13px;border-radius:10px;border:1px solid #d4d4d8;background:#fff;color:#111;font-weight:600;font-size:14px;cursor:pointer">Cancelar impressão (Esc)</button>
-        <button data-acao="imprimir" style="flex:1.4;padding:13px;border-radius:10px;border:0;background:#030213;color:#fff;font-weight:700;font-size:14px;cursor:pointer">Imprimir (Enter)</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  const frame = overlay.querySelector('iframe');
-  frame.srcdoc = html;
-  frame.addEventListener('load', () => {
-    // altura do papel de verdade, até o limite do modal
-    try { frame.style.height = Math.max(220, frame.contentDocument.body.scrollHeight + 30) + 'px'; } catch (e) { /* cross-origin não acontece com srcdoc */ }
-  });
-
-  const limpar = () => {
-    document.removeEventListener('keydown', teclas, true);
-    overlay.remove();
-    fecharPreviewAberto = null;
-  };
-  const fechar = () => { limpar(); resolve(); };
-  const imprimir = () => { limpar(); imprimirHTML(html); resolve(); };
-  fecharPreviewAberto = fechar;
-  const teclas = (e) => {
-    // captura: enquanto o preview está aberto, os atalhos da página (F10 etc.) não valem
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fechar(); }
-    else if (e.key === 'Enter' || e.key === 'F10') { e.preventDefault(); e.stopPropagation(); imprimir(); }
-  };
-  document.addEventListener('keydown', teclas, true);
-  overlay.querySelector('[data-acao="cancelar"]').addEventListener('click', fechar);
-  overlay.querySelector('[data-acao="imprimir"]').addEventListener('click', imprimir);
-  overlay.querySelector('[data-acao="imprimir"]').focus();
-  });
+  imprimirHTML(html);
+  return Promise.resolve();
 }
 
 /** Impressão genérica via iframe oculto (sem popup). */
@@ -345,106 +299,6 @@ function reciboCarneHTML(r, loja) {
 
 function imprimirReciboCarne(recibo, loja) {
   return previewImprimir(reciboCarneHTML(recibo, loja));
-}
-
-/**
- * DANFE NFC-e (cupom fiscal 80mm) — impresso APÓS a autorização na SEFAZ.
- * `danfe` vem do backend (emissão): identidade fiscal do emitente, chave,
- * protocolo, data de autorização, URL de consulta e o QR Code já em SVG
- * (gerado offline). Os itens/total saem da própria venda.
- */
-function danfeNfceHTML(venda, loja, danfe) {
-  const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
-
-  // número (nNF) e série saem da própria chave: cUF(2)AAMM(4)CNPJ(14)mod(2)serie(3)nNF(9)...
-  const chave = danfe.chave || '';
-  const serie = chave.length === 44 ? parseInt(chave.slice(22, 25), 10) : null;
-  const numero = chave.length === 44 ? parseInt(chave.slice(25, 34), 10) : null;
-
-  // itens: 2 linhas (código+descrição / qtde un x unit = total) — cabe em 80mm
-  const linhasItens = venda.itens.map((i) => `
-    <tr><td colspan="3" class="desc">${esc(i.codigo || '')}  ${esc(i.descricao)}</td></tr>
-    <tr><td>${i.quantidade} UN x ${fmt(i.precoUnit)}</td><td></td><td class="dir">${fmt(i.subtotal)}</td></tr>`).join('');
-
-  const consumidor = venda.clienteNome ? esc(venda.clienteNome) : 'CONSUMIDOR NÃO IDENTIFICADO';
-  const aviso = danfe.homologacao
-    ? `<div class="centro negrito" style="margin:5px 0">EMITIDA EM HOMOLOGAÇÃO<br>SEM VALOR FISCAL</div>` : '';
-
-  return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<style>
-  @page { size: ${larguraMm}mm auto; margin: 0; }
-  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  /* negrito uniforme: traço fino sai fraco/falhado na térmica */
-  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold; color: #000; }
-  .centro { text-align: center; }
-  .negrito { font-weight: bold; }
-  .dir { text-align: right; }
-  .caixa { border: 1.5px solid #000; padding: 5px 8px; margin: 5px 0; }
-  .info { text-align: center; font-size: 12px; margin: 0; }
-  .titulo { text-align: center; font-size: 13px; margin: 6px 0 2px; }
-  .sub { text-align: center; font-size: 12px; margin: 0 0 5px; }
-  .sep { border-top: 1.5px solid #000; margin: 6px 0; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 1px 0; vertical-align: top; font-size: 13px; }
-  .desc { font-size: 13px; }
-  .th td { border-bottom: 1.5px solid #000; font-size: 12px; }
-  .total td { font-size: 14px; }
-  .rotulo { text-align: center; font-size: 12px; margin-top: 5px; }
-  .chave { font-size: 13px; word-break: break-all; text-align: center; letter-spacing: .5px; margin: 3px 0; }
-  .qr { display: flex; justify-content: center; margin: 6px 0 2px; }
-  .qr svg { width: ${Math.min(50, larguraMm - 20)}mm; height: ${Math.min(50, larguraMm - 20)}mm; }
-</style>
-</head>
-<body>
-  <div class="caixa">
-    <div class="centro negrito">${esc(danfe.razaoSocial || loja.nome)}</div>
-    <p class="info">${esc(danfe.endereco || loja.endereco || '')}</p>
-    <p class="info">CNPJ: ${esc(danfe.cnpj || '')}${danfe.inscricaoEstadual ? ' - IE: ' + esc(danfe.inscricaoEstadual) : ''}${danfe.fone ? ' - TEL: ' + esc(danfe.fone) : ''}</p>
-  </div>
-  <div class="titulo">DANFE NFC-e - Documento Auxiliar da<br>Nota Fiscal Eletrônica de Consumidor Final</div>
-  <div class="sub">Não permite aproveitamento de crédito do ICMS</div>
-  <div class="sep"></div>
-  <table>
-    <tr class="th"><td>CÓD / DESCRIÇÃO</td><td></td><td class="dir">VL.TOTAL</td></tr>
-    ${linhasItens}
-  </table>
-  <div class="sep"></div>
-  <table>
-    <tr><td>Qtd. Total de Itens:</td><td></td><td class="dir">${venda.itens.length}</td></tr>
-    <tr class="total"><td>Valor Total R$:</td><td></td><td class="dir">${fmt(venda.total)}</td></tr>
-    <tr><td>Valor Desconto R$:</td><td></td><td class="dir">${fmt(venda.desconto)}</td></tr>
-  </table>
-  <table>
-    <tr class="th"><td>Forma de Pagamento</td><td class="dir">Valor Pago</td></tr>
-    <tr><td>${rotuloForma(venda.formaPagamento)}</td><td class="dir">${fmt(venda.total)}</td></tr>
-  </table>
-  <div class="sep"></div>
-  ${aviso}
-  <p class="info">${numero != null ? `Número: ${numero} - Série: ${serie}` : ''}</p>
-  <p class="info">Emissão: ${esc(danfe.dataAutorizacao || '')} - Via Consumidor</p>
-  <div class="sep"></div>
-  <p class="info">Consulte pela chave de acesso em:</p>
-  <p class="info">${esc(danfe.urlConsulta || '')}</p>
-  <div class="rotulo">CHAVE DE ACESSO</div>
-  <div class="chave">${esc(danfe.chaveFormatada || chave)}</div>
-  <div class="sep"></div>
-  <div class="rotulo">CONSUMIDOR</div>
-  <p class="info">${consumidor}</p>
-  <div class="sep"></div>
-  <div class="qr">${danfe.qrCodeSvg || ''}</div>
-  <p class="info">Consulta via leitor de QR Code</p>
-  <div class="rotulo">Protocolo de Autorização</div>
-  <p class="info">${esc(danfe.protocolo || '')}${danfe.dataAutorizacao ? ' - ' + esc(danfe.dataAutorizacao) : ''}</p>
-</body>
-</html>`;
-}
-
-function imprimirDanfeNfce(venda, loja, danfe) {
-  return previewImprimir(danfeNfceHTML(venda, loja, danfe));
 }
 
 /**

@@ -1,4 +1,4 @@
-/** Cadastro/edição de clientes (dados p/ NFC-e e cobrança) e de vendedores. */
+/** Cadastro/edição de clientes (dados p/ cobrança) e de vendedores. */
 
 const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const $ = (id) => document.getElementById(id);

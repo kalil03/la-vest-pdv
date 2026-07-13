@@ -1,4 +1,4 @@
-/** Cadastro e edição de produtos com grade, marca e dados fiscais (NFC-e). */
+/** Cadastro e edição de produtos com grade, marca e dados fiscais. */
 
 const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const $ = (id) => document.getElementById(id);

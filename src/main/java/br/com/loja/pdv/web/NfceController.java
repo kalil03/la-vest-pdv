@@ -2,7 +2,6 @@ package br.com.loja.pdv.web;
 
 import br.com.loja.pdv.domain.Nfce;
 import br.com.loja.pdv.repository.NfceRepository;
-import br.com.loja.pdv.service.NfceCancelamentoService;
 import br.com.loja.pdv.service.NfceConsultaService;
 import br.com.loja.pdv.service.RegraNegocioException;
 import org.springframework.http.HttpHeaders;
@@ -24,13 +23,10 @@ import java.util.Map;
 public class NfceController {
 
     private final NfceConsultaService consulta;
-    private final NfceCancelamentoService cancelamento;
     private final NfceRepository nfceRepository;
 
-    public NfceController(NfceConsultaService consulta, NfceCancelamentoService cancelamento,
-                          NfceRepository nfceRepository) {
+    public NfceController(NfceConsultaService consulta, NfceRepository nfceRepository) {
         this.consulta = consulta;
-        this.cancelamento = cancelamento;
         this.nfceRepository = nfceRepository;
     }
 
@@ -41,11 +37,13 @@ public class NfceController {
         return consulta.listar(status, q);
     }
 
-    /** Cancela a NFC-e da venda na SEFAZ (evento). Body: {"justificativa": "..."} (15–255 chars). */
+    /** DESATIVADO: emissão/cancelamento de NFC-e voltaram ao sistema antigo (Set).
+     *  Mantidos só a listagem e o download de XML (histórico para o contador). */
     @PostMapping("/{vendaId}/cancelar")
-    public NfceCancelamentoService.Resultado cancelar(@PathVariable Long vendaId,
-                                                      @RequestBody Map<String, String> body) {
-        return cancelamento.cancelar(vendaId, body.get("justificativa"));
+    public ResponseEntity<Map<String, String>> cancelar(@PathVariable Long vendaId,
+                                                        @RequestBody(required = false) Map<String, String> body) {
+        return ResponseEntity.status(410).body(Map.of(
+                "erro", "Cancelamento de NFC-e desativado neste sistema — a nota fiscal é tratada no Set."));
     }
 
     /** XML de distribuição autorizado (nfeProc) para importar no sistema do contador. */
