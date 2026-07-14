@@ -78,7 +78,7 @@ public class ContasReceberService {
         String filtro = """
                 WHERE (:q = '' OR unaccent(t.cliente_nome) ILIKE unaccent('%' || :q || '%')
                        OR CAST(t.notinha AS text) = :q
-                       OR t.documento = :q OR t.documento LIKE :q || '/%')
+                       OR t.documento ILIKE '%' || :q || '%')
                   AND (CAST(:de AS date) IS NULL OR t.vencimento >= :de)
                   AND (CAST(:ate AS date) IS NULL OR t.vencimento <= :ate)
                   AND (:tipo = '' OR t.tipo_notinha = :tipo)
