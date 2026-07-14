@@ -63,10 +63,8 @@ public class ProdutoService {
     public ProdutoFiscal atualizarFiscal(Long id, ProdutoFiscalUpdate req) {
         Produto p = produtoRepository.findById(id)
                 .orElseThrow(() -> new RegraNegocioException("Produto não encontrado (id " + id + ")"));
-        if (emBranco(req.ncm())) {
-            throw new RegraNegocioException("NCM é obrigatório para a NFC-e");
-        }
-        p.setNcm(req.ncm().trim());
+        // NCM opcional: a nota fiscal é emitida pelo Set, não por este sistema
+        p.setNcm(limpar(req.ncm()));
         p.setCfop(limpar(req.cfop()));
         p.setCsosn(limpar(req.csosn()));
         if (!emBranco(req.unidade())) p.setUnidade(req.unidade().trim().toUpperCase());
@@ -167,7 +165,8 @@ public class ProdutoService {
 
     /**
      * Códigos legados do SET (que os funcionários decoraram) são preservados;
-     * produto novo sem código ganha um sequencial a partir de 100000.
+     * produto novo sem código ganha o MENOR número livre (1, 2, 3…) — fácil de
+     * digitar no caixa. Ver ProdutoRepository.proximoCodigoGerado.
      */
     private String resolverCodigoNovo(String codigo) {
         if (emBranco(codigo)) {

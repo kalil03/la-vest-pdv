@@ -42,6 +42,17 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
     @Query(value = "SELECT DISTINCT categoria FROM produto WHERE categoria IS NOT NULL ORDER BY categoria", nativeQuery = true)
     List<String> categorias();
 
-    @Query(value = "SELECT nextval('produto_codigo_seq')", nativeQuery = true)
+    /**
+     * Menor número livre para código de produto novo (1, 2, 3…) — curto de
+     * digitar no caixa. A comparação é NUMÉRICA, então não colide nem com os
+     * códigos legados do SET com zeros à esquerda (gerar "1504" quando existe
+     * "001504" confundiria a busca).
+     */
+    @Query(value = """
+            SELECT MIN(n) FROM generate_series(1, 99999) n
+            WHERE NOT EXISTS (
+                SELECT 1 FROM produto
+                WHERE codigo ~ '^[0-9]+$' AND CAST(codigo AS bigint) = n)
+            """, nativeQuery = true)
     long proximoCodigoGerado();
 }
