@@ -21,5 +21,8 @@ public record NovoClienteRequest(
         String bloqueado,
         String pfisProfissao,
         java.math.BigDecimal pfisRendaConj,
-        String anotacoes) {
+        String anotacoes,
+        String pfisNomePai,
+        String pfisNomeMae,
+        String refComerciais) {
 }

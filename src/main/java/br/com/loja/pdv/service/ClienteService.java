@@ -80,6 +80,9 @@ public class ClienteService {
         cliente.setPfisProfissao(limpar(req.pfisProfissao()));
         cliente.setPfisRendaConj(req.pfisRendaConj());
         cliente.setAnotacoes(limpar(req.anotacoes()));
+        cliente.setPfisNomePai(limpar(req.pfisNomePai()));
+        cliente.setPfisNomeMae(limpar(req.pfisNomeMae()));
+        cliente.setRefComerciais(limpar(req.refComerciais()));
     }
 
     /** Busca por nº da notinha (venda) — para a tela de carnê. */

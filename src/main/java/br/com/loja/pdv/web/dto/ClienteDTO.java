@@ -24,7 +24,10 @@ public record ClienteDTO(
         String bloqueado,
         String pfisProfissao,
         BigDecimal pfisRendaConj,
-        String anotacoes) {
+        String anotacoes,
+        String pfisNomePai,
+        String pfisNomeMae,
+        String refComerciais) {
 
     /** Atalho: os campos extras saem todos do próprio Cliente. */
     public static ClienteDTO de(Cliente c, BigDecimal saldoDevedor) {
@@ -44,6 +47,7 @@ public record ClienteDTO(
         return new ClienteDTO(c.getId(), c.getNome(), c.getCpf(), c.getTelefone(), c.getEmail(),
                 c.getLogradouro(), c.getNumero(), c.getBairro(), c.getCidade(), c.getUf(), c.getCep(),
                 saldoDevedor,
-                c.getTipo(), c.getRg(), c.getDataNasc(), c.getLimiteCred(), c.getBloqueado(), c.getPfisProfissao(), c.getPfisRendaConj(), c.getAnotacoes());
+                c.getTipo(), c.getRg(), c.getDataNasc(), c.getLimiteCred(), c.getBloqueado(), c.getPfisProfissao(), c.getPfisRendaConj(), c.getAnotacoes(),
+                c.getPfisNomePai(), c.getPfisNomeMae(), c.getRefComerciais());
     }
 }

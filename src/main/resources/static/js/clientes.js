@@ -7,7 +7,33 @@ const $form = $('form-cliente');
 const $lista = $('lista');
 const $toast = $('toast');
 
-const CAMPOS = ['nome', 'cpf', 'telefone', 'email', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'cep', 'tipo', 'rg', 'dataNasc', 'limiteCred', 'bloqueado', 'pfisProfissao', 'pfisRendaConj', 'anotacoes'];
+const CAMPOS = ['nome', 'cpf', 'telefone', 'email', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'cep', 'tipo', 'rg', 'dataNasc', 'limiteCred', 'bloqueado', 'pfisProfissao', 'pfisRendaConj', 'anotacoes', 'pfisNomePai', 'pfisNomeMae', 'refComerciais'];
+
+// ---------- CEP: preenche o endereço sozinho (ViaCEP) ----------
+const $cep = $('cep');
+let cepBuscado = '';
+$cep.addEventListener('input', () => {
+  const d = $cep.value.replace(/\D/g, '').slice(0, 8);
+  $cep.value = d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;   // formata 00000-000
+  if (d.length === 8) buscarCep(d); else cepBuscado = '';
+});
+
+async function buscarCep(cep) {
+  if (cep === cepBuscado) return;   // não repete a busca do mesmo CEP
+  cepBuscado = cep;
+  try {
+    const d = await (await fetch(`https://viacep.com.br/ws/${cep}/json/`)).json();
+    if (d.erro) { toast('CEP não encontrado'); return; }
+    if (d.logradouro) $('logradouro').value = d.logradouro;
+    if (d.bairro) $('bairro').value = d.bairro;
+    if (d.localidade) $('cidade').value = d.localidade;
+    if (d.uf) $('uf').value = d.uf;
+    $('numero').focus();   // já pula pro número, que o CEP não traz
+    if (typeof agendarRascunhoCliente === 'function') agendarRascunhoCliente();
+  } catch {
+    // sem internet: deixa preencher manual, sem erro chato
+  }
+}
 
 // ---------- salvar (cria ou edita) ----------
 $form.addEventListener('submit', async (e) => {
