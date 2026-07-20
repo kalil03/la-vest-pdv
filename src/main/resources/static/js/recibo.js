@@ -35,6 +35,12 @@ function reciboHTML(venda, loja) {
   const pago = fiado ? Number(venda.entrada || 0) : Number(venda.total);
   const troco = 0;
 
+  // no fiado o que importa é o que o cliente sai devendo: total − desconto − entrada.
+  // Somo as parcelas (é o que está impresso logo abaixo) para não haver divergência.
+  const aFinanciar = fiado
+    ? venda.parcelas.reduce((s, p) => s + Number(p.valor), 0)
+    : 0;
+
   // parcelas em aberto → nota já teve pagamento (reimpressão do carnê): via da loja atualizada
   const temPagamento = fiado && venda.parcelas.some(
     (p) => p.valorAberto != null && Number(p.valorAberto) < Number(p.valor));
@@ -73,10 +79,11 @@ function reciboHTML(venda, loja) {
     ? rotuloForma(venda.formaPagamento) + (venda.formaPagamento === 'CARTAO' && venda.parcelasCartao > 1 ? ` ${venda.parcelasCartao}x` : '')
     : '';
 
-  // fiado é PROMISSÓRIA: reconhecimento da dívida + linha de assinatura do cliente
+  // fiado é PROMISSÓRIA: linha de assinatura do cliente. O texto de "Reconheço dever"
+  // saiu a pedido do usuário — comia bobina e o valor devido agora está no bloco de
+  // totais (A FINANCIAR), em destaque, em vez de escondido no meio da frase.
   const titulo = fiado ? 'PROMISSÓRIA' : 'CUPOM NÃO FISCAL';
   const blocoAssinatura = fiado ? `
-    <div class="promtexto">Reconheço dever a importância de <span class="negrito">${fmt(venda.total)}</span> referente às mercadorias acima descritas, a pagar nas parcelas/condições indicadas.</div>
     ${venda.observacao ? `<div class="promtexto">Obs.: ${esc(venda.observacao)}</div>` : ''}
     <div class="assinatura">
       <div class="linha-assinatura"></div>
@@ -96,21 +103,21 @@ function reciboHTML(venda, loja) {
   .centro { text-align: center; }
   .negrito { font-weight: bold; }
   .dir { text-align: right; }
-  .caixa { border: 1.5px solid #000; border-radius: 6px; padding: 5px 8px; margin: 5px 0; }
+  .caixa { border: 1.5px solid #000; border-radius: 6px; padding: 3px 6px; margin: 3px 0; }
   .lojanome { text-align: center; font-size: 15px; }
   .info { text-align: center; font-size: 12px; margin: 0; }
-  .titulo { text-align: center; font-size: 15px; margin: 6px 0 4px; letter-spacing: 1px; }
-  .sep { border-top: 1.5px solid #000; margin: 6px 0; }
+  .titulo { text-align: center; font-size: 15px; margin: 4px 0 3px; letter-spacing: 1px; }
+  .sep { border-top: 1.5px solid #000; margin: 4px 0; }
   table { width: 100%; border-collapse: collapse; }
   td { padding: 1px 0; vertical-align: top; font-size: 13px; }
   .desc { font-size: 13px; }
   .th td { border-bottom: 1.5px solid #000; font-size: 12px; }
   .cabtab { font-size: 12px; margin-top: 5px; }
   .total td { font-size: 16px; padding-top: 4px; }
-  .promtexto { font-size: 12px; margin: 8px 2px; text-align: justify; line-height: 1.35; }
-  .assinatura { margin-top: 60px; }
+  .promtexto { font-size: 12px; margin: 6px 2px; text-align: justify; line-height: 1.3; }
+  .assinatura { margin-top: 95px; }
   .linha-assinatura { border-top: 1.5px solid #000; margin: 0 10px 3px; }
-  .rodape { text-align: center; font-size: 12px; margin-top: 10px; }
+  .rodape { text-align: center; font-size: 12px; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -137,9 +144,12 @@ function reciboHTML(venda, loja) {
     <tr><td>Qtd. Total de Itens:</td><td></td><td class="dir">${venda.itens.length}</td></tr>
     <tr><td>Sub-Total:</td><td></td><td class="dir">${fmt(venda.subtotal)}</td></tr>
     <tr><td>Desconto:</td><td></td><td class="dir">${fmt(venda.desconto)}</td></tr>
-    <tr class="total"><td>TOTAL:</td><td></td><td class="dir">${fmt(venda.total)}</td></tr>
+    <tr${fiado ? '' : ' class="total"'}><td>TOTAL:</td><td></td><td class="dir">${fmt(venda.total)}</td></tr>
+    ${fiado ? `
+    <tr><td>Entrada:</td><td></td><td class="dir">${fmt(pago)}</td></tr>
+    <tr class="total"><td>A FINANCIAR:</td><td></td><td class="dir">${fmt(aFinanciar)}</td></tr>` : `
     <tr><td>Pago:</td><td></td><td class="dir">${fmt(pago)}</td></tr>
-    <tr><td>Troco:</td><td></td><td class="dir">${fmt(troco)}</td></tr>
+    <tr><td>Troco:</td><td></td><td class="dir">${fmt(troco)}</td></tr>`}
   </table>
   ${pagamentoAVista ? `<div class="sep"></div><p class="info">Forma de pagamento: ${pagamentoAVista}</p>` : ''}
   ${blocoParcelas}
@@ -202,7 +212,15 @@ function previewImprimir(html) {
   return Promise.resolve();
 }
 
-/** Impressão genérica via iframe oculto (sem popup). */
+/**
+ * Impressão genérica via iframe oculto (sem popup).
+ *
+ * O iframe só sai do DOM DEPOIS que o navegador termina de despachar o job
+ * (evento afterprint). Removê-lo cedo demais aborta a impressão no meio do
+ * caminho — o cupom tem ~1 MB/2 páginas e nem sempre despacha em 3s, o que
+ * dava "Falha na impressão" intermitente (o job nem chegava ao spooler do
+ * Windows). O timeout longo é só rede de segurança se o afterprint não vier.
+ */
 function imprimirHTML(html) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
@@ -213,9 +231,13 @@ function imprimirHTML(html) {
   iframe.style.border = 'none';
   iframe.srcdoc = html;
   iframe.onload = () => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => iframe.remove(), 3000);
+    const win = iframe.contentWindow;
+    let removido = false;
+    const remover = () => { if (!removido) { removido = true; iframe.remove(); } };
+    win.addEventListener('afterprint', () => setTimeout(remover, 2000));
+    setTimeout(remover, 60000);
+    win.focus();
+    win.print();
   };
   document.body.appendChild(iframe);
 }
@@ -311,8 +333,15 @@ function promissoriaBaixaHTML(c, loja) {
   const dataHora = new Date(c.data).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
 
-  const linhas = (c.notas || []).map((n) => `
-    <tr><td>${esc(n.descricao)}</td><td class="dir">${fmt(n.valor)} — QUITADA</td></tr>`).join('');
+  // uma baixa pode ser PARCIAL (ajuste) — só é "QUITADA" se não sobrou nada nela
+  const linhas = (c.notas || []).map((n) => {
+    const resta = Number(n.restante || 0);
+    return `
+    <tr><td>${esc(n.descricao)}</td><td class="dir">${fmt(n.valor)} — ${resta > 0 ? `resta ${fmt(resta)}` : 'QUITADA'}</td></tr>`;
+  }).join('');
+
+  // o cliente pode ter OUTRAS notinhas em aberto: o saldo vem calculado do back
+  const saldo = Number(c.saldoRestante || 0);
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -349,8 +378,8 @@ function promissoriaBaixaHTML(c, loja) {
   <table>${linhas}</table>
   <div class="sep"></div>
   <table>
-    <tr><td class="destaque">TOTAL QUITADO</td><td class="dir destaque">${fmt(c.total)}</td></tr>
-    <tr><td class="negrito">SALDO ATUAL</td><td class="dir negrito">R$ 0,00 — QUITADO</td></tr>
+    <tr><td class="destaque">TOTAL BAIXADO</td><td class="dir destaque">${fmt(c.total)}</td></tr>
+    <tr><td class="negrito">SALDO ATUAL</td><td class="dir negrito">${saldo > 0 ? fmt(saldo) : 'R$ 0,00 — QUITADO'}</td></tr>
   </table>
   <div class="assinatura">
     <div class="linha-assinatura"></div>

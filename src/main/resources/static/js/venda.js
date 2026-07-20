@@ -517,13 +517,17 @@ function atualizarModal(regerar) {
   selecionarForma(forma);
 
   $('m-subtotal').textContent = fmt(subtotalVenda());
-  $('m-total').textContent = fmt(totalFinal());
   $('m-cartao-wrap').hidden = forma !== 'CARTAO';
   $('m-fiado').hidden = forma !== 'FIADO';
   $('m-div-recebido').hidden = forma !== 'DINHEIRO';
   $('m-confirmar').textContent = '';
   $('m-confirmar').insertAdjacentHTML('beforeend',
     (forma === 'FIADO' ? 'Confirmar e imprimir promissória ' : 'Confirmar e imprimir ') + '<kbd>F10</kbd>');
+
+  // por padrão o número grande é o total da venda (subtotal − desconto)
+  let totalMostrar = totalFinal();
+  $('m-total-label').textContent = 'Total Final';
+  $('m-total-obs').hidden = true;
 
   if (forma === 'FIADO') {
     const entrada = Math.max(0, lerMoeda($('m-entrada')));
@@ -533,7 +537,14 @@ function atualizarModal(regerar) {
       parcelas = gerarParcelas(restante, n, $('m-primeiro-venc').value);
     }
     renderParcelas(restante);
+    if (entrada > 0) {                       // a entrada abate no total exibido
+      totalMostrar = restante;
+      $('m-total-label').textContent = 'A financiar';
+      $('m-total-obs').textContent = `Total ${fmt(totalFinal())}  −  entrada ${fmt(entrada)}`;
+      $('m-total-obs').hidden = false;
+    }
   }
+  $('m-total').textContent = fmt(totalMostrar);
 
   if (typeof calcularTroco === 'function') calcularTroco();
 }

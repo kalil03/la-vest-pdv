@@ -248,14 +248,17 @@ public class BaixaService {
                 rs.getString("operador_reversao")));
     }
 
-    public record NotaBaixada(String descricao, BigDecimal valor) {}
+    /** valor = o que a baixa tirou desta nota; restante = o que AINDA falta nela hoje. */
+    public record NotaBaixada(String descricao, BigDecimal valor, BigDecimal restante) {}
     public record ComprovanteBaixa(Long baixaId, String clienteNome, Instant data, String operador,
-                                   BigDecimal total, List<NotaBaixada> notas) {}
+                                   BigDecimal total, BigDecimal saldoRestante, List<NotaBaixada> notas) {}
 
     /**
      * Dados para reimprimir a promissória com o saldo ATUALIZADO após a baixa —
-     * o operador grampeia na nota física do SET em vez de marcar à mão. Lista as
-     * notas que foram quitadas pela baixa (com sua descrição) e o total.
+     * o operador grampeia na nota física do SET em vez de marcar à mão. Lista o
+     * que a baixa tirou de cada nota e o que sobrou nela, mais o saldo do cliente.
+     * Baixa parcial (ajuste) e cliente com outras notinhas em aberto NÃO ficam
+     * zerados: o cupom tem que dizer a verdade, é ele que vai para a gaveta.
      */
     @Transactional(readOnly = true)
     public ComprovanteBaixa comprovante(Long baixaId) {
@@ -265,9 +268,18 @@ public class BaixaService {
                 .map(Cliente::getNome).orElse("Cliente");
         List<NotaBaixada> notas = new java.util.ArrayList<>();
         for (BaixaFiadoItem it : b.getItens()) {
-            notas.add(new NotaBaixada(descreverNota(it), it.getValor()));
+            notas.add(new NotaBaixada(descreverNota(it), it.getValor(), abertoAtual(it)));
         }
-        return new ComprovanteBaixa(b.getId(), clienteNome, b.getData(), b.getOperador(), b.getValor(), notas);
+        return new ComprovanteBaixa(b.getId(), clienteNome, b.getData(), b.getOperador(), b.getValor(),
+                nz(clienteRepo.saldoDevedor(b.getClienteId())), notas);
+    }
+
+    /** O que ainda falta na nota AGORA (0 = quitada). */
+    private BigDecimal abertoAtual(BaixaFiadoItem it) {
+        String tabela = "L".equals(it.getOrigem()) ? "pagamento_fiado" : "parcela_fiado";
+        var v = jdbc.query("SELECT valor_aberto FROM " + tabela + " WHERE id = :id",
+                new MapSqlParameterSource("id", it.getRefId()), (rs, i) -> rs.getBigDecimal(1));
+        return v.isEmpty() ? BigDecimal.ZERO : nz(v.get(0));
     }
 
     private String descreverNota(BaixaFiadoItem it) {
