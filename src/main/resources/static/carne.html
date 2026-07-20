@@ -192,6 +192,30 @@
       font-family: 'JetBrains Mono', monospace;
     }
 
+    /* agrupamento por nota: linha da nota + parcelas expandidas */
+    .tab-parcelas tbody tr.nota-row,
+    .tab-parcelas tbody tr.nota-row:nth-child(even) { background: var(--background); }
+    .tab-parcelas tbody tr.nota-row:hover { background: var(--muted); }
+    .tab-parcelas tbody tr.nota-row.sel { background: #eef2ff; border-left: 4px solid var(--primary); }
+    .tab-parcelas tbody tr.nota-row.sel-parcial { background: #f5f7ff; border-left: 4px solid #a5b4fc; }
+    .tab-parcelas tbody tr.parc-row,
+    .tab-parcelas tbody tr.parc-row:nth-child(even) { background: #f8f9fc; cursor: default; }
+    .tab-parcelas tbody tr.parc-row:hover { background: #f8f9fc; transform: none; }
+    .tab-parcelas tbody tr.parc-row td { padding: 8px 20px; font-size: 13px; color: var(--muted-foreground); }
+    .tab-parcelas .parc-desc { padding-left: 48px !important; }
+    .exp-btn {
+      background: transparent; border: 0; padding: 2px; margin-right: 4px; cursor: pointer;
+      color: var(--muted-foreground); vertical-align: middle; display: inline-flex;
+    }
+    .exp-btn:hover { color: var(--primary); }
+    .nota-rot { font-weight: 600; }
+    .ordem-badge {
+      display: inline-flex; width: 20px; height: 20px; border-radius: 9999px;
+      background: var(--primary); color: #fff; font-size: 10px; font-weight: 700;
+      align-items: center; justify-content: center;
+    }
+    .ordem-badge.parcial { background: #a5b4fc; }
+
     /* skeleton de carregamento */
     .skel {
       background: linear-gradient(90deg, var(--muted) 25%, #f5f5f7 50%, var(--muted) 75%);
@@ -378,6 +402,9 @@
         <a href="/condicional.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="shirt" class="w-[15px] h-[15px]"></i><span class="flex-1">Condicional</span>
         </a>
+        <a href="/baixas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="rotate-ccw" class="w-[15px] h-[15px]"></i><span class="flex-1">Baixas</span>
+        </a>
         <a href="/ajustes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
           <i data-lucide="settings" class="w-[15px] h-[15px]"></i><span class="flex-1">Ajustes</span>
         </a>
@@ -508,7 +535,7 @@
               <p
                 class="text-[11px] text-muted-foreground px-4 py-2 m-0 bg-secondary/60 border-b border-border flex items-center gap-1.5">
                 <i data-lucide="info" class="w-3 h-3"></i>
-                Clique nas parcelas na ordem que quiser — o recebimento abate nessa ordem (1ª clicada primeiro).
+                Clique na nota para selecioná-la inteira; use a setinha para ver as parcelas. O recebimento abate na ordem das notas clicadas (mais antiga primeiro).
               </p>
               <!-- sem cap de altura: a lista cresce e a PAGINA rola (div.flex-1
                    overflow-y-auto do main), com o painel de recebimento sticky -->
@@ -517,7 +544,7 @@
                   <thead>
                     <tr>
                       <th class="w-10"></th>
-                      <th>Parcela</th>
+                      <th>Nota</th>
                       <th>Vencimento</th>
                       <th>Status</th>
                       <th class="num">Valor</th>

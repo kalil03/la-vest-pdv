@@ -28,7 +28,10 @@ public record CarneDTO(
             BigDecimal valor,
             BigDecimal valorAberto,
             long diasAtraso,      // negativo = ainda vai vencer (ex.: -5 → vence em 5 dias)
-            String tipo) {        // "Tênis" | "Geral" — separa a carteira nas telas
+            String tipo,          // "Tênis" | "Geral" — separa a carteira nas telas
+            String notaKey,       // chave da nota (agrupa as parcelas na tela): "L:002841.07" | "V:78"
+            String notaRotulo,    // rótulo da nota ("002841.07" | "Venda nº 78")
+            String parcelaRotulo) { // rótulo da parcela dentro da nota ("03" | "2/3")
     }
 
     public record Pagamento(Instant data, BigDecimal valor, String tipo, String vendedorNome,

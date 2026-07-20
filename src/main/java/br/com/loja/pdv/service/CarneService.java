@@ -199,10 +199,18 @@ public class CarneService {
                 .findByClienteIdAndTipoOrderByDataAsc(clienteId, TipoPagamentoFiado.DEBITO_INICIAL)) {
             if (p.getValorAberto() == null || p.getValorAberto().signum() <= 0) continue;
             LocalDate venc = LocalDate.ofInstant(p.getData(), FUSO);
+            // nota = nº do documento antes da "/" (ex.: "002841.07/03" → nota "002841.07",
+            // parcela "03"); sem documento, cada lançamento é sua própria nota
+            String doc = p.getDocumento();
+            String notaRot = doc != null && doc.contains("/") ? doc.substring(0, doc.indexOf('/'))
+                    : (doc != null ? doc : "s/nº");
+            String parcRot = doc != null && doc.contains("/") ? doc.substring(doc.indexOf('/') + 1) : "";
+            String notaKey = "L:" + (doc != null && !doc.isBlank() ? notaRot : String.valueOf(p.getId()));
             // o tipo vai em campo próprio (chip na tela), não mais colado na descrição
             abertas.add(new CarneDTO.Parcela("L" + p.getId(), descricaoLegadaBase(p), null, null,
                     venc, p.getValor().negate(), p.getValorAberto(),
-                    ChronoUnit.DAYS.between(venc, hoje), p.getTipoNotinha()));
+                    ChronoUnit.DAYS.between(venc, hoje), p.getTipoNotinha(),
+                    notaKey, notaRot, parcRot));
         }
         for (ParcelaFiado p : parcelaRepository.doCliente(clienteId)) {
             if (p.getValorAberto().signum() <= 0) continue;
@@ -211,7 +219,9 @@ public class CarneService {
                     "Venda nº " + venda.getId() + " — " + p.getNumero() + "/" + venda.getParcelas().size(),
                     venda.getId(), venda.getObservacao(),
                     p.getVencimento(), p.getValor(), p.getValorAberto(),
-                    ChronoUnit.DAYS.between(p.getVencimento(), hoje), venda.getTipoNotinha()));
+                    ChronoUnit.DAYS.between(p.getVencimento(), hoje), venda.getTipoNotinha(),
+                    "V:" + venda.getId(), "Venda nº " + venda.getId(),
+                    p.getNumero() + "/" + venda.getParcelas().size()));
         }
         abertas.sort(java.util.Comparator.comparing(CarneDTO.Parcela::vencimento));
         return abertas;

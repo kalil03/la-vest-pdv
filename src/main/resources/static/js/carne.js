@@ -250,58 +250,177 @@ function statusChip(p) {
   return `<span class="chip prazo">${diasPrazo > 0 ? `Vai vencer em ${diasPrazo} dias` : 'No prazo'}</span>${extra}`;
 }
 
+// ---------- agrupamento por nota (igual à Conferir gaveta) ----------
+let expandidas = new Set();   // notaKeys com as parcelas visíveis
+let parcelaPorId = {};        // id da parcela -> parcela (para a prévia do rateio)
+
+/** Agrupa as parcelas abertas por nota, cada nota com suas parcelas (mais antiga primeiro). */
+function agruparPorNota(parcelas) {
+  const mapa = new Map();
+  parcelas.forEach((p) => {
+    const key = p.notaKey || p.id;
+    let g = mapa.get(key);
+    if (!g) {
+      g = { key, rotulo: p.notaRotulo || p.descricao, tipo: p.tipo, notinha: p.notinha,
+            observacao: p.observacao, parcelas: [] };
+      mapa.set(key, g);
+    }
+    g.parcelas.push(p);
+  });
+  const grupos = [...mapa.values()];
+  const porVenc = (a, b) => (a.vencimento < b.vencimento ? -1 : a.vencimento > b.vencimento ? 1 : 0);
+  grupos.forEach((g) => {
+    g.parcelas.sort(porVenc);
+    g.totalAberto = round2(g.parcelas.reduce((s, p) => s + Number(p.valorAberto), 0));
+    g.maisAntiga = g.parcelas[0];
+  });
+  grupos.sort((a, b) => porVenc(a.maisAntiga, b.maisAntiga));
+  return grupos;
+}
+
+/**
+ * Rateio "waterfall" do valor recebido sobre a seleção, na ordem em que foi
+ * selecionada (mais antiga primeiro dentro da nota): quita uma parcela e o que
+ * sobra abate a próxima. Mesma regra do modal — é o que fica visível ao expandir.
+ */
+function distribuirValor(valor) {
+  let sobra = Math.max(0, Number(valor) || 0);
+  const abate = new Map();
+  selecionadas.forEach((p) => {
+    const a = Math.max(0, Math.min(sobra, Number(p.valorAberto)));
+    abate.set(p.id, a);
+    sobra = round2(sobra - a);
+  });
+  return abate;
+}
+
+function estadoSelecaoNota(g) {
+  const sel = g.parcelas.filter((p) => selecionadas.some((s) => s.id === p.id)).length;
+  if (sel === 0) return 'nenhuma';
+  return sel === g.parcelas.length ? 'todas' : 'parcial';
+}
+
+/** Só a prévia do rateio nas parcelas já expandidas — chamada a cada tecla no valor. */
+function atualizarPreviewAbate() {
+  const abateMap = distribuirValor(valorDigitado());
+  document.querySelectorAll('[data-prev]').forEach((cell) => {
+    const p = parcelaPorId[cell.dataset.prev];
+    if (!p) return;
+    const abatido = abateMap.get(p.id) || 0;
+    const resta = round2(Number(p.valorAberto) - abatido);
+    const previa = abatido > 0
+      ? `<span class="chip parcial">recebe ${fmt(abatido)}${resta > 0 ? ` · resta ${fmt(resta)}` : ' · quita'}</span>`
+      : '';
+    cell.innerHTML = `${statusChip(p)} ${previa}`;
+  });
+}
+
 function renderParcelas() {
   const $corpo = $('parcelas');
   $corpo.innerHTML = '';
-  carne.parcelas.forEach((p, i) => {
+  parcelaPorId = {};
+  const grupos = agruparPorNota(carne.parcelas);
+
+  // ordem das notas na seleção (1ª nota clicada = 1) — é a ordem em que o dinheiro abate
+  const ordemNotas = [];
+  selecionadas.forEach((p) => {
+    const g = grupos.find((x) => x.parcelas.some((q) => q.id === p.id));
+    if (g && !ordemNotas.includes(g.key)) ordemNotas.push(g.key);
+  });
+
+  const abateMap = distribuirValor(valorDigitado());
+
+  grupos.forEach((g) => {
+    const estado = estadoSelecaoNota(g);
+    const aberto = expandidas.has(g.key);
+    const nParc = g.parcelas.length;
+
     const tr = document.createElement('tr');
-    const isSel = selecionadas.some(s => s.id === p.id);
+    tr.className = 'nota-row' + (estado === 'todas' ? ' sel' : estado === 'parcial' ? ' sel-parcial' : '');
     tr.tabIndex = 0;
     tr.setAttribute('role', 'checkbox');
-    tr.setAttribute('aria-checked', isSel);
-    tr.classList.toggle('sel', isSel);
-    // índice da ordem de seleção (1º, 2º…) — é a ordem em que o dinheiro abate
-    const ordem = selecionadas.findIndex((s) => s.id === p.id) + 1;
+    tr.setAttribute('aria-checked', estado === 'todas');
+    const marcador = estado === 'todas'
+      ? `<span class="ordem-badge">${ordemNotas.indexOf(g.key) + 1}</span>`
+      : estado === 'parcial'
+        ? '<span class="ordem-badge parcial" title="Nota parcialmente selecionada">–</span>'
+        : '<input type="checkbox" tabindex="-1" class="pointer-events-none accent-current">';
     tr.innerHTML = `
-      <td>${isSel
-        ? `<span class="inline-flex w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold items-center justify-center">${ordem}</span>`
-        : '<input type="checkbox" tabindex="-1" class="pointer-events-none accent-current">'}</td>
-      <td>${p.descricao}${p.tipo ? ` <span class="chip prazo">${p.tipo}</span>` : ''}${p.notinha ? ` <button type="button" class="nota-btn" data-venda="${p.notinha}" title="Imprimir a via da loja com o saldo atualizado desta nota">🖨 nota</button>` : ''}${p.observacao ? `<br><small class="text-muted-foreground"><i data-lucide="message-square-text" class="w-3 h-3 inline"></i> ${p.observacao}</small>` : ''}</td>
-      <td class="mono">${dataBr(p.vencimento)}</td>
-      <td>${statusChip(p)}</td>
-      <td class="num font-semibold">${fmt(p.valorAberto)}</td>`;
-    const alternar = () => {
-      if (isSel) selecionadas = selecionadas.filter(x => x.id !== p.id);
-      else selecionadas.push(p);
+      <td>${marcador}</td>
+      <td>
+        <button type="button" class="exp-btn" data-exp="${g.key}" aria-label="${aberto ? 'Ocultar' : 'Ver'} parcelas">
+          <i data-lucide="chevron-${aberto ? 'down' : 'right'}" class="w-4 h-4"></i>
+        </button>
+        <span class="nota-rot">${g.rotulo}</span>${g.tipo ? ` <span class="chip prazo">${g.tipo}</span>` : ''}
+        <span class="text-muted-foreground text-[12px]">· ${nParc} parcela${nParc > 1 ? 's' : ''}</span>${g.notinha ? ` <button type="button" class="nota-btn" data-venda="${g.notinha}" title="Imprimir a via da loja com o saldo atualizado desta nota">🖨 nota</button>` : ''}${g.observacao ? `<br><small class="text-muted-foreground"><i data-lucide="message-square-text" class="w-3 h-3 inline"></i> ${g.observacao}</small>` : ''}
+      </td>
+      <td class="mono">${dataBr(g.maisAntiga.vencimento)}</td>
+      <td>${statusChip(g.maisAntiga)}</td>
+      <td class="num font-semibold">${fmt(g.totalAberto)}</td>`;
+
+    // expandir/recolher — não conta como seleção
+    tr.querySelector('.exp-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (expandidas.has(g.key)) expandidas.delete(g.key); else expandidas.add(g.key);
       renderParcelas();
-    };
-    // via da loja atualizada: imprime a promissória com o saldo de hoje,
-    // sem selecionar a parcela (clique não pode virar seleção)
+    });
+    // via da loja atualizada: imprime a promissória com o saldo de hoje
     tr.querySelector('.nota-btn')?.addEventListener('click', async (e) => {
       e.stopPropagation();
       const resp = await fetch(`/api/vendas/${e.currentTarget.dataset.venda}`);
       if (resp.ok) imprimirRecibo(await resp.json(), loja);
       else toast('Não foi possível abrir a nota', 'erro');
     });
+    // clicar na nota seleciona/desseleciona a nota inteira (parcelas mais antigas primeiro)
+    const alternar = () => {
+      if (estado === 'todas') {
+        selecionadas = selecionadas.filter((s) => !g.parcelas.some((p) => p.id === s.id));
+      } else {
+        g.parcelas.forEach((p) => { if (!selecionadas.some((s) => s.id === p.id)) selecionadas.push(p); });
+      }
+      renderParcelas();
+    };
     tr.addEventListener('click', alternar);
     tr.addEventListener('keydown', (e) => {
       if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); alternar(); }
     });
     $corpo.appendChild(tr);
+
+    // parcelas da nota (só quando expandida): valor, vencimento e como o rateio cai
+    if (aberto) {
+      g.parcelas.forEach((p) => {
+        parcelaPorId[p.id] = p;
+        const abatido = abateMap.get(p.id) || 0;
+        const resta = round2(Number(p.valorAberto) - abatido);
+        const previa = abatido > 0
+          ? `<span class="chip parcial">recebe ${fmt(abatido)}${resta > 0 ? ` · resta ${fmt(resta)}` : ' · quita'}</span>`
+          : '';
+        const ptr = document.createElement('tr');
+        ptr.className = 'parc-row';
+        ptr.innerHTML = `
+          <td></td>
+          <td class="parc-desc">Parcela ${p.parcelaRotulo || ''}</td>
+          <td class="mono">${dataBr(p.vencimento)}</td>
+          <td data-prev="${p.id}">${statusChip(p)} ${previa}</td>
+          <td class="num">${fmt(p.valorAberto)}</td>`;
+        $corpo.appendChild(ptr);
+      });
+    }
   });
 
   const total = round2(selecionadas.reduce((s, p) => s + Number(p.valorAberto), 0));
+  const nNotas = ordemNotas.length;
   $('tot-rotulo').textContent = selecionadas.length
-    ? `${selecionadas.length} parcela${selecionadas.length > 1 ? 's' : ''} selecionada${selecionadas.length > 1 ? 's' : ''}`
-    : 'Nenhuma parcela selecionada';
+    ? `${nNotas} nota${nNotas > 1 ? 's' : ''} · ${selecionadas.length} parcela${selecionadas.length > 1 ? 's' : ''}`
+    : 'Nenhuma nota selecionada';
   $('tot-valor').textContent = fmt(total);
 
   let minData = selecionadas.length ? selecionadas.reduce((min, p) => p.vencimento < min ? p.vencimento : min, selecionadas[0].vencimento) : '';
   let maxData = selecionadas.length ? selecionadas.reduce((max, p) => p.vencimento > max ? p.vencimento : max, selecionadas[0].vencimento) : '';
-  
+
   $('resumo-sel').textContent = selecionadas.length
     ? `${selecionadas.length} parcela(s) · vencimentos de ${dataBr(minData)} a ${dataBr(maxData)}`
-    : 'Selecione parcelas na lista ao lado.';
+    : 'Selecione notas na lista ao lado.';
 
   $('valor-receber').value = total ? total.toFixed(2).replace('.', ',') : '';
   instalarMoeda($('valor-receber'), atualizarPainel);
@@ -351,6 +470,9 @@ function atualizarPainel() {
   const ok = valor > 0 && valor <= Number(carne.saldoDevedor) && !recebendo;
   $('btn-receber').disabled = !ok;
   $('btn-receber').textContent = valor > 0 ? `Receber ${fmt(valor)}` : 'Receber';
+
+  // reflete o rateio nas parcelas expandidas conforme o operador digita o valor
+  atualizarPreviewAbate();
 }
 
 $('valor-receber').addEventListener('input', atualizarPainel);
