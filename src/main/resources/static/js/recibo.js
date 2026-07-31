@@ -250,19 +250,28 @@ function reciboCarneHTML(r, loja) {
   const dataHora = new Date(r.data).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   const dataBr = (iso) => { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; };
 
-  // comprovante da(s) nota(s): valor original, pago agora, já pago e o que RESTA —
-  // é o papel que o cliente grampeia junto da promissória (pagamento parcial)
-  const notas = (r.itens || []).map((p) => {
-    const quitada = Number(p.restante) === 0;
-    const jaPago = Number(p.valorOriginal) - Number(p.restante);
+  // comprovante AGRUPADO por nota: não mostra 2935.07/01, /02… — mostra a nota
+  // (002935.07) com o total pago agora e quanto resta dela.
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const temResumo = Array.isArray(r.notasEmAberto);
+  const restaPorNota = new Map((r.notasEmAberto || []).map((n) => [n.rotulo, Number(n.totalAberto)]));
+  const grupos = new Map();
+  (r.itens || []).forEach((p) => {
+    const key = p.notaKey || p.descricao;
+    let g = grupos.get(key);
+    if (!g) { g = { rotulo: p.notaRotulo || p.descricao, pago: 0, restaTocado: 0 }; grupos.set(key, g); }
+    g.pago = r2(g.pago + Number(p.valorAplicado));
+    g.restaTocado = r2(g.restaTocado + Number(p.restante));
+  });
+  const notas = [...grupos.values()].map((g) => {
+    // saldo real da nota (inclui parcelas não tocadas); fallback = só as tocadas
+    const resta = temResumo ? (restaPorNota.get(g.rotulo) || 0) : g.restaTocado;
     return `
     <div class="nota-bloco">
-      <div><b>${esc(p.descricao)}</b> — venc. ${dataBr(p.vencimento)}</div>
+      <div><b>Nota ${esc(g.rotulo)}</b></div>
       <table>
-        <tr><td>Valor da nota</td><td class="dir">${fmtR(p.valorOriginal)}</td></tr>
-        <tr><td>Pago agora</td><td class="dir">${fmtR(p.valorAplicado)}</td></tr>
-        ${jaPago > Number(p.valorAplicado) ? `<tr><td>Pago até hoje</td><td class="dir">${fmtR(jaPago)}</td></tr>` : ''}
-        <tr><td><b>${quitada ? 'NOTA QUITADA' : 'Resta desta nota'}</b></td><td class="dir"><b>${quitada ? '—' : fmtR(p.restante)}</b></td></tr>
+        <tr><td>Pago agora</td><td class="dir">${fmtR(g.pago)}</td></tr>
+        <tr><td><b>${resta > 0 ? 'Resta desta nota' : 'NOTA QUITADA'}</b></td><td class="dir"><b>${resta > 0 ? fmtR(resta) : '—'}</b></td></tr>
       </table>
     </div>`;
   }).join('');

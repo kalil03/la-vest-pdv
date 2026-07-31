@@ -521,20 +521,32 @@ async function abrirModalReceber() {
   $tbody.innerHTML = '';
   inputsAbater = [];
 
-  selecionadas.forEach((p, idx) => {
+  // agrupa as parcelas selecionadas por NOTA: um campo "abater" por nota, pra dar
+  // pra descontar parcial em duas notas ao mesmo tempo. O valor de cada nota é
+  // distribuído nas suas parcelas (mais antiga primeiro) na hora de confirmar.
+  const grupos = agruparPorNota(selecionadas);
+  grupos.forEach((g, idx) => {
+    const nParc = g.parcelas.length;
     const tr = document.createElement('tr');
     tr.className = 'border-b border-border/50 hover:bg-muted/50 transition-colors';
     tr.innerHTML = `
-      <td class="px-2 py-3 text-[13px] font-medium">${p.descricao}</td>
-      <td class="px-2 py-3 text-[13px] text-right font-mono text-muted-foreground">${fmt(p.valorAberto)}</td>
+      <td class="px-2 py-3 text-[13px] font-medium">Nota ${g.rotulo}${g.tipo ? ` <span class="chip prazo">${g.tipo}</span>` : ''}<div class="text-[11px] text-muted-foreground">${nParc} parcela${nParc > 1 ? 's' : ''}</div></td>
+      <td class="px-2 py-3 text-[13px] text-right font-mono text-muted-foreground">${fmt(g.totalAberto)}</td>
       <td class="px-2 py-2 text-right">
-        <input type="text" id="mr-abater-${idx}" data-idx="${idx}" class="w-full bg-secondary border border-border rounded px-2 py-1.5 text-[14px] font-bold text-primary text-right outline-none focus:border-primary focus:ring-1 focus:ring-primary" value="${Number(p.valorAberto).toFixed(2)}">
+        <input type="text" id="mr-abater-${idx}" class="w-full bg-secondary border border-border rounded px-2 py-1.5 text-[14px] font-bold text-primary text-right outline-none focus:border-primary focus:ring-1 focus:ring-primary" value="${Number(g.totalAberto).toFixed(2)}">
       </td>
     `;
     $tbody.appendChild(tr);
     const inp = $('mr-abater-' + idx);
-    inputsAbater.push({ p, inp });
+    inputsAbater.push({ grupo: g, inp });
     instalarMoeda(inp, calcularSomaManual);
+    // não deixa abater mais do que a nota deve
+    inp.addEventListener('blur', () => {
+      if (lerMoeda(inp) > g.totalAberto) {
+        inp.value = g.totalAberto.toFixed(2).replace('.', ',');
+        formatarMoeda(inp); calcularSomaManual();
+      }
+    });
   });
 
   if (!$limite.dataset.waterfall) {
@@ -550,9 +562,10 @@ async function abrirModalReceber() {
 }
 
 // ---------- forma(s) de pagamento dentro do modal ----------
-/** Soma do que está sendo recebido de fato (os abatimentos das parcelas). */
+/** Soma do que está sendo recebido de fato (o abatimento de cada nota, limitado ao que ela deve). */
 function valorReceberModal() {
-  return round2(inputsAbater.reduce((acc, { inp }) => acc + lerMoeda(inp), 0));
+  return round2(inputsAbater.reduce((acc, { grupo, inp }) =>
+    acc + Math.min(lerMoeda(inp), grupo.totalAberto), 0));
 }
 
 function iniciarFormasModal() {
@@ -618,8 +631,8 @@ $('mr-t2').addEventListener('change', recomputeSplit);
  */
 function aplicarWaterfall() {
   let sobra = lerMoeda($('mr-limite'));
-  inputsAbater.forEach(({ p, inp }) => {
-    const abate = Math.max(0, Math.min(sobra, Number(p.valorAberto)));
+  inputsAbater.forEach(({ grupo, inp }) => {
+    const abate = Math.max(0, Math.min(sobra, grupo.totalAberto));
     inp.value = abate > 0 ? abate.toFixed(2).replace('.', ',') : '';
     formatarMoeda(inp);
     sobra = round2(sobra - abate);
@@ -628,8 +641,10 @@ function aplicarWaterfall() {
 }
 
 function calcularSomaManual() {
-  const soma = inputsAbater.reduce((acc, {inp}) => acc + lerMoeda(inp), 0);
-  $('mr-soma-abatimentos').textContent = formatarMoedaString(soma) || 'R$ 0,00';
+  // soma efetiva (cada nota no máximo o que ela deve)
+  const soma = inputsAbater.reduce((acc, { grupo, inp }) =>
+    acc + Math.min(lerMoeda(inp), grupo.totalAberto), 0);
+  $('mr-soma-abatimentos').textContent = formatarMoedaString(round2(soma)) || 'R$ 0,00';
   if (mrSplit) recomputeSplit();
 }
 
@@ -638,13 +653,19 @@ async function confirmarRecebimento() {
   if (recebendo) return;
   const alocacoes = [];
   let valorTotal = 0;
-  
-  inputsAbater.forEach(({ p, inp }) => {
-    const v = lerMoeda(inp);
-    if (v > 0) {
-      alocacoes.push({ parcelaId: p.id, valor: v.toFixed(2) });
-      valorTotal = round2(valorTotal + v);
-    }
+
+  // o valor de cada NOTA é distribuído nas suas parcelas, mais antiga primeiro
+  // (limitado ao que a nota deve); o back recebe a alocação por parcela como antes
+  inputsAbater.forEach(({ grupo, inp }) => {
+    let sobra = Math.min(lerMoeda(inp), grupo.totalAberto);
+    grupo.parcelas.forEach((p) => {
+      const tira = Math.max(0, Math.min(sobra, Number(p.valorAberto)));
+      if (tira > 0) {
+        alocacoes.push({ parcelaId: p.id, valor: tira.toFixed(2) });
+        valorTotal = round2(valorTotal + tira);
+      }
+      sobra = round2(sobra - tira);
+    });
   });
 
   if (valorTotal <= 0) {
