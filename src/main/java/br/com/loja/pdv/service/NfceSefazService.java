@@ -362,6 +362,7 @@ public class NfceSefazService {
             case PIX -> "17";
             case CARTAO -> "04";                  // cartão (padrão do legado; não distingue crédito/débito)
             case FIADO -> "05";                   // crédito loja (crediário próprio)
+            case MISTO -> "99";                   // outros (NF-e desativada; mantém o switch exaustivo)
         };
     }
 

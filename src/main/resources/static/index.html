@@ -721,6 +721,7 @@
                   <option value="DINHEIRO">Dinheiro</option>
                   <option value="PIX">PIX</option>
                   <option value="CARTAO">Cartão de Crédito/Débito</option>
+                  <option value="MISTO">2 formas (à vista)</option>
                   <option value="FIADO">Fiado / Crediário Próprio</option>
                 </select>
               </div>
@@ -729,6 +730,27 @@
                 <label for="m-parcelas-cartao">Parcelas do cartão</label>
                 <select id="m-parcelas-cartao"
                   class="w-full bg-background border border-border rounded-md px-3 py-2 text-[13px] text-foreground font-medium outline-none"></select>
+              </div>
+
+              <div id="m-misto-wrap" class="mc-campo col-span-2 flex flex-col gap-2" hidden>
+                <label>Pagamento em 2 formas — 1ª tem o valor; a 2ª pega o resto</label>
+                <div class="flex gap-2 items-center">
+                  <select id="m-misto-t1"
+                    class="flex-1 bg-background border border-border rounded-md px-2 py-2 text-[13px] font-medium outline-none">
+                    <option value="DINHEIRO">Dinheiro</option><option value="PIX">PIX</option><option value="CARTAO">Cartão</option>
+                  </select>
+                  <input id="m-misto-v1" type="number" min="0" step="0.01" placeholder="0,00"
+                    class="w-32 bg-background border border-border rounded-md px-2 py-2 text-[14px] font-mono font-bold text-right text-primary focus:border-primary outline-none">
+                </div>
+                <div class="flex gap-2 items-center">
+                  <select id="m-misto-t2"
+                    class="flex-1 bg-background border border-border rounded-md px-2 py-2 text-[13px] font-medium outline-none">
+                    <option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option><option value="CARTAO">Cartão</option>
+                  </select>
+                  <input id="m-misto-v2" readonly
+                    class="w-32 bg-muted border border-border rounded-md px-2 py-2 text-[14px] font-mono font-bold text-right text-muted-foreground">
+                </div>
+                <p id="m-misto-info" class="text-[12px] m-0"></p>
               </div>
 
               <div id="m-fiado" hidden class="mc-fiado col-span-2">

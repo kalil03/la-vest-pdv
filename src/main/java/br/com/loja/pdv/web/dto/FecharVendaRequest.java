@@ -31,7 +31,16 @@ public record FecharVendaRequest(
         String tipoNotinha, // "Geral" ou "Tênis" — obrigatório (validado no serviço)
         LocalDate data, // null = agora; preenchida = venda lançada com outra data (ex.: venda de ontem anotada no papel)
         @Valid Fiado fiado,
+        // à vista pago em 2+ formas: formaPagamento = MISTO e a soma tem que fechar com o total
+        @Valid List<FormaPaga> formas,
         @NotEmpty(message = "Venda sem itens") @Valid List<Item> itens) {
+
+    /** Uma forma de pagamento da venda à vista mista (ex.: Cartão R$60). */
+    public record FormaPaga(
+            @NotNull(message = "Informe a forma de pagamento") FormaPagamento forma,
+            @NotNull @Digits(integer = 8, fraction = 2, message = "Valor da forma com mais de 2 casas decimais")
+            BigDecimal valor) {
+    }
 
     public record Item(
             @NotNull Long variacaoId,

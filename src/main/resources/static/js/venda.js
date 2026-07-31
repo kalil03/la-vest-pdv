@@ -519,7 +519,9 @@ function atualizarModal(regerar) {
   $('m-subtotal').textContent = fmt(subtotalVenda());
   $('m-cartao-wrap').hidden = forma !== 'CARTAO';
   $('m-fiado').hidden = forma !== 'FIADO';
+  $('m-misto-wrap').hidden = forma !== 'MISTO';
   $('m-div-recebido').hidden = forma !== 'DINHEIRO';
+  if (forma === 'MISTO') recomputeMistoVenda();
   $('m-confirmar').textContent = '';
   $('m-confirmar').insertAdjacentHTML('beforeend',
     (forma === 'FIADO' ? 'Confirmar e imprimir promissória ' : 'Confirmar e imprimir ') + '<kbd>F10</kbd>');
@@ -548,6 +550,35 @@ function atualizarModal(regerar) {
 
   if (typeof calcularTroco === 'function') calcularTroco();
 }
+
+// ---------- pagamento à vista em 2 formas (MISTO) ----------
+const rotForma = (f) => ({ DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO: 'Cartão' }[f] || f);
+/** 1ª forma = valor digitado; 2ª forma = o resto (automático). Soma = total da venda. */
+function recomputeMistoVenda() {
+  const base = totalFinal();
+  let v1 = Math.max(0, lerMoeda($('m-misto-v1')));
+  if (v1 > base) v1 = base;
+  const v2 = round2(base - v1);
+  $('m-misto-v2').value = v2 ? v2.toFixed(2) : '';
+  const info = $('m-misto-info');
+  const t1 = $('m-misto-t1').value, t2 = $('m-misto-t2').value;
+  if (v1 <= 0 || v2 <= 0) {
+    info.textContent = `As duas formas precisam ter valor (total ${fmt(base)}).`;
+    info.style.color = 'var(--warn, #d97706)';
+    return false;
+  }
+  if (t1 === t2) {
+    info.textContent = 'Escolha duas formas diferentes.';
+    info.style.color = 'var(--warn, #d97706)';
+    return false;
+  }
+  info.textContent = `${rotForma(t1)} ${fmt(v1)} + ${rotForma(t2)} ${fmt(v2)} = ${fmt(base)}`;
+  info.style.color = 'var(--muted-foreground)';
+  return true;
+}
+$('m-misto-v1').addEventListener('input', recomputeMistoVenda);
+$('m-misto-t1').addEventListener('change', recomputeMistoVenda);
+$('m-misto-t2').addEventListener('change', recomputeMistoVenda);
 
 function renderParcelas(restante) {
   const $corpo = $('m-parcelas-corpo');
@@ -660,6 +691,17 @@ async function confirmarVenda() {
       entradaTipo: entrada > 0 ? $('m-entrada-tipo').value : null,
       parcelas: parcelas.map((p) => ({ numero: p.numero, valor: p.valor.toFixed(2), vencimento: p.vencimento })),
     };
+  }
+
+  if (forma === 'MISTO') {
+    const total = totalFinal();
+    let v1 = round2(Math.max(0, lerMoeda($('m-misto-v1'))));
+    if (v1 > total) v1 = total;
+    const v2 = round2(total - v1);
+    const t1 = $('m-misto-t1').value, t2 = $('m-misto-t2').value;
+    if (v1 <= 0 || v2 <= 0) { mostrarErroModal('Informe o valor das duas formas de pagamento.'); return; }
+    if (t1 === t2) { mostrarErroModal('Escolha duas formas de pagamento diferentes.'); return; }
+    body.formas = [{ forma: t1, valor: v1.toFixed(2) }, { forma: t2, valor: v2.toFixed(2) }];
   }
 
   enviandoVenda = true;

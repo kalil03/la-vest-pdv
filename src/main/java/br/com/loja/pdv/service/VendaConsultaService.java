@@ -81,12 +81,23 @@ public class VendaConsultaService {
     public CaixaDia caixaDia(LocalDate dia) {
         var params = new MapSqlParameterSource().addValue("dia", dia);
 
+        // venda à vista MISTA é expandida pelas suas formas (pagamento_venda); as de
+        // forma única seguem pela coluna. Assim o total por forma — e o DINHEIRO da
+        // conferência — conta a parte de cada forma de uma venda mista.
         List<Linha> vendas = jdbc.query("""
-                SELECT forma_pagamento AS rotulo, COUNT(*) AS qtd, COALESCE(SUM(total), 0) AS total
-                FROM venda
-                WHERE cancelada_em IS NULL
-                  AND CAST(data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
-                GROUP BY forma_pagamento ORDER BY forma_pagamento
+                SELECT rotulo, COUNT(*) AS qtd, COALESCE(SUM(valor), 0) AS total FROM (
+                    SELECT v.forma_pagamento AS rotulo, v.total AS valor
+                    FROM venda v
+                    WHERE v.cancelada_em IS NULL
+                      AND CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                      AND v.forma_pagamento <> 'MISTO'
+                    UNION ALL
+                    SELECT pv.forma AS rotulo, pv.valor
+                    FROM venda v JOIN pagamento_venda pv ON pv.venda_id = v.id
+                    WHERE v.cancelada_em IS NULL
+                      AND CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                      AND v.forma_pagamento = 'MISTO'
+                ) t GROUP BY rotulo ORDER BY rotulo
                 """, params,
                 (rs, i) -> new Linha(rs.getString("rotulo"), rs.getLong("qtd"), rs.getBigDecimal("total")));
 
@@ -145,13 +156,25 @@ public class VendaConsultaService {
         // com a venda cancelada mantendo a data original (nunca é deletada), dá
         // para separar: estorno de venda de HOJE já se anulou nas somas acima;
         // estorno de venda de dia ANTERIOR é devolução que saiu da gaveta HOJE
+        // estorno cross-day de venda MISTA também é expandido pelas formas, pra
+        // saída de DINHEIRO da gaveta bater com a parte que foi devolvida em dinheiro
         List<SaidaEstorno> saidasCrossDay = jdbc.query("""
-                SELECT e.venda_id, e.total, e.forma_pagamento,
-                       CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) AS dia_venda
-                FROM estorno e JOIN venda v ON v.id = e.venda_id
-                WHERE CAST(e.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
-                  AND CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) < :dia
-                ORDER BY e.venda_id
+                SELECT venda_id, dia_venda, forma_pagamento, total FROM (
+                    SELECT e.venda_id, e.total AS total, e.forma_pagamento,
+                           CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) AS dia_venda
+                    FROM estorno e JOIN venda v ON v.id = e.venda_id
+                    WHERE CAST(e.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                      AND CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) < :dia
+                      AND e.forma_pagamento <> 'MISTO'
+                    UNION ALL
+                    SELECT e.venda_id, pv.valor, pv.forma,
+                           CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date)
+                    FROM estorno e JOIN venda v ON v.id = e.venda_id
+                         JOIN pagamento_venda pv ON pv.venda_id = v.id
+                    WHERE CAST(e.data AT TIME ZONE 'America/Sao_Paulo' AS date) = :dia
+                      AND CAST(v.data AT TIME ZONE 'America/Sao_Paulo' AS date) < :dia
+                      AND e.forma_pagamento = 'MISTO'
+                ) t ORDER BY venda_id
                 """, params,
                 (rs, i) -> new SaidaEstorno(rs.getLong("venda_id"),
                         rs.getDate("dia_venda").toLocalDate(),

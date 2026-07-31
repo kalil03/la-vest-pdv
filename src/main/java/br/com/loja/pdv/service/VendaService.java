@@ -22,6 +22,7 @@ public class VendaService {
     private final PagamentoFiadoRepository pagamentoFiadoRepository;
     private final EstornoRepository estornoRepository;
     private final NfceRepository nfceRepository;
+    private final PagamentoVendaRepository pagamentoVendaRepository;
 
     public VendaService(VendaRepository vendaRepository,
                         VariacaoRepository variacaoRepository,
@@ -29,7 +30,8 @@ public class VendaService {
                         VendedorRepository vendedorRepository,
                         PagamentoFiadoRepository pagamentoFiadoRepository,
                         EstornoRepository estornoRepository,
-                        NfceRepository nfceRepository) {
+                        NfceRepository nfceRepository,
+                        PagamentoVendaRepository pagamentoVendaRepository) {
         this.vendaRepository = vendaRepository;
         this.variacaoRepository = variacaoRepository;
         this.clienteRepository = clienteRepository;
@@ -37,6 +39,7 @@ public class VendaService {
         this.pagamentoFiadoRepository = pagamentoFiadoRepository;
         this.estornoRepository = estornoRepository;
         this.nfceRepository = nfceRepository;
+        this.pagamentoVendaRepository = pagamentoVendaRepository;
     }
 
     /**
@@ -120,6 +123,11 @@ public class VendaService {
         BigDecimal total = subtotal.subtract(desconto);
         venda.setTotal(total);
 
+        // à vista MISTO: valida as formas ANTES de gravar (a soma tem que fechar com o total)
+        if (req.formaPagamento() == FormaPagamento.MISTO) {
+            validarFormasMistas(req.formas(), total);
+        }
+
         BigDecimal entrada = BigDecimal.ZERO;
         if (req.formaPagamento() == FormaPagamento.FIADO) {
             entrada = montarFiado(venda, req.fiado(), total);
@@ -135,6 +143,13 @@ public class VendaService {
             pagamento.setValor(entrada);
             pagamento.setTipo(req.fiado().entradaTipo());
             pagamentoFiadoRepository.saveAndFlush(pagamento);
+        }
+
+        // detalhamento das formas da venda à vista mista (o Caixa soma por elas)
+        if (req.formaPagamento() == FormaPagamento.MISTO) {
+            for (FecharVendaRequest.FormaPaga f : req.formas()) {
+                pagamentoVendaRepository.save(new PagamentoVenda(venda.getId(), f.forma().name(), f.valor()));
+            }
         }
 
         return montarResumo(venda);
@@ -178,6 +193,26 @@ public class VendaService {
                     "Parcelas somam " + soma + " mas o restante após a entrada é " + restante);
         }
         return entrada;
+    }
+
+    /** Valida as formas de uma venda à vista MISTA: 2+ formas à vista somando o total. */
+    private void validarFormasMistas(List<FecharVendaRequest.FormaPaga> formas, BigDecimal total) {
+        if (formas == null || formas.size() < 2) {
+            throw new RegraNegocioException("Pagamento misto precisa de pelo menos 2 formas");
+        }
+        BigDecimal soma = BigDecimal.ZERO;
+        for (FecharVendaRequest.FormaPaga f : formas) {
+            if (f.forma() == FormaPagamento.FIADO || f.forma() == FormaPagamento.MISTO) {
+                throw new RegraNegocioException("Forma inválida no pagamento misto: " + f.forma());
+            }
+            if (f.valor() == null || f.valor().signum() <= 0) {
+                throw new RegraNegocioException("Cada forma do pagamento misto precisa de um valor positivo");
+            }
+            soma = soma.add(f.valor());
+        }
+        if (soma.compareTo(total) != 0) {
+            throw new RegraNegocioException("As formas somam R$ " + soma + " mas o total da venda é R$ " + total);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -229,6 +264,12 @@ public class VendaService {
                     .reduce(BigDecimal.ZERO, BigDecimal::add)
                 : null;
 
+        var formas = venda.getFormaPagamento() == FormaPagamento.MISTO
+                ? pagamentoVendaRepository.findByVendaId(venda.getId()).stream()
+                    .map(pv -> new VendaResumo.FormaPaga(pv.getForma(), pv.getValor()))
+                    .toList()
+                : null;
+
         return new VendaResumo(
                 venda.getId(), venda.getData(), venda.getFormaPagamento(),
                 venda.getTotal().add(venda.getDesconto()), venda.getDesconto(), venda.getTotal(),
@@ -239,7 +280,7 @@ public class VendaService {
                 venda.getParcelasCartao(),
                 venda.getObservacao(),
                 entrada != null && entrada.signum() > 0 ? entrada : null,
-                saldoDevedor, itens, parcelas);
+                saldoDevedor, itens, parcelas, formas);
     }
 
     /**

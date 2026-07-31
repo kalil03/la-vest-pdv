@@ -24,12 +24,16 @@ public record VendaResumo(
         BigDecimal entrada,       // só em FIADO com entrada
         BigDecimal saldoDevedor,  // só em FIADO (saldo já incluindo esta venda)
         List<Item> itens,
-        List<Parcela> parcelas) { // só em FIADO
+        List<Parcela> parcelas,   // só em FIADO
+        List<FormaPaga> formas) { // só em MISTO (à vista em 2+ formas)
 
     public record Item(Long variacaoId, String codigo, String descricao,
                        int quantidade, BigDecimal precoUnit, BigDecimal subtotal) {
     }
 
     public record Parcela(int numero, BigDecimal valor, LocalDate vencimento, BigDecimal valorAberto) {
+    }
+
+    public record FormaPaga(String forma, BigDecimal valor) {
     }
 }

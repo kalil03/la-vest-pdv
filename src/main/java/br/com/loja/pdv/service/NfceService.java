@@ -42,6 +42,7 @@ public class NfceService {
             case PIX -> "17";
             case CARTAO -> "99"; // genérico; sem distinguir crédito/débito
             case FIADO -> "05";  // crédito loja (crediário próprio)
+            case MISTO -> "99";  // NF-e desativada; mantém o switch exaustivo
         };
     }
 
