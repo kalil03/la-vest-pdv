@@ -14,6 +14,7 @@ fetch('/api/config').then((r) => r.json()).then((c) => { loja = c; });
 let resumos = [];            // lista de condicionais
 let itens = [];              // peças da nova condicional {variacaoId, codigo, descricao, qtd, preco}
 let clienteSel = null;       // {id, nome}
+let editandoId = null;       // id da condicional em edição (devolução parcial); null = nova
 
 // ---------- vendedores ----------
 fetch('/api/vendedores').then((r) => r.json()).then((vs) => {
@@ -28,18 +29,74 @@ function mostrarNova(sim) {
   $('view-lista').hidden = sim;
   if (sim) { resetNova(); $('n-cliente').focus(); }
 }
-$('btn-nova').addEventListener('click', () => mostrarNova(true));
+$('btn-nova').addEventListener('click', () => { mostrarNova(true); restaurarRascunhoCond(); });
 $('n-cancelar').addEventListener('click', () => mostrarNova(false));
+// mudanças na observação/vendedor também alimentam o rascunho
+$('n-obs').addEventListener('input', agendarRascunhoCond);
+$('n-vendedor').addEventListener('change', agendarRascunhoCond);
 
 function resetNova() {
   itens = [];
   clienteSel = null;
+  editandoId = null;
   $('n-cliente').value = '';
+  $('n-cliente').disabled = false;
   $('n-cliente-badge').hidden = true;
   $('n-vendedor').value = '';
   $('n-obs').value = '';
   $('n-busca').value = '';
+  $('n-salvar').innerHTML = '<i data-lucide="printer" class="w-4 h-4"></i> Salvar e imprimir comprovante';
   renderItens();
+}
+
+/** Abre o form em modo EDIÇÃO de uma condicional ABERTA (devolução parcial). */
+async function abrirEdicao(id) {
+  let c;
+  try { c = await (await fetch(`/api/condicionais/${id}`)).json(); }
+  catch { toast('Sem conexão', 'erro'); return; }
+  if (c.status !== 'ABERTA') { toast(`Condicional já foi ${c.status.toLowerCase()}`, 'erro'); carregar(); return; }
+  mostrarNova(true);                 // reseta e mostra o form
+  editandoId = id;
+  clienteSel = { id: c.clienteId, nome: c.clienteNome };
+  $('n-cliente').value = c.clienteNome;
+  $('n-cliente').disabled = true;    // na edição não troca o cliente
+  $('n-cliente-badge').textContent = `Cliente nº ${c.clienteId}`;
+  $('n-cliente-badge').hidden = false;
+  if (c.vendedorId) $('n-vendedor').value = c.vendedorId;
+  $('n-obs').value = c.observacao || '';
+  itens = c.itens.map((i) => ({ variacaoId: i.variacaoId, codigo: i.codigo, descricao: i.descricao, qtd: i.quantidade, preco: Number(i.precoUnit) }));
+  $('n-salvar').innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Salvar alterações da nº ${id}`;
+  renderItens();
+  toast(`Editando condicional nº ${id} — tire o que a cliente devolveu`, 'ok');
+}
+
+// ---------- rascunho: guarda a condicional NÃO finalizada e devolve ao reabrir ----------
+function coletarRascunhoCond() {
+  return { clienteSel, vendedorId: $('n-vendedor').value || null, obs: $('n-obs').value || '', itens };
+}
+const _agendaCond = (typeof Rascunho !== 'undefined')
+  ? Rascunho.autoSave('condicional', coletarRascunhoCond, (d) => (d.itens && d.itens.length) || d.clienteSel)
+  : function () {};
+// não guarda rascunho durante uma EDIÇÃO (aí já é uma condicional existente)
+function agendarRascunhoCond() { if (editandoId == null) _agendaCond(); }
+
+/** Restaura o rascunho no formulário (ao abrir "Nova"). Devolve true se havia rascunho. */
+function restaurarRascunhoCond() {
+  if (typeof Rascunho === 'undefined') return false;
+  const d = Rascunho.carregar('condicional');
+  if (!d || (!(d.itens && d.itens.length) && !d.clienteSel)) return false;
+  if (d.clienteSel) {
+    clienteSel = d.clienteSel;
+    $('n-cliente').value = d.clienteSel.nome || '';
+    $('n-cliente-badge').textContent = `Cliente nº ${d.clienteSel.id}`;
+    $('n-cliente-badge').hidden = false;
+  }
+  if (d.vendedorId) $('n-vendedor').value = d.vendedorId;
+  if (d.obs) $('n-obs').value = d.obs;
+  itens = Array.isArray(d.itens) ? d.itens : [];
+  renderItens();
+  Rascunho.aviso('Rascunho de condicional recuperado', () => { Rascunho.limpar('condicional'); resetNova(); });
+  return true;
 }
 
 // ---------- autocomplete cliente ----------
@@ -69,6 +126,7 @@ $('n-cliente-res').addEventListener('mousedown', (e) => {
   $('n-cliente-badge').hidden = false;
   $('n-cliente-res').hidden = true;
   $('n-busca').focus();
+  agendarRascunhoCond();
 });
 
 // ---------- busca de produto ----------
@@ -144,6 +202,7 @@ function adicionarItem(p, variacao, qtd = 1) {
   else itens.push({ variacaoId: variacao.id, codigo: p.codigo, descricao: desc, qtd, preco: Number(p.preco) });
   renderItens();
   $('n-busca').focus();
+  agendarRascunhoCond();
 }
 
 function renderItens() {
@@ -170,12 +229,14 @@ $('n-itens').addEventListener('input', (e) => {
   // atualiza só os totais sem re-render (não perder foco do input)
   $('n-total').textContent = fmt(itens.reduce((s, x) => s + x.qtd * x.preco, 0));
   inp.closest('tr').querySelector('td.num.mono').textContent = fmt(it.qtd * it.preco);
+  agendarRascunhoCond();
 });
 $('n-itens').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-rem]');
   if (!b) return;
   itens.splice(Number(b.dataset.rem), 1);
   renderItens();
+  agendarRascunhoCond();
 });
 
 function parseMoeda(s) {
@@ -195,13 +256,15 @@ $('n-salvar').addEventListener('click', async () => {
   };
   $('n-salvar').disabled = true;
   try {
-    const r = await fetch('/api/condicionais', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    const emEdicao = editandoId != null;
+    const r = await fetch(emEdicao ? `/api/condicionais/${editandoId}` : '/api/condicionais', {
+      method: emEdicao ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     if (!r.ok) { const er = await r.json().catch(() => ({})); toast(er.erro || 'Erro ao salvar', 'erro'); return; }
     const c = await r.json();
+    if (typeof Rascunho !== 'undefined') Rascunho.limpar('condicional'); // finalizou: rascunho some
     imprimirHTML(comprovanteHTML(c, loja));
-    toast(`Condicional nº ${c.id} registrada`, 'ok');
+    toast(emEdicao ? `Condicional nº ${c.id} atualizada` : `Condicional nº ${c.id} registrada`, 'ok');
     mostrarNova(false);
     carregar();
   } finally {
@@ -228,6 +291,7 @@ async function carregar() {
       <td>
         <div class="flex flex-wrap gap-1.5">
           ${aberta ? `<button class="acao-btn primario" data-fechar="${c.id}" title="Fechar: leva o que ficou para o caixa"><i data-lucide="check" class="w-3.5 h-3.5"></i> Fechar</button>` : ''}
+          ${aberta ? `<button class="acao-btn" data-editar="${c.id}" title="Editar peças (devolução parcial)"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>` : ''}
           <button class="acao-btn" data-comprov="${i}" title="Reimprimir comprovante"><i data-lucide="printer" class="w-3.5 h-3.5"></i></button>
           ${aberta ? `<button class="acao-btn perigo" data-cancelar="${c.id}" title="Cancelar (voltou tudo)"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>` : ''}
         </div>
@@ -239,10 +303,13 @@ async function carregar() {
 
 $('lista').addEventListener('click', async (e) => {
   const fechar = e.target.closest('button[data-fechar]');
+  const editar = e.target.closest('button[data-editar]');
   const cancelar = e.target.closest('button[data-cancelar]');
   const comprov = e.target.closest('button[data-comprov]');
   if (fechar) {
     location.href = `/?condicional=${fechar.dataset.fechar}`;
+  } else if (editar) {
+    abrirEdicao(Number(editar.dataset.editar));
   } else if (cancelar) {
     if (!confirm('Cancelar esta condicional? (a cliente devolveu tudo)')) return;
     const r = await fetch(`/api/condicionais/${cancelar.dataset.cancelar}/cancelar`, { method: 'POST' });
@@ -307,3 +374,12 @@ function toast(msg, tipo = '') {
 }
 
 carregar();
+
+// aviso na abertura: existe uma condicional não finalizada guardada?
+if (typeof Rascunho !== 'undefined') {
+  const d = Rascunho.carregar('condicional');
+  if (d && ((d.itens && d.itens.length) || d.clienteSel)) {
+    Rascunho.aviso('Você tem uma condicional não finalizada — abra "Nova condicional" para continuar',
+      () => Rascunho.limpar('condicional'));
+  }
+}

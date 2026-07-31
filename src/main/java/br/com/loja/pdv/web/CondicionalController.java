@@ -31,6 +31,13 @@ public class CondicionalController {
         return service.abrir(req);
     }
 
+    /** Edita as peças de uma condicional ABERTA (devolução parcial). */
+    @PutMapping("/{id}")
+    public CondicionalService.CondicionalDTO editar(@PathVariable Long id,
+                                                    @RequestBody CondicionalService.EditarRequest req) {
+        return service.editar(id, req);
+    }
+
     @PostMapping("/{id}/fechar")
     public ResponseEntity<Void> fechar(@PathVariable Long id, @RequestParam Long vendaId) {
         service.marcarFechada(id, vendaId);

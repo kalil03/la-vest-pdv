@@ -726,8 +726,19 @@ async function confirmarVenda() {
     if (condicionalEmFechamento) {
       const cid = condicionalEmFechamento;
       condicionalEmFechamento = null;
-      fetch(`/api/condicionais/${cid}/fechar?vendaId=${venda.id}`, { method: 'POST' })
-        .then((r) => { if (r.ok) toast(`Condicional nº ${cid} fechada e ligada à venda`, 'ok'); });
+      // ANTES era fire-and-forget: se falhasse, a venda saía mas a condicional
+      // ficava ABERTA sem avisar (risco de fechar/vender de novo). Agora avisa.
+      try {
+        const rc = await fetch(`/api/condicionais/${cid}/fechar?vendaId=${venda.id}`, { method: 'POST' });
+        if (rc.ok) {
+          toast(`Condicional nº ${cid} fechada e ligada à venda`, 'ok');
+        } else {
+          const er = await rc.json().catch(() => ({}));
+          toast(`ATENÇÃO: venda feita, mas a condicional nº ${cid} NÃO foi fechada (${er.erro || 'erro'}). Feche na mão em Condicional.`, 'erro');
+        }
+      } catch {
+        toast(`ATENÇÃO: venda feita, mas não deu para fechar a condicional nº ${cid}. Feche na mão em Condicional.`, 'erro');
+      }
     }
     localStorage.removeItem('pdv.recuperacao');
     if (typeof Rascunho !== 'undefined') Rascunho.limpar('venda');

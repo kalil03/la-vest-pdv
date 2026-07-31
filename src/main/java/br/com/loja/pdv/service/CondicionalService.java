@@ -62,7 +62,36 @@ public class CondicionalService {
         }
         c.setObservacao(req.observacao() == null || req.observacao().isBlank() ? null : req.observacao().trim());
 
-        for (NovoItem ni : req.itens()) {
+        preencherItens(c, req.itens());
+
+        condicionalRepo.save(c);
+        return toDTO(c);
+    }
+
+    public record EditarRequest(String observacao, List<NovoItem> itens) {}
+
+    /**
+     * Ajusta as peças de uma condicional ABERTA — ex.: a cliente devolveu parte
+     * das peças e ficou com o resto para provar mais. Substitui os itens pelos
+     * informados. Para devolver TUDO, use Cancelar.
+     */
+    @Transactional
+    public CondicionalDTO editar(Long id, EditarRequest req) {
+        Condicional c = carregar(id);
+        exigirAberta(c);
+        if (req.itens() == null || req.itens().isEmpty()) {
+            throw new RegraNegocioException("Deixe ao menos uma peça (para devolver tudo, use Cancelar)");
+        }
+        c.setObservacao(req.observacao() == null || req.observacao().isBlank() ? null : req.observacao().trim());
+        c.getItens().clear();       // orphanRemoval apaga os antigos
+        preencherItens(c, req.itens());
+        condicionalRepo.save(c);
+        return toDTO(c);
+    }
+
+    /** Cria os ItemCondicional a partir dos itens informados (compartilhado por abrir/editar). */
+    private void preencherItens(Condicional c, List<NovoItem> itens) {
+        for (NovoItem ni : itens) {
             if (ni.quantidade() <= 0) throw new RegraNegocioException("Quantidade inválida");
             Variacao v = variacaoRepo.findById(ni.variacaoId())
                     .orElseThrow(() -> new RegraNegocioException("Produto não encontrado (variação " + ni.variacaoId() + ")"));
@@ -73,9 +102,6 @@ public class CondicionalService {
             ic.setPrecoUnit(ni.precoUnit() != null ? ni.precoUnit() : v.getProduto().getPreco());
             c.getItens().add(ic);
         }
-
-        condicionalRepo.save(c);
-        return toDTO(c);
     }
 
     @Transactional(readOnly = true)
