@@ -259,7 +259,7 @@ $('f-status').addEventListener('change', carregar);
 function comprovanteHTML(c, loja) {
   const e = (s) => String(s ?? '').replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]));
   const linhas = c.itens.map((i) =>
-    `<tr><td>${i.quantidade}x ${e(i.descricao)}</td><td class="dir">${fmt(i.precoUnit * i.quantidade)}</td></tr>`).join('');
+    `<tr><td>${i.quantidade}x ${i.codigo ? `<b>${e(i.codigo)}</b> ` : ''}${e(i.descricao)}</td><td class="dir">${fmt(i.precoUnit * i.quantidade)}</td></tr>`).join('');
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>
     @page { size: 80mm auto; margin: 0; }
     body { width: 72mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 12px; color: #000; }
