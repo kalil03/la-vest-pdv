@@ -24,8 +24,10 @@ public class ContasReceberController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate de,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate ate,
             @RequestParam(defaultValue = "") String tipo,
-            @RequestParam(defaultValue = "1") int pagina) {
-        return service.listar(q, status, de, ate, tipo, pagina);
+            @RequestParam(defaultValue = "1") int pagina,
+            @RequestParam(defaultValue = "cliente") String sort,
+            @RequestParam(defaultValue = "asc") String dir) {
+        return service.listar(q, status, de, ate, tipo, pagina, sort, dir);
     }
 
     /** Conferência da gaveta: notinhas em aberto agrupadas, em ordem alfabética. */

@@ -65,7 +65,8 @@ public class ContasReceberService {
             """;
 
     @Transactional(readOnly = true)
-    public Pagina listar(String q, String status, LocalDate de, LocalDate ate, String tipo, int pagina) {
+    public Pagina listar(String q, String status, LocalDate de, LocalDate ate, String tipo, int pagina,
+                         String sort, String dir) {
         int porPagina = 50;
         var params = new MapSqlParameterSource()
                 .addValue("q", q == null ? "" : q.trim())
@@ -75,42 +76,57 @@ public class ContasReceberService {
                 .addValue("limite", porPagina)
                 .addValue("offset", Math.max(0, pagina - 1) * porPagina);
 
-        String filtro = """
-                WHERE (:q = '' OR unaccent(t.cliente_nome) ILIKE unaccent('%' || :q || '%')
-                       OR CAST(t.notinha AS text) = :q
-                       OR t.documento ILIKE '%' || :q || '%')
-                  AND (CAST(:de AS date) IS NULL OR t.vencimento >= :de)
-                  AND (CAST(:ate AS date) IS NULL OR t.vencimento <= :ate)
-                  AND (:tipo = '' OR t.tipo_notinha = :tipo)
-                """ + condicaoStatus(status);
+        // cada parcela com a chave/rótulo da NOTA (venda = venda_id; carnê SET =
+        // prefixo do documento antes da "/"), já filtrada por busca/tipo/data.
+        String base = "SELECT t.*, "
+                + "CASE WHEN left(t.id,1)='V' THEN 'V:' || t.notinha "
+                + "     ELSE 'L:' || t.cliente_id || ':' || COALESCE(NULLIF(split_part(t.documento,'/',1),''), t.id) END AS nota_key, "
+                + "CASE WHEN left(t.id,1)='V' THEN CAST(t.notinha AS text) "
+                + "     ELSE COALESCE(NULLIF(split_part(t.documento,'/',1),''), 's/nº') END AS nota_rotulo "
+                + "FROM (" + FONTE + ") t "
+                + "WHERE (:q = '' OR unaccent(t.cliente_nome) ILIKE unaccent('%' || :q || '%') "
+                + "       OR CAST(t.notinha AS text) = :q OR t.documento ILIKE '%' || :q || '%') "
+                + "  AND (CAST(:de AS date) IS NULL OR t.vencimento >= :de) "
+                + "  AND (CAST(:ate AS date) IS NULL OR t.vencimento <= :ate) "
+                + "  AND (:tipo = '' OR t.tipo_notinha = :tipo)";
 
-        // numa busca por nome/notinha, as parcelas em aberto vêm primeiro (são as
-        // acionáveis); o histórico já quitado fica embaixo. Sem busca, mantém a
-        // ordem cronológica por vencimento.
-        boolean temBusca = q != null && !q.trim().isEmpty();
-        String ordem = temBusca
-                ? " ORDER BY (t.valor_aberto > 0) DESC, t.vencimento, t.id "
-                // sem busca: cronológico, mas datas corrompidas do legado (ano < 2000)
-                // vão para o fim em vez de poluir o topo da tela
-                : " ORDER BY (t.vencimento < DATE '2000-01-01') ASC, t.vencimento, t.id ";
+        // agrupa por nota: 1 linha por notinha, somando valor/em aberto e contando parcelas
+        String grupo = "SELECT nota_key, MIN(cliente_id) AS cliente_id, MIN(cliente_nome) AS cliente_nome, "
+                + "MIN(nota_rotulo) AS notinha, MIN(tipo_notinha) AS tipo_notinha, MAX(notinha) AS venda_id, "
+                + "COUNT(*) AS parcelas, SUM(valor) AS valor, SUM(valor_aberto) AS valor_aberto, "
+                + "COALESCE(MIN(CASE WHEN valor_aberto > 0 THEN vencimento END), MIN(vencimento)) AS vencimento, "
+                + "MIN(CASE WHEN valor_aberto > 0 THEN vencimento END) AS venc_aberto "
+                + "FROM (" + base + ") b GROUP BY nota_key";
+
+        // status por nota (mesma regra do statusDe, agregada) + filtro de status
+        String comStatus = "SELECT g.*, "
+                + "CASE WHEN g.valor_aberto = 0 THEN 'QUITADA' "
+                + "     WHEN g.venc_aberto < CAST(now() AT TIME ZONE 'America/Sao_Paulo' AS date) THEN 'ATRASADA' "
+                + "     WHEN g.valor_aberto < g.valor THEN 'PARCIAL' ELSE 'ABERTA' END AS status "
+                + "FROM (" + grupo + ") g" + condicaoStatusGrupo(status);
+
+        // ordena pela coluna clicada (padrão: alfabético por cliente); whitelist
+        String col = colunaOrdem(sort);
+        String direcao = "desc".equalsIgnoreCase(dir) ? "DESC" : "ASC";
+        String ordem = " ORDER BY " + col + " " + direcao + " NULLS LAST, vencimento, nota_key ";
 
         List<Conta> contas = jdbc.query(
-                "SELECT * FROM (" + FONTE + ") t " + filtro
-                        + ordem + "LIMIT :limite OFFSET :offset",
+                "SELECT * FROM (" + comStatus + ") s " + ordem + "LIMIT :limite OFFSET :offset",
                 params,
                 (rs, i) -> {
-                    BigDecimal valor = rs.getBigDecimal("valor");
-                    BigDecimal aberto = rs.getBigDecimal("valor_aberto");
-                    return new Conta(rs.getString("id"), rs.getLong("cliente_id"),
+                    int parc = rs.getInt("parcelas");
+                    return new Conta(rs.getString("nota_key"), rs.getLong("cliente_id"),
                             rs.getString("cliente_nome"),
-                            rs.getObject("notinha") == null ? null : rs.getLong("notinha"),
-                            rs.getString("documento"),
-                            rs.getString("descricao"), rs.getDate("vencimento").toLocalDate(),
-                            valor, aberto, statusDe(valor, aberto, rs.getDate("vencimento").toLocalDate()));
+                            rs.getObject("venda_id") == null ? null : rs.getLong("venda_id"),
+                            rs.getString("notinha"),
+                            parc + (parc > 1 ? " parcelas" : " parcela"),
+                            rs.getDate("vencimento").toLocalDate(),
+                            rs.getBigDecimal("valor"), rs.getBigDecimal("valor_aberto"),
+                            rs.getString("status"));
                 });
 
         Long total = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM (" + FONTE + ") t " + filtro, params, Long.class);
+                "SELECT COUNT(*) FROM (" + comStatus + ") s", params, Long.class);
 
         return new Pagina(contas, total == null ? 0 : total, Math.max(1, pagina), porPagina, totais());
     }
@@ -182,6 +198,30 @@ public class ContasReceberService {
                 new MapSqlParameterSource(),
                 (rs, i) -> new Totais(rs.getBigDecimal("total_aberto"), rs.getBigDecimal("total_vencido"),
                         rs.getLong("parcelas_abertas"), rs.getBigDecimal("recebido_mes")));
+    }
+
+    /** Coluna de ordenação (grupo por nota) a partir do clique na tela (whitelist). Padrão: cliente A→Z. */
+    private static String colunaOrdem(String sort) {
+        return switch (sort == null ? "" : sort) {
+            case "notinha" -> "notinha";
+            case "parcela", "parcelas" -> "parcelas";
+            case "vencimento" -> "vencimento";
+            case "status" -> "status";
+            case "valor" -> "valor";
+            case "aberto" -> "valor_aberto";
+            default -> "unaccent(lower(cliente_nome))";
+        };
+    }
+
+    /** Filtro de status já no nível da NOTA agrupada. */
+    private String condicaoStatusGrupo(String status) {
+        return switch (status == null ? "" : status) {
+            case "ABERTA" -> " WHERE g.valor_aberto > 0";
+            case "ATRASADA" -> " WHERE g.valor_aberto > 0 AND g.venc_aberto < CAST(now() AT TIME ZONE 'America/Sao_Paulo' AS date)";
+            case "PARCIAL" -> " WHERE g.valor_aberto > 0 AND g.valor_aberto < g.valor";
+            case "QUITADA" -> " WHERE g.valor_aberto = 0";
+            default -> "";
+        };
     }
 
     private String condicaoStatus(String status) {

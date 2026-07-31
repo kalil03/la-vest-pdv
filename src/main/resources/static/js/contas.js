@@ -6,6 +6,8 @@ const dataBr = (iso) => { const [a, m, d] = iso.split('-'); return `${d}/${m}/${
 
 let pagina = 1;
 let totalPaginas = 1;
+let sortCol = 'cliente';   // ordenação da tabela (padrão: alfabético por cliente)
+let sortDir = 'asc';
 
 const CHIP = {
   ATRASADA: '<span class="chip atrasada">Atrasada</span>',
@@ -21,6 +23,8 @@ async function carregar() {
   if ($('f-tipo').value) params.set('tipo', $('f-tipo').value);
   if ($('f-de').value) params.set('de', $('f-de').value);
   if ($('f-ate').value) params.set('ate', $('f-ate').value);
+  params.set('sort', sortCol);
+  params.set('dir', sortDir);
 
   const r = await (await fetch(`/api/contas-receber?${params}`)).json();
 
@@ -56,10 +60,33 @@ async function carregar() {
   totalPaginas = Math.max(1, Math.ceil(r.total / r.porPagina));
   const ini = r.total === 0 ? 0 : (r.pagina - 1) * r.porPagina + 1;
   const fim = Math.min(r.total, r.pagina * r.porPagina);
-  $('pag-info').textContent = `${ini}–${fim} de ${Number(r.total).toLocaleString('pt-BR')} parcelas`;
+  $('pag-info').textContent = `${ini}–${fim} de ${Number(r.total).toLocaleString('pt-BR')} notas`;
   $('pag-ant').disabled = r.pagina <= 1;
   $('pag-prox').disabled = r.pagina >= totalPaginas;
 }
+
+// ---------- ordenação por clique no cabeçalho ----------
+function ordenarPor(col) {
+  if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';  // mesmo: inverte
+  else { sortCol = col; sortDir = 'asc'; }                            // outro: começa A→Z
+  pagina = 1;
+  atualizarSetasOrdem();
+  carregar();
+}
+function atualizarSetasOrdem() {
+  document.querySelectorAll('.tab-contas thead th[data-sort]').forEach((th) => {
+    const s = th.querySelector('.seta');
+    if (s) s.textContent = th.dataset.sort === sortCol ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+  });
+}
+const _theadContas = document.querySelector('.tab-contas thead');
+if (_theadContas) {
+  _theadContas.addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-sort]');
+    if (th) ordenarPor(th.dataset.sort);
+  });
+}
+atualizarSetasOrdem();
 
 let timer = null;
 function recarregarComFiltro() {

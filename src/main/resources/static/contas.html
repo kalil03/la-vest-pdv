@@ -211,9 +211,14 @@
             <div class="max-h-[55vh] overflow-y-auto">
               <table class="tab-contas">
                 <thead>
-                  <tr>
-                    <th>Cliente</th><th>Notinha</th><th>Parcela</th><th>Vencimento</th>
-                    <th>Status</th><th class="num">Valor</th><th class="num">Em aberto</th>
+                  <tr title="Clique numa coluna para ordenar">
+                    <th data-sort="cliente" class="cursor-pointer select-none">Cliente<span class="seta"></span></th>
+                    <th data-sort="notinha" class="cursor-pointer select-none">Notinha<span class="seta"></span></th>
+                    <th data-sort="parcela" class="cursor-pointer select-none">Parcelas<span class="seta"></span></th>
+                    <th data-sort="vencimento" class="cursor-pointer select-none">Vencimento<span class="seta"></span></th>
+                    <th data-sort="status" class="cursor-pointer select-none">Status<span class="seta"></span></th>
+                    <th data-sort="valor" class="num cursor-pointer select-none">Valor<span class="seta"></span></th>
+                    <th data-sort="aberto" class="num cursor-pointer select-none">Em aberto<span class="seta"></span></th>
                   </tr>
                 </thead>
                 <tbody id="lista"></tbody>
@@ -227,7 +232,7 @@
               </div>
             </div>
           </div>
-          <p class="text-[11px] text-muted-foreground m-0">Clique numa parcela para abrir o carnê do cliente.</p>
+          <p class="text-[11px] text-muted-foreground m-0">Cada linha é uma nota (parcelas agrupadas). Clique para abrir o carnê do cliente ou a venda.</p>
           </div>
 
           <!-- ABA VENDAS: conferência, estorno e edição -->
