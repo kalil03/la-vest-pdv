@@ -48,6 +48,14 @@ public class PagamentoFiado {
     /** Nº da notinha no sistema antigo (NDOC, ex. "66/01") — só em registros migrados. */
     private String documento;
 
+    /**
+     * Recebimento em várias formas: os pagamentos-irmãos (2ª forma em diante)
+     * apontam para o PRIMEIRO (o "pai"). O pai tem isto nulo e guarda o
+     * detalhamento por parcela; reverter o pai apaga os irmãos junto.
+     */
+    @Column(name = "pagamento_pai_id")
+    private Long pagamentoPaiId;
+
     /** Tipo da notinha do carnê SET: "Tênis" ou "Geral" (era "Roupa" no SET; renomeado na V19). */
     @Column(name = "tipo_notinha")
     private String tipoNotinha;
@@ -72,4 +80,6 @@ public class PagamentoFiado {
     public void setTipoNotinha(String tipoNotinha) { this.tipoNotinha = tipoNotinha; }
     public String getDocumento() { return documento; }
     public void setDocumento(String documento) { this.documento = documento; }
+    public Long getPagamentoPaiId() { return pagamentoPaiId; }
+    public void setPagamentoPaiId(Long pagamentoPaiId) { this.pagamentoPaiId = pagamentoPaiId; }
 }

@@ -33,4 +33,9 @@ public interface PagamentoFiadoRepository extends JpaRepository<PagamentoFiado, 
             WHERE p.id = :id AND p.valorAberto >= :valor
             """)
     int abaterDebito(@Param("id") Long id, @Param("valor") BigDecimal valor);
+
+    /** Pagamentos-irmãos de um recebimento misto (2ª forma em diante). */
+    List<PagamentoFiado> findByPagamentoPaiId(Long pagamentoPaiId);
+
+    void deleteByPagamentoPaiId(Long pagamentoPaiId);
 }

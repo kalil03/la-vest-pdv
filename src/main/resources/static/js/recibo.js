@@ -76,7 +76,9 @@ function reciboHTML(venda, loja) {
     </table>` : '';
 
   const pagamentoAVista = !fiado
-    ? rotuloForma(venda.formaPagamento) + (venda.formaPagamento === 'CARTAO' && venda.parcelasCartao > 1 ? ` ${venda.parcelasCartao}x` : '')
+    ? (venda.formas && venda.formas.length > 1
+        ? venda.formas.map((f) => `${rotuloForma(f.forma)} ${fmt(f.valor)}`).join(' + ')
+        : rotuloForma(venda.formaPagamento) + (venda.formaPagamento === 'CARTAO' && venda.parcelasCartao > 1 ? ` ${venda.parcelasCartao}x` : ''))
     : '';
 
   // fiado é PROMISSÓRIA: linha de assinatura do cliente. O texto de "Reconheço dever"
@@ -162,7 +164,7 @@ function reciboHTML(venda, loja) {
 }
 
 function rotuloForma(f) {
-  return { DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO: 'Cartão', FIADO: 'Fiado (a prazo)' }[f] || f;
+  return { DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO: 'Cartão', FIADO: 'Fiado (a prazo)', MISTO: 'Misto' }[f] || f;
 }
 
 function esc(s) {
@@ -265,7 +267,15 @@ function reciboCarneHTML(r, loja) {
     </div>`;
   }).join('');
 
-  const rotulo = { DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO: 'Cartão' }[r.tipo] || r.tipo;
+  const rotuloForma = (t) => ({ DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO: 'Cartão', MISTO: 'Misto' }[t] || t);
+  // pagamento em 1 forma → uma linha; em 2+ formas → uma linha por forma
+  const formasLinhas = r.formas && r.formas.length > 1
+    ? r.formas.map((f) => `<tr><td>Pago em ${rotuloForma(f.tipo)}</td><td class="dir">${fmtR(f.valor)}</td></tr>`).join('')
+    : `<tr><td>Forma de pagamento</td><td class="dir">${rotuloForma(r.tipo)}</td></tr>`;
+
+  // TODAS as notas que o cliente ainda deve (não só a que pagou) — o quadro completo
+  const emAberto = (r.notasEmAberto || []).map((n) =>
+    `<tr><td>Nota ${esc(n.rotulo)}${n.tipo ? ` (${esc(n.tipo)})` : ''}</td><td class="dir">${fmtR(n.totalAberto)}</td></tr>`).join('');
 
   const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
 
@@ -302,13 +312,18 @@ function reciboCarneHTML(r, loja) {
   <p class="info">Cliente: ${esc(r.clienteNome)}</p>
   <p class="info">Recebido por: ${esc(r.vendedorNome)}</p>
   <div class="sep"></div>
+  <div class="centro" style="font-weight:bold">PAGAMENTO</div>
   ${notas}
-  <div class="sep"></div>
   <table>
-    <tr><td class="destaque">VALOR RECEBIDO</td><td class="dir destaque">${fmtR(r.valor)}</td></tr>
-    <tr><td>Forma de pagamento</td><td class="dir">${rotulo}</td></tr>
-    <tr><td>Saldo anterior</td><td class="dir">${fmtR(r.saldoAnterior)}</td></tr>
-    <tr><td><b>Saldo restante</b></td><td class="dir"><b>${fmtR(r.saldoRestante)}</b></td></tr>
+    <tr><td class="destaque">VALOR PAGO AGORA</td><td class="dir destaque">${fmtR(r.valor)}</td></tr>
+    ${formasLinhas}
+    <tr><td>Saldo antes deste pagamento</td><td class="dir">${fmtR(r.saldoAnterior)}</td></tr>
+  </table>
+  <div class="sep"></div>
+  <div class="centro" style="font-weight:bold">SUAS NOTAS AINDA EM ABERTO</div>
+  <table>
+    ${emAberto || '<tr><td colspan="2" class="centro">TUDO QUITADO — sem notas em aberto</td></tr>'}
+    <tr><td class="destaque">TOTAL A PAGAR</td><td class="dir destaque">${fmtR(r.saldoRestante)}</td></tr>
   </table>
   <div class="assinatura">
     <div class="linha-assinatura"></div>
@@ -392,4 +407,74 @@ function promissoriaBaixaHTML(c, loja) {
 
 function imprimirPromissoriaBaixa(comprovante, loja) {
   return previewImprimir(promissoriaBaixaHTML(comprovante, loja));
+}
+
+/**
+ * Promissória de UMA nota com o SALDO ATUALIZADO, para grampear na gaveta depois
+ * de um recebimento parcial no carnê. Lista as parcelas que ainda faltam e o
+ * saldo da nota. Serve para notas do SET (que não têm promissória própria no
+ * sistema); para vendas nossas a via da loja (reciboHTML) continua mais completa.
+ *   nota = { rotulo, clienteNome, tipo, totalAberto, parcelas:[{rotulo, vencimento, valorAberto}] }
+ */
+function promissoriaCarneHTML(nota, loja) {
+  const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const dataBr = (iso) => { if (!iso) return ''; const [a, m, d] = String(iso).split('-'); return `${d}/${m}/${a}`; };
+  const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const larguraMm = Math.max(40, parseInt(loja?.impLarguraMm, 10) || 80);
+  const total = Number(nota.totalAberto || 0);
+
+  const linhas = (nota.parcelas || []).length
+    ? nota.parcelas.map((p) => `
+        <tr><td>Parc. ${esc(p.rotulo || '')}</td><td>${dataBr(p.vencimento)}</td><td class="dir">${fmt(p.valorAberto)}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="centro negrito">NOTA QUITADA</td></tr>';
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: ${larguraMm}mm auto; margin: 0; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { width: ${larguraMm - 8}mm; margin: 0 auto; font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold; color: #000; }
+  .centro { text-align: center; }
+  .negrito { font-weight: bold; }
+  .dir { text-align: right; }
+  h1 { font-size: 15px; margin: 6px 0 2px; text-align: center; }
+  .info { text-align: center; font-size: 12px; margin: 0; }
+  .sep { border-top: 1.5px solid #000; margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 1px 0; vertical-align: top; font-size: 13px; }
+  .th td { border-bottom: 1.5px solid #000; font-size: 12px; }
+  .destaque { font-size: 15px; font-weight: bold; }
+  .assinatura { margin-top: 90px; }
+  .linha-assinatura { border-top: 1.5px solid #000; margin: 0 8px 2px; }
+  .rodape { text-align: center; font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>${esc(loja.nome)}</h1>
+  <p class="info">${esc(loja.endereco)}</p>
+  <p class="info">${esc(loja.telefone)}</p>
+  <div class="sep"></div>
+  <div class="centro negrito">PROMISSÓRIA — SALDO ATUALIZADO</div>
+  <p class="info">Cliente: ${esc(nota.clienteNome)}</p>
+  <p class="info">Nota nº ${esc(nota.rotulo)}${nota.tipo ? ' · ' + esc(nota.tipo) : ''}</p>
+  <p class="info">Atualizada em ${agora}</p>
+  <div class="sep"></div>
+  <table>
+    <tr class="th"><td>PARC.</td><td>VENCTO</td><td class="dir">FALTA</td></tr>
+    ${linhas}
+  </table>
+  <div class="sep"></div>
+  <table>
+    <tr><td class="destaque">SALDO DESTA NOTA</td><td class="dir destaque">${total > 0 ? fmt(total) : 'R$ 0,00 — QUITADA'}</td></tr>
+  </table>
+  <div class="assinatura">
+    <div class="linha-assinatura"></div>
+    <div class="centro">${esc(nota.clienteNome)}</div>
+    <div class="centro" style="font-size:11px">Assinatura do(a) cliente</div>
+  </div>
+  <div class="rodape">${esc(loja?.impRodape ?? 'Obrigado pela preferência!')}</div>
+</body>
+</html>`;
 }

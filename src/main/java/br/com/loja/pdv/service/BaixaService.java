@@ -29,15 +29,18 @@ public class BaixaService {
     private final PagamentoFiadoRepository pagamentoRepo;
     private final ParcelaFiadoRepository parcelaRepo;
     private final ClienteRepository clienteRepo;
+    private final RecebimentoItemRepository recebimentoItemRepo;
     private final NamedParameterJdbcTemplate jdbc;
 
     public BaixaService(BaixaFiadoRepository baixaRepo, PagamentoFiadoRepository pagamentoRepo,
                         ParcelaFiadoRepository parcelaRepo, ClienteRepository clienteRepo,
+                        RecebimentoItemRepository recebimentoItemRepo,
                         NamedParameterJdbcTemplate jdbc) {
         this.baixaRepo = baixaRepo;
         this.pagamentoRepo = pagamentoRepo;
         this.parcelaRepo = parcelaRepo;
         this.clienteRepo = clienteRepo;
+        this.recebimentoItemRepo = recebimentoItemRepo;
         this.jdbc = jdbc;
     }
 
@@ -229,6 +232,76 @@ public class BaixaService {
         if (pagId != null) {
             pagamentoRepo.deleteById(pagId);
         }
+    }
+
+    // ---------- reversão de RECEBIMENTO de carnê (dinheiro lançado errado) ----------
+
+    public record RecebimentoDTO(Long id, String clienteNome, String tipo, BigDecimal valor,
+                                 Instant data, String operador) {}
+
+    /**
+     * Recebimentos de carnê reversíveis (têm o detalhamento por parcela, gravado
+     * a partir da V25), dos últimos N dias. Recebimento antigo não aparece aqui —
+     * não dá para reverter automaticamente sem saber quanto foi em cada parcela.
+     */
+    @Transactional(readOnly = true)
+    public List<RecebimentoDTO> listarRecebimentos(int dias) {
+        var params = new MapSqlParameterSource().addValue("desde",
+                LocalDate.now(br.com.loja.pdv.Fuso.LOJA).minusDays(Math.max(1, dias)));
+        // um recebimento misto tem pagamentos-irmãos (mesma pai): o total é a soma
+        // deles, e a forma vira "MISTO". Lista só os PAIS (quem tem o detalhamento).
+        String sql = "SELECT p.id, c.nome AS cliente_nome, p.data, v.nome AS vendedor, "
+                + "  CASE WHEN EXISTS (SELECT 1 FROM pagamento_fiado s WHERE s.pagamento_pai_id = p.id) "
+                + "       THEN 'MISTO' ELSE p.tipo END AS tipo, "
+                + "  p.valor + COALESCE((SELECT SUM(s.valor) FROM pagamento_fiado s WHERE s.pagamento_pai_id = p.id), 0) AS valor "
+                + "FROM pagamento_fiado p "
+                + "JOIN cliente c ON c.id = p.cliente_id "
+                + "LEFT JOIN vendedor v ON v.id = p.vendedor_id "
+                + "WHERE p.tipo NOT IN ('DEBITO_INICIAL', 'BAIXA') "
+                + "  AND p.pagamento_pai_id IS NULL "
+                + "  AND EXISTS (SELECT 1 FROM recebimento_item ri WHERE ri.pagamento_id = p.id) "
+                + "  AND CAST(p.data AT TIME ZONE 'America/Sao_Paulo' AS date) >= :desde "
+                + "ORDER BY p.data DESC";
+        return jdbc.query(sql, params, (rs, i) -> new RecebimentoDTO(
+                rs.getLong("id"), rs.getString("cliente_nome"), rs.getString("tipo"),
+                rs.getBigDecimal("valor"), rs.getTimestamp("data").toInstant(), rs.getString("vendedor")));
+    }
+
+    /**
+     * Reverte um recebimento de carnê: devolve a cada parcela o valor que ela
+     * recebeu e apaga o recebimento (some do caixa do dia em que entrou, como se
+     * não tivesse acontecido). Só funciona para recebimentos com detalhamento.
+     */
+    @Transactional
+    public void reverterRecebimento(Long pagamentoId, String operador) {
+        PagamentoFiado pag = pagamentoRepo.findById(pagamentoId)
+                .orElseThrow(() -> new RegraNegocioException("Recebimento não encontrado (id " + pagamentoId + ")"));
+        if (pag.getTipo() == TipoPagamentoFiado.DEBITO_INICIAL || pag.getTipo() == TipoPagamentoFiado.BAIXA) {
+            throw new RegraNegocioException("Este lançamento não é um recebimento de carnê");
+        }
+        if (pag.getPagamentoPaiId() != null) {
+            throw new RegraNegocioException("Esta é uma das formas de um recebimento misto — "
+                    + "reverta pelo recebimento principal na lista");
+        }
+        List<RecebimentoItem> itens = recebimentoItemRepo.findByPagamentoId(pagamentoId);
+        if (itens.isEmpty()) {
+            throw new RegraNegocioException("Recebimento antigo, sem o detalhamento por parcela — "
+                    + "não dá para reverter automaticamente. Ajuste manualmente.");
+        }
+        for (RecebimentoItem it : itens) {
+            if ("L".equals(it.getOrigem())) {
+                PagamentoFiado p = pagamentoRepo.findById(it.getRefId())
+                        .orElseThrow(() -> new RegraNegocioException("Parcela do carnê sumiu — não dá para reverter"));
+                p.setValorAberto(nz(p.getValorAberto()).add(it.getValor()));
+            } else {
+                ParcelaFiado pf = parcelaRepo.findById(it.getRefId())
+                        .orElseThrow(() -> new RegraNegocioException("Parcela da venda sumiu — não dá para reverter"));
+                pf.setValorAberto(nz(pf.getValorAberto()).add(it.getValor()));
+            }
+        }
+        recebimentoItemRepo.deleteByPagamentoId(pagamentoId);
+        pagamentoRepo.deleteByPagamentoPaiId(pagamentoId); // formas-irmãs do recebimento misto
+        pagamentoRepo.deleteById(pagamentoId);
     }
 
     @Transactional(readOnly = true)

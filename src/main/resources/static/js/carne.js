@@ -14,6 +14,8 @@ let cliente = null;     // {id, nome, ...} selecionado
 let carne = null;       // resposta de /api/clientes/{id}/carne
 let selecionadas = [];  // seleção livre ordenada
 let tipo = 'DINHEIRO';
+let mrTipo = 'DINHEIRO';   // forma escolhida DENTRO do modal (uma forma)
+let mrSplit = false;       // true = pagou em 2 formas (dinheiro + PIX etc.)
 let loja = { nome: 'Loja', endereco: '', telefone: '' };
 let recebendo = false;
 
@@ -542,9 +544,72 @@ async function abrirModalReceber() {
 
   // distribui o limite inicial nas parcelas (ordem de seleção) e atualiza a soma
   aplicarWaterfall();
+  iniciarFormasModal();
   $('modal-receber').hidden = false;
   $limite.focus();
 }
+
+// ---------- forma(s) de pagamento dentro do modal ----------
+/** Soma do que está sendo recebido de fato (os abatimentos das parcelas). */
+function valorReceberModal() {
+  return round2(inputsAbater.reduce((acc, { inp }) => acc + lerMoeda(inp), 0));
+}
+
+function iniciarFormasModal() {
+  mrTipo = tipo || 'DINHEIRO';                 // herda a forma escolhida no painel
+  mrSplit = false;
+  $('mr-split-on').checked = false;
+  $('mr-forma-una').hidden = false;
+  $('mr-forma-dupla').hidden = true;
+  [...document.querySelectorAll('#mr-forma-una [data-mrtipo]')].forEach((b) =>
+    b.classList.toggle('ativa', b.dataset.mrtipo === mrTipo));
+  // duas formas: forma 1 = a do painel; forma 2 = uma diferente
+  $('mr-t1').value = mrTipo;
+  $('mr-t2').value = mrTipo === 'PIX' ? 'DINHEIRO' : 'PIX';
+  $('mr-v1').value = '';
+  recomputeSplit();
+}
+
+/** Distribui: forma 1 = valor digitado; forma 2 = o resto (automático). */
+function recomputeSplit() {
+  const base = valorReceberModal();
+  let v1 = Math.max(0, lerMoeda($('mr-v1')));
+  if (v1 > base) v1 = base;
+  const v2 = round2(base - v1);
+  $('mr-v2').value = fmt(v2);
+  const info = $('mr-split-info');
+  if (v1 <= 0 || v2 <= 0) {
+    info.textContent = `As duas formas precisam ter valor (total ${fmt(base)}).`;
+    info.style.color = 'var(--warn)';
+    return false;
+  }
+  if ($('mr-t1').value === $('mr-t2').value) {
+    info.textContent = 'Escolha duas formas diferentes.';
+    info.style.color = 'var(--warn)';
+    return false;
+  }
+  info.textContent = `${rotuloTipo($('mr-t1').value)} ${fmt(v1)} + ${rotuloTipo($('mr-t2').value)} ${fmt(v2)} = ${fmt(base)}`;
+  info.style.color = 'var(--muted-foreground)';
+  return true;
+}
+
+$('mr-forma-una').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mrtipo]');
+  if (!b) return;
+  mrTipo = b.dataset.mrtipo;
+  [...document.querySelectorAll('#mr-forma-una [data-mrtipo]')].forEach((x) =>
+    x.classList.toggle('ativa', x === b));
+});
+$('mr-split-on').addEventListener('change', (e) => {
+  mrSplit = e.target.checked;
+  $('mr-forma-una').hidden = mrSplit;
+  $('mr-forma-dupla').hidden = !mrSplit;
+  if (mrSplit) { $('mr-t1').value = mrTipo; $('mr-v1').focus(); }
+  recomputeSplit();
+});
+$('mr-v1').addEventListener('input', recomputeSplit);
+$('mr-t1').addEventListener('change', recomputeSplit);
+$('mr-t2').addEventListener('change', recomputeSplit);
 
 /**
  * Valor limite: distribui o que a cliente deu na ORDEM EM QUE ELA SELECIONOU
@@ -565,6 +630,7 @@ function aplicarWaterfall() {
 function calcularSomaManual() {
   const soma = inputsAbater.reduce((acc, {inp}) => acc + lerMoeda(inp), 0);
   $('mr-soma-abatimentos').textContent = formatarMoedaString(soma) || 'R$ 0,00';
+  if (mrSplit) recomputeSplit();
 }
 
 async function confirmarRecebimento() {
@@ -586,7 +652,36 @@ async function confirmarRecebimento() {
     $('mr-erro').hidden = false;
     return;
   }
-  
+
+  // forma única (mrTipo) ou duas formas (dinheiro + PIX etc.)
+  const payload = {
+    clienteId: cliente.id,
+    valor: valorTotal.toFixed(2),
+    vendedorId: Number($operador.value),
+    alocacoes,
+  };
+  if (mrSplit) {
+    let v1 = round2(Math.max(0, lerMoeda($('mr-v1'))));
+    if (v1 > valorTotal) v1 = valorTotal;
+    const v2 = round2(valorTotal - v1);
+    if (v1 <= 0 || v2 <= 0) {
+      $('mr-erro').textContent = 'Informe o valor das duas formas de pagamento.';
+      $('mr-erro').hidden = false;
+      return;
+    }
+    if ($('mr-t1').value === $('mr-t2').value) {
+      $('mr-erro').textContent = 'Escolha duas formas de pagamento diferentes.';
+      $('mr-erro').hidden = false;
+      return;
+    }
+    payload.formas = [
+      { tipo: $('mr-t1').value, valor: v1.toFixed(2) },
+      { tipo: $('mr-t2').value, valor: v2.toFixed(2) },
+    ];
+  } else {
+    payload.tipo = mrTipo;
+  }
+
   $('mr-erro').hidden = true;
   recebendo = true;
   const $btn = $('mr-confirmar');
@@ -598,13 +693,7 @@ async function confirmarRecebimento() {
     const resp = await fetch('/api/recebimentos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        clienteId: cliente.id,
-        valor: valorTotal.toFixed(2),
-        tipo,
-        vendedorId: Number($operador.value),
-        alocacoes
-      }),
+      body: JSON.stringify(payload),
     });
     if (!resp.ok) {
       const erro = await resp.json().catch(() => ({}));
@@ -620,27 +709,16 @@ async function confirmarRecebimento() {
     $('modal-receber').hidden = true;
     toast(`Recebido ${fmt(recibo.valor)} de ${recibo.clienteNome} — saldo agora ${fmt(recibo.saldoRestante)}`, 'ok');
 
-    // maior controle: promissória(s) atualizada(s) das notas atingidas (via da
-    // loja, pra grampear no notinha) na frente, recibo do cliente por último —
-    // tudo num ÚNICO job de impressão com quebra de página entre as vias.
-    // Parcela migrada do SET (sem notinha) não tem venda nossa pra reimprimir.
+    // o recibo do cliente (a via do cliente, com valor pago e saldo) sai automático
     try {
-      const notasAfetadas = [...new Set(recibo.itens.map((i) => i.notinha).filter(Boolean))];
-      const vendas = (await Promise.all(notasAfetadas.map((n) =>
-        fetch(`/api/vendas/${n}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
-      ))).filter(Boolean);
-      // 1º) promissória(s) atualizada(s) — via da loja com o saldo de hoje (pra grampear).
-      // 2º) depois de ~3s, o recibo do cliente (valor pago, data/hora e saldo restante),
-      //     em job separado pra a impressora térmica cortar entre um e outro.
-      if (vendas.length) {
-        await previewImprimir(juntarDocumentos(vendas.map((v) => reciboHTML(v, loja))));
-        await new Promise((r) => setTimeout(r, 3000));
-      }
       await previewImprimir(reciboCarneHTML(recibo, loja));
     } catch {
-      toast('Recebimento OK, mas a impressão falhou — reimprima pela nota na lista', 'erro');
+      toast('Recebimento OK, mas a impressão do recibo falhou — reimprima pela nota na lista', 'erro');
     }
-    await selecionarCliente(cliente);
+    await selecionarCliente(cliente);   // recarrega o carnê já com o saldo novo
+    // a promissória atualizada (via da loja, pra grampear na gaveta) sai por BOTÃO —
+    // no pagamento exato o operador só risca a promissória física; no parcial reimprime
+    oferecerPromissoria(recibo);
   } catch {
     $('mr-erro').textContent = 'Sem conexão com o servidor';
     $('mr-erro').hidden = false;
@@ -650,6 +728,66 @@ async function confirmarRecebimento() {
     $btn.textContent = rotuloOriginal;
     atualizarPainel();
   }
+}
+
+/**
+ * Após receber, oferece REIMPRIMIR a promissória com o saldo atualizado das notas
+ * que acabaram de ser pagas — a via da loja pra grampear na gaveta. Venda nossa
+ * usa a via da loja completa (reciboHTML); nota do SET usa a promissória por nota
+ * (promissoriaCarneHTML), montada com o saldo de hoje já recarregado no carnê.
+ */
+function oferecerPromissoria(recibo) {
+  const notas = [];
+  const vistos = new Set();
+  (recibo.itens || []).forEach((it) => {
+    if (!it.notaKey || vistos.has(it.notaKey)) return;
+    vistos.add(it.notaKey);
+    notas.push({ notaKey: it.notaKey, rotulo: it.notaRotulo, notinha: it.notinha });
+  });
+  if (!notas.length) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'fixed inset-0 z-[120] flex items-center justify-center';
+  overlay.style.background = 'rgba(0,0,0,.55)';
+  overlay.innerHTML = `
+    <div style="background: var(--background); border: 1px solid var(--border)" class="p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 flex flex-col gap-4">
+      <div>
+        <p class="text-[15px] font-bold m-0">Recebimento concluído</p>
+        <p class="text-[12px] text-muted-foreground m-0 mt-1">${esc(recibo.clienteNome)} · saldo agora ${fmt(recibo.saldoRestante)}</p>
+      </div>
+      <p class="text-[13px] m-0">Reimprimir a promissória com o saldo atualizado de ${notas.length > 1 ? notas.length + ' notas' : '1 nota'} para grampear na gaveta?</p>
+      <div class="flex gap-3">
+        <button id="pr-nao" class="flex-1 py-2 rounded-lg font-semibold text-[13px]" style="background: var(--muted)">Concluir</button>
+        <button id="pr-sim" class="flex-1 py-2 rounded-lg font-semibold text-[13px] text-white flex items-center justify-center gap-2" style="background: var(--primary)"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir promissória</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  if (window.lucide) lucide.createIcons();
+  const fechar = () => overlay.remove();
+  overlay.querySelector('#pr-nao').onclick = fechar;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) fechar(); });
+  overlay.querySelector('#pr-sim').onclick = async () => {
+    overlay.querySelector('#pr-sim').disabled = true;
+    try {
+      const grupos = agruparPorNota(carne?.parcelas || []);
+      const docs = [];
+      for (const n of notas) {
+        if (n.notinha) {
+          const r = await fetch(`/api/vendas/${n.notinha}`);
+          if (r.ok) docs.push(reciboHTML(await r.json(), loja));
+        } else {
+          const g = grupos.find((x) => x.key === n.notaKey);   // ausente = nota quitada agora
+          docs.push(promissoriaCarneHTML({
+            rotulo: n.rotulo, clienteNome: recibo.clienteNome, tipo: g ? g.tipo : '',
+            totalAberto: g ? g.totalAberto : 0,
+            parcelas: g ? g.parcelas.map((p) => ({ rotulo: p.parcelaRotulo, vencimento: p.vencimento, valorAberto: p.valorAberto })) : [],
+          }, loja));
+        }
+      }
+      if (docs.length) await previewImprimir(juntarDocumentos(docs));
+    } catch { toast('Falha ao imprimir a promissória', 'erro'); }
+    fechar();
+  };
 }
 
 $('btn-receber').addEventListener('click', abrirModalReceber);

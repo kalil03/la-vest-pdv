@@ -662,6 +662,38 @@
           <span id="mr-soma-abatimentos" class="text-primary">R$ 0,00</span>
         </div>
 
+        <!-- FORMA(S) DE PAGAMENTO -->
+        <div class="bg-secondary/50 p-4 rounded-lg border border-border flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <label class="text-[12px] font-bold uppercase tracking-wider text-muted-foreground">Forma de pagamento</label>
+            <label class="text-[12px] font-semibold flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="mr-split-on" class="accent-current"> Pagou em 2 formas
+            </label>
+          </div>
+          <!-- uma forma -->
+          <div id="mr-forma-una" class="grid grid-cols-3 gap-2">
+            <button type="button" data-mrtipo="DINHEIRO" class="forma-btnativa flex items-center justify-center gap-1.5 py-2.5 rounded-lg border-2 text-[13px] font-semibold transition-all"><i data-lucide="banknote" class="w-4 h-4"></i> Dinheiro</button>
+            <button type="button" data-mrtipo="PIX" class="forma-btnflex items-center justify-center gap-1.5 py-2.5 rounded-lg border-2 text-[13px] font-semibold transition-all"><i data-lucide="qr-code" class="w-4 h-4"></i> Pix</button>
+            <button type="button" data-mrtipo="CARTAO" class="forma-btnflex items-center justify-center gap-1.5 py-2.5 rounded-lg border-2 text-[13px] font-semibold transition-all"><i data-lucide="credit-card" class="w-4 h-4"></i> Cartão</button>
+          </div>
+          <!-- duas formas: forma 1 (valor digitado) + forma 2 (o resto, automático) -->
+          <div id="mr-forma-dupla" hidden class="flex flex-col gap-2">
+            <div class="flex gap-2 items-center">
+              <select id="mr-t1" class="flex-1 bg-background border border-border rounded-md px-2 py-2 text-[13px] font-medium outline-none focus:border-primary">
+                <option value="DINHEIRO">Dinheiro</option><option value="PIX">Pix</option><option value="CARTAO">Cartão</option>
+              </select>
+              <input id="mr-v1" inputmode="decimal" placeholder="0,00" class="w-32 text-right mono font-bold bg-background border border-border rounded-md px-2 py-2 text-[14px] outline-none focus:border-primary">
+            </div>
+            <div class="flex gap-2 items-center">
+              <select id="mr-t2" class="flex-1 bg-background border border-border rounded-md px-2 py-2 text-[13px] font-medium outline-none focus:border-primary">
+                <option value="PIX">Pix</option><option value="DINHEIRO">Dinheiro</option><option value="CARTAO">Cartão</option>
+              </select>
+              <input id="mr-v2" readonly class="w-32 text-right mono font-bold bg-muted border border-border rounded-md px-2 py-2 text-[14px] text-muted-foreground">
+            </div>
+            <p id="mr-split-info" class="text-[12px] m-0"></p>
+          </div>
+        </div>
+
         <p id="mr-erro" class="text-destructive font-medium text-[13px] text-center" hidden></p>
       </div>
       <div class="px-6 py-4 border-t border-border bg-muted/20 flex gap-3 rounded-b-xl">

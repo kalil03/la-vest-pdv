@@ -39,6 +39,20 @@ public class BaixaController {
         return ResponseEntity.ok().build();
     }
 
+    /** Recebimentos de carnê reversíveis (com detalhamento), dos últimos N dias. */
+    @GetMapping("/recebimentos")
+    public List<BaixaService.RecebimentoDTO> recebimentos(@RequestParam(defaultValue = "30") int dias) {
+        return service.listarRecebimentos(dias);
+    }
+
+    /** Reverte um recebimento de carnê lançado errado (devolve as parcelas e tira do caixa). */
+    @PostMapping("/recebimentos/{id}/reverter")
+    public ResponseEntity<Void> reverterRecebimento(@PathVariable Long id,
+                                                    @RequestParam(required = false) String operador) {
+        service.reverterRecebimento(id, operador);
+        return ResponseEntity.ok().build();
+    }
+
     /** Dados para reimprimir a promissória com o saldo atualizado (quitado) após a baixa. */
     @GetMapping("/{id}/comprovante")
     public BaixaService.ComprovanteBaixa comprovante(@PathVariable Long id) {

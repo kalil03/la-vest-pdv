@@ -6,6 +6,8 @@ import br.com.loja.pdv.web.dto.CarneDTO;
 import br.com.loja.pdv.web.dto.ClienteDTO;
 import br.com.loja.pdv.web.dto.ReceberRequest;
 import br.com.loja.pdv.web.dto.ReciboRecebimento;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,7 +18,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 
 @Service
@@ -31,15 +35,21 @@ public class CarneService {
     private final PagamentoFiadoRepository pagamentoRepository;
     private final ParcelaFiadoRepository parcelaRepository;
     private final VendedorRepository vendedorRepository;
+    private final RecebimentoItemRepository recebimentoItemRepository;
+
+    @PersistenceContext
+    private EntityManager em;
 
     public CarneService(ClienteRepository clienteRepository,
                         PagamentoFiadoRepository pagamentoRepository,
                         ParcelaFiadoRepository parcelaRepository,
-                        VendedorRepository vendedorRepository) {
+                        VendedorRepository vendedorRepository,
+                        RecebimentoItemRepository recebimentoItemRepository) {
         this.clienteRepository = clienteRepository;
         this.pagamentoRepository = pagamentoRepository;
         this.parcelaRepository = parcelaRepository;
         this.vendedorRepository = vendedorRepository;
+        this.recebimentoItemRepository = recebimentoItemRepository;
     }
 
     /**
@@ -78,9 +88,23 @@ public class CarneService {
     @Transactional
     public ReciboRecebimento receber(ReceberRequest req) {
         Cliente cliente = buscarCliente(req.clienteId());
-        if (!TIPOS_RECEBIMENTO.contains(req.tipo())) {
-            throw new RegraNegocioException("Forma de recebimento inválida: " + req.tipo());
+
+        // forma única (compat) ou várias formas (dinheiro + PIX...); a soma tem que fechar
+        List<ReceberRequest.FormaPaga> formas = req.formas() != null && !req.formas().isEmpty()
+                ? req.formas()
+                : List.of(new ReceberRequest.FormaPaga(req.tipo(), req.valor()));
+        for (ReceberRequest.FormaPaga f : formas) {
+            if (f.tipo() == null || !TIPOS_RECEBIMENTO.contains(f.tipo())) {
+                throw new RegraNegocioException("Forma de recebimento inválida: " + f.tipo());
+            }
         }
+        BigDecimal somaFormas = formas.stream().map(ReceberRequest.FormaPaga::valor)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (somaFormas.compareTo(req.valor()) != 0) {
+            throw new RegraNegocioException("As formas de pagamento somam R$ " + somaFormas
+                    + " mas o valor recebido é R$ " + req.valor());
+        }
+
         Vendedor vendedor = vendedorRepository.findById(req.vendedorId())
                 .orElseThrow(() -> new RegraNegocioException("Funcionário não encontrado"));
 
@@ -107,18 +131,41 @@ public class CarneService {
             itens.add(abater(cliente, aloc, detalhe));
         }
 
-        PagamentoFiado pagamento = new PagamentoFiado();
-        pagamento.setCliente(cliente);
-        pagamento.setValor(req.valor());
-        pagamento.setTipo(req.tipo());
-        pagamento.setVendedor(vendedor);
-        pagamento.setDetalhe(detalhe.toString());
-        pagamentoRepository.saveAndFlush(pagamento);
+        // uma linha de PagamentoFiado por forma; o caixa soma por tipo e conta certo
+        // sozinho. O PRIMEIRO é o "pai": guarda o detalhamento por parcela e é de
+        // quem se reverte (os irmãos apontam pra ele e caem junto).
+        PagamentoFiado pai = null;
+        for (ReceberRequest.FormaPaga f : formas) {
+            PagamentoFiado pagamento = new PagamentoFiado();
+            pagamento.setCliente(cliente);
+            pagamento.setValor(f.valor());
+            pagamento.setTipo(f.tipo());
+            pagamento.setVendedor(vendedor);
+            pagamento.setDetalhe(detalhe.toString());
+            if (pai != null) pagamento.setPagamentoPaiId(pai.getId());
+            pagamentoRepository.saveAndFlush(pagamento);
+            if (pai == null) pai = pagamento;
+        }
 
+        // guarda quanto foi para cada parcela (no pai) — é o que permite REVERTER depois
+        for (ReceberRequest.Alocacao aloc : req.alocacoes()) {
+            recebimentoItemRepository.save(new RecebimentoItem(
+                    pai.getId(), aloc.parcelaId().substring(0, 1),
+                    idNumerico(aloc.parcelaId()), aloc.valor()));
+        }
+
+        // os abates foram UPDATEs diretos (as entidades ficam stale); força o banco a
+        // refletir tudo antes de reler o saldo por nota que vai no recibo
+        em.flush();
+        em.clear();
+
+        List<ReciboRecebimento.FormaPaga> formasRecibo = formas.stream()
+                .map(f -> new ReciboRecebimento.FormaPaga(f.tipo().name(), f.valor())).toList();
         return new ReciboRecebimento(
-                pagamento.getId(), pagamento.getData(), cliente.getNome(), vendedor.getNome(),
-                req.valor(), req.tipo().name(),
-                saldoAnterior, clienteRepository.saldoDevedor(cliente.getId()), itens);
+                pai.getId(), pai.getData(), cliente.getNome(), vendedor.getNome(),
+                req.valor(), formas.size() > 1 ? "MISTO" : formas.get(0).tipo().name(),
+                saldoAnterior, clienteRepository.saldoDevedor(cliente.getId()), itens,
+                resumoNotasEmAberto(cliente.getId()), formasRecibo);
     }
 
     /**
@@ -148,8 +195,13 @@ public class CarneService {
             LocalDate venc = LocalDate.ofInstant(debito.getData(), FUSO);
             String desc = descricaoLegada(debito) + " " + DATA_BR.format(venc);
             detalhe.add(desc);
+            String doc = debito.getDocumento();
+            String notaRot = doc != null && doc.contains("/") ? doc.substring(0, doc.indexOf('/'))
+                    : (doc != null ? doc : "s/nº");
+            String notaKey = "L:" + (doc != null && !doc.isBlank() ? notaRot : String.valueOf(debito.getId()));
             return new ReciboRecebimento.Item(desc, null, venc,
-                    debito.getValor().negate(), aloc.valor(), aberto.subtract(aloc.valor()));
+                    debito.getValor().negate(), aloc.valor(), aberto.subtract(aloc.valor()),
+                    notaKey, notaRot);
         }
         if (id.startsWith("V")) {
             ParcelaFiado parcela = parcelaRepository.findById(idNumerico(id))
@@ -167,7 +219,8 @@ public class CarneService {
             detalhe.add(desc);
             return new ReciboRecebimento.Item(desc, parcela.getVenda().getId(),
                     parcela.getVencimento(), parcela.getValor(),
-                    aloc.valor(), aberto.subtract(aloc.valor()));
+                    aloc.valor(), aberto.subtract(aloc.valor()),
+                    "V:" + parcela.getVenda().getId(), "Venda nº " + parcela.getVenda().getId());
         }
         throw new RegraNegocioException("Parcela inválida: " + id);
     }
@@ -225,6 +278,22 @@ public class CarneService {
         }
         abertas.sort(java.util.Comparator.comparing(CarneDTO.Parcela::vencimento));
         return abertas;
+    }
+
+    /**
+     * Notas do cliente ainda em aberto, agrupando as parcelas por nota (nota mais
+     * antiga primeiro) — vai no recibo para o cliente ver TODAS as notas que ainda
+     * deve, não só a que acabou de pagar.
+     */
+    private List<ReciboRecebimento.NotaResumo> resumoNotasEmAberto(Long clienteId) {
+        Map<String, ReciboRecebimento.NotaResumo> mapa = new LinkedHashMap<>();
+        for (CarneDTO.Parcela p : parcelasAbertas(clienteId)) {
+            mapa.merge(p.notaKey(),
+                    new ReciboRecebimento.NotaResumo(p.notaRotulo(), p.tipo(), p.valorAberto()),
+                    (a, b) -> new ReciboRecebimento.NotaResumo(a.rotulo(), a.tipo(),
+                            a.totalAberto().add(b.totalAberto())));
+        }
+        return new ArrayList<>(mapa.values());
     }
 
     /** "Carnê SET nº 66/01" — o nº que a loja conhece do sistema antigo. */

@@ -21,7 +21,10 @@ public record ReceberRequest(
         @NotNull @Positive(message = "Valor do recebimento deve ser positivo")
         @Digits(integer = 8, fraction = 2, message = "Valor com mais de 2 casas decimais")
         BigDecimal valor,
-        @NotNull(message = "Informe a forma de pagamento") TipoPagamentoFiado tipo,
+        // forma única (compat) — quando o cliente paga em uma forma só
+        TipoPagamentoFiado tipo,
+        // OU várias formas (dinheiro + PIX etc.); a soma tem que fechar com o valor
+        @Valid List<FormaPaga> formas,
         @NotNull(message = "Informe o funcionário que está recebendo") Long vendedorId,
         @NotEmpty(message = "Selecione ao menos uma parcela") @Valid List<Alocacao> alocacoes) {
 
@@ -29,6 +32,14 @@ public record ReceberRequest(
             @NotBlank String parcelaId,
             @NotNull @Positive(message = "Valor da parcela deve ser positivo")
             @Digits(integer = 8, fraction = 2, message = "Valor da parcela com mais de 2 casas decimais")
+            BigDecimal valor) {
+    }
+
+    /** Uma forma do recebimento e quanto foi pago nela. */
+    public record FormaPaga(
+            @NotNull(message = "Informe a forma de pagamento") TipoPagamentoFiado tipo,
+            @NotNull @Positive(message = "Valor da forma deve ser positivo")
+            @Digits(integer = 8, fraction = 2, message = "Valor da forma com mais de 2 casas decimais")
             BigDecimal valor) {
     }
 }
