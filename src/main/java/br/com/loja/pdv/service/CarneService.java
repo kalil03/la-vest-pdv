@@ -168,6 +168,97 @@ public class CarneService {
                 resumoNotasEmAberto(cliente.getId()), formasRecibo);
     }
 
+    // ---------- reimpressão de um recebimento (recibo + promissória das notas em aberto) ----------
+    public record PromParcela(String rotulo, LocalDate vencimento, BigDecimal valorAberto) {}
+    public record NotaPromissoria(Long vendaId, String rotulo, String clienteNome, String tipo,
+                                  BigDecimal totalAberto, List<PromParcela> parcelas) {}
+    public record Reimpressao(ReciboRecebimento recibo, List<NotaPromissoria> notas) {}
+
+    /**
+     * Reconstrói o recibo de um recebimento e as promissórias das notas que
+     * ficaram com saldo em aberto — para reimprimir depois (ex.: a impressão
+     * falhou). Usa o estado ATUAL das parcelas (o detalhamento por parcela veio
+     * do recebimento_item; o "resta" e o saldo são recalculados agora).
+     */
+    @Transactional(readOnly = true)
+    public Reimpressao reimpressao(Long pagamentoId) {
+        PagamentoFiado pag = pagamentoRepository.findById(pagamentoId)
+                .orElseThrow(() -> new RegraNegocioException("Recebimento não encontrado (id " + pagamentoId + ")"));
+        // se clicaram numa forma secundária (irmã), usa o pai — é quem tem o detalhamento
+        if (pag.getPagamentoPaiId() != null) {
+            pag = pagamentoRepository.findById(pag.getPagamentoPaiId())
+                    .orElseThrow(() -> new RegraNegocioException("Recebimento não encontrado"));
+        }
+        if (pag.getTipo() == TipoPagamentoFiado.DEBITO_INICIAL || pag.getTipo() == TipoPagamentoFiado.BAIXA) {
+            throw new RegraNegocioException("Este lançamento não é um recebimento de carnê");
+        }
+        Cliente cliente = pag.getCliente();
+        final Long paiId = pag.getId();   // efetivamente final, usado nas queries abaixo
+
+        // formas (pai + irmãs) e valor total do recebimento
+        List<ReciboRecebimento.FormaPaga> formas = new ArrayList<>();
+        formas.add(new ReciboRecebimento.FormaPaga(pag.getTipo().name(), pag.getValor()));
+        BigDecimal total = pag.getValor();
+        for (PagamentoFiado s : pagamentoRepository.findByPagamentoPaiId(paiId)) {
+            formas.add(new ReciboRecebimento.FormaPaga(s.getTipo().name(), s.getValor()));
+            total = total.add(s.getValor());
+        }
+
+        // itens: o que cada parcela recebeu (recebimento_item) + quanto RESTA nela hoje
+        List<ReciboRecebimento.Item> itens = new ArrayList<>();
+        for (RecebimentoItem it : recebimentoItemRepository.findByPagamentoId(paiId)) {
+            if ("L".equals(it.getOrigem())) {
+                PagamentoFiado p = pagamentoRepository.findById(it.getRefId()).orElse(null);
+                if (p == null) continue;
+                LocalDate venc = LocalDate.ofInstant(p.getData(), FUSO);
+                String doc = p.getDocumento();
+                String notaRot = doc != null && doc.contains("/") ? doc.substring(0, doc.indexOf('/'))
+                        : (doc != null ? doc : "s/nº");
+                String notaKey = "L:" + (doc != null && !doc.isBlank() ? notaRot : String.valueOf(p.getId()));
+                itens.add(new ReciboRecebimento.Item(descricaoLegada(p) + " " + DATA_BR.format(venc), null, venc,
+                        p.getValor().negate(), it.getValor(),
+                        p.getValorAberto() == null ? BigDecimal.ZERO : p.getValorAberto(), notaKey, notaRot));
+            } else {
+                ParcelaFiado pf = parcelaRepository.findById(it.getRefId()).orElse(null);
+                if (pf == null) continue;
+                Venda venda = pf.getVenda();
+                String desc = "Venda nº " + venda.getId() + " — " + pf.getNumero() + "/" + venda.getParcelas().size();
+                itens.add(new ReciboRecebimento.Item(desc, venda.getId(), pf.getVencimento(),
+                        pf.getValor(), it.getValor(), pf.getValorAberto(),
+                        "V:" + venda.getId(), "Venda nº " + venda.getId()));
+            }
+        }
+
+        BigDecimal saldoRestante = clienteRepository.saldoDevedor(cliente.getId());
+        ReciboRecebimento recibo = new ReciboRecebimento(
+                pag.getId(), pag.getData(), cliente.getNome(),
+                pag.getVendedor() != null ? pag.getVendedor().getNome() : null,
+                total, formas.size() > 1 ? "MISTO" : formas.get(0).tipo(),
+                saldoRestante.add(total), saldoRestante, itens,
+                resumoNotasEmAberto(cliente.getId()), formas);
+
+        // promissória das notas ATINGIDAS que ainda têm saldo em aberto
+        java.util.Set<String> afetadas = new java.util.HashSet<>();
+        for (ReciboRecebimento.Item it : itens) afetadas.add(it.notaKey());
+        java.util.Map<String, List<PromParcela>> parcelasPorNota = new LinkedHashMap<>();
+        java.util.Map<String, CarneDTO.Parcela> exemplo = new LinkedHashMap<>();
+        for (CarneDTO.Parcela p : parcelasAbertas(cliente.getId())) {
+            if (!afetadas.contains(p.notaKey())) continue;
+            parcelasPorNota.computeIfAbsent(p.notaKey(), k -> new ArrayList<>())
+                    .add(new PromParcela(p.parcelaRotulo(), p.vencimento(), p.valorAberto()));
+            exemplo.putIfAbsent(p.notaKey(), p);
+        }
+        List<NotaPromissoria> notas = new ArrayList<>();
+        for (var e : parcelasPorNota.entrySet()) {
+            CarneDTO.Parcela ex = exemplo.get(e.getKey());
+            BigDecimal tot = e.getValue().stream().map(PromParcela::valorAberto)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            notas.add(new NotaPromissoria(ex.notinha(), ex.notaRotulo(), cliente.getNome(),
+                    ex.tipo(), tot, e.getValue()));
+        }
+        return new Reimpressao(recibo, notas);
+    }
+
     /**
      * Abate uma alocação numa parcela ("L.." = carnê SET, "V.." = parcela de venda).
      *

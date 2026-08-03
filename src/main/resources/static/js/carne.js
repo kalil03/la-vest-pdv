@@ -758,14 +758,22 @@ async function confirmarRecebimento() {
  * (promissoriaCarneHTML), montada com o saldo de hoje já recarregado no carnê.
  */
 function oferecerPromissoria(recibo) {
+  // o carnê já foi recarregado (selecionarCliente): só sobrou aqui o que AINDA
+  // tem saldo. Uma nota tocada pelo pagamento que sumiu daqui foi quitada agora —
+  // e nota quitada não se reimprime (a promissória física é só riscada/arquivada).
+  const grupos = agruparPorNota(carne?.parcelas || []);
+  const abertoPorKey = new Map(grupos.map((g) => [g.key, g]));
+
   const notas = [];
   const vistos = new Set();
   (recibo.itens || []).forEach((it) => {
     if (!it.notaKey || vistos.has(it.notaKey)) return;
     vistos.add(it.notaKey);
-    notas.push({ notaKey: it.notaKey, rotulo: it.notaRotulo, notinha: it.notinha });
+    const g = abertoPorKey.get(it.notaKey);
+    if (!g || Number(g.totalAberto) <= 0) return;   // quitada agora → fora da reimpressão
+    notas.push({ notaKey: it.notaKey, rotulo: it.notaRotulo, notinha: it.notinha, grupo: g });
   });
-  if (!notas.length) return;
+  if (!notas.length) return;   // baixa que quitou tudo: nada a grampear, o recibo já saiu
 
   const overlay = document.createElement('div');
   overlay.className = 'fixed inset-0 z-[120] flex items-center justify-center';
@@ -776,7 +784,7 @@ function oferecerPromissoria(recibo) {
         <p class="text-[15px] font-bold m-0">Recebimento concluído</p>
         <p class="text-[12px] text-muted-foreground m-0 mt-1">${esc(recibo.clienteNome)} · saldo agora ${fmt(recibo.saldoRestante)}</p>
       </div>
-      <p class="text-[13px] m-0">Reimprimir a promissória com o saldo atualizado de ${notas.length > 1 ? notas.length + ' notas' : '1 nota'} para grampear na gaveta?</p>
+      <p class="text-[13px] m-0">Reimprimir a promissória com o saldo atualizado de ${notas.length > 1 ? notas.length + ' notas que ficaram' : '1 nota que ficou'} com saldo em aberto, para grampear na gaveta?</p>
       <div class="flex gap-3">
         <button id="pr-nao" class="flex-1 py-2 rounded-lg font-semibold text-[13px]" style="background: var(--muted)">Concluir</button>
         <button id="pr-sim" class="flex-1 py-2 rounded-lg font-semibold text-[13px] text-white flex items-center justify-center gap-2" style="background: var(--primary)"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir promissória</button>
@@ -790,22 +798,21 @@ function oferecerPromissoria(recibo) {
   overlay.querySelector('#pr-sim').onclick = async () => {
     overlay.querySelector('#pr-sim').disabled = true;
     try {
-      const grupos = agruparPorNota(carne?.parcelas || []);
       const docs = [];
       for (const n of notas) {
         if (n.notinha) {
           const r = await fetch(`/api/vendas/${n.notinha}`);
           if (r.ok) docs.push(reciboHTML(await r.json(), loja));
         } else {
-          const g = grupos.find((x) => x.key === n.notaKey);   // ausente = nota quitada agora
+          const g = n.grupo;   // grupo AINDA em aberto (quitadas já foram filtradas)
           docs.push(promissoriaCarneHTML({
-            rotulo: n.rotulo, clienteNome: recibo.clienteNome, tipo: g ? g.tipo : '',
-            totalAberto: g ? g.totalAberto : 0,
-            parcelas: g ? g.parcelas.map((p) => ({ rotulo: p.parcelaRotulo, vencimento: p.vencimento, valorAberto: p.valorAberto })) : [],
+            rotulo: n.rotulo, clienteNome: recibo.clienteNome, tipo: g.tipo,
+            totalAberto: g.totalAberto,
+            parcelas: g.parcelas.map((p) => ({ rotulo: p.parcelaRotulo, vencimento: p.vencimento, valorAberto: p.valorAberto })),
           }, loja));
         }
       }
-      if (docs.length) await previewImprimir(juntarDocumentos(docs));
+      if (docs.length) await previewImprimir(juntarDocumentos(docs, { cortarUltima: true }));
     } catch { toast('Falha ao imprimir a promissória', 'erro'); }
     fechar();
   };

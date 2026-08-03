@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="antialiased">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <title>PDV — Relatórios</title>
+  <script src="/js/auth.js"></script>
+  <script src="/vendor/tailwind.js"></script>
+  <script src="/vendor/lucide.js"></script>
+  <link rel="stylesheet" href="/vendor/fonts.css">
+  <link rel="stylesheet" href="/css/pdv.css">
+  <style>
+    :root {
+      --background: #ffffff; --foreground: oklch(0.145 0 0);
+      --primary: #030213; --primary-foreground: oklch(1 0 0);
+      --secondary: oklch(0.95 0.0058 264.53); --muted: #ececf0; --muted-foreground: #717182;
+      --destructive: #d4183d; --border: rgba(0, 0, 0, 0.1);
+      --sidebar: oklch(0.985 0 0); --sidebar-foreground: oklch(0.145 0 0);
+      --sidebar-primary: #030213; --sidebar-accent: oklch(0.97 0 0);
+      --sidebar-accent-foreground: oklch(0.205 0 0); --sidebar-border: oklch(0.922 0 0);
+      --ok: #16a34a; --ok-bg: #f0fdf4; --warn: #d97706; --warn-bg: #fffbeb;
+      --bad: #d4183d; --bad-bg: #fef2f2; --azul: #2563eb; --roxo: #7c3aed;
+    }
+    body { font-family: 'Inter', system-ui, sans-serif; margin: 0; background: var(--background); color: var(--foreground); }
+    [hidden] { display: none !important; }
+    .mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+
+    .kpi { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--background); }
+    .kpi .rotulo { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-foreground); display: flex; align-items: center; gap: 6px; }
+    .kpi .valor { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .kpi .sub { font-size: 11px; color: var(--muted-foreground); margin-top: 2px; }
+
+    .card { border: 1px solid var(--border); border-radius: 12px; background: var(--background); overflow: hidden; }
+    .card > .cab { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .card > .cab h3 { margin: 0; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+    .card > .cab .obs { font-size: 11px; color: var(--muted-foreground); font-weight: 500; }
+
+    .tab { width: 100%; border-collapse: collapse; }
+    .tab th { padding: 8px 14px; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; color: var(--muted-foreground); text-align: left; border-bottom: 1px solid var(--border); }
+    .tab td { padding: 8px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
+    .tab tbody tr:last-child td { border-bottom: none; }
+    .tab .num { text-align: right; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+    .tab .clicavel { cursor: pointer; }
+    .tab .clicavel:hover { background: var(--secondary); }
+    .posto { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; background: var(--muted); font-size: 11px; font-weight: 700; color: var(--muted-foreground); }
+    .posto.top { background: var(--primary); color: #fff; }
+
+    /* barra proporcional dentro da célula */
+    .barra-wrap { position: relative; }
+    .barra { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; opacity: .14; }
+
+    .chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .chip.forma { background: var(--muted); color: var(--foreground); }
+
+    .filtros-bar input, .filtros-bar select { font-size: 13px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--foreground); }
+    .filtros-bar input:focus, .filtros-bar select:focus { outline: none; border-color: var(--primary); }
+    .preset { padding: 7px 12px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--muted-foreground); cursor: pointer; }
+    .preset.ativo { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn-acao { padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-acao:hover { background: var(--secondary); }
+
+    /* colunas do aging */
+    .aging { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+    .aging .col { border: 1px solid var(--border); border-radius: 10px; padding: 12px; text-align: center; }
+    .aging .col .t { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; color: var(--muted-foreground); }
+    .aging .col .v { font-size: 16px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .aging .col .p { font-size: 10px; color: var(--muted-foreground); margin-top: 2px; }
+
+    @media print {
+      aside, .no-print { display: none !important; }
+      main { overflow: visible !important; }
+      body, main, .scrollarea { height: auto !important; overflow: visible !important; }
+      .card, .kpi { break-inside: avoid; }
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: {
+        background: 'var(--background)', foreground: 'var(--foreground)',
+        primary: { DEFAULT: 'var(--primary)', foreground: 'var(--primary-foreground)' },
+        secondary: { DEFAULT: 'var(--secondary)', foreground: 'var(--secondary-foreground)' },
+        muted: { DEFAULT: 'var(--muted)', foreground: 'var(--muted-foreground)' },
+        destructive: { DEFAULT: 'var(--destructive)' }, border: 'var(--border)',
+        sidebar: { DEFAULT: 'var(--sidebar)', foreground: 'var(--sidebar-foreground)',
+          primary: 'var(--sidebar-primary)', accent: 'var(--sidebar-accent)',
+          'accent-foreground': 'var(--sidebar-accent-foreground)', border: 'var(--sidebar-border)' }
+      } } }
+    }
+  </script>
+</head>
+<body class="bg-background overflow-hidden text-foreground">
+
+  <div class="flex h-screen overflow-hidden">
+    <!-- SIDEBAR -->
+    <aside class="w-56 flex-shrink-0 flex flex-col h-screen bg-sidebar border-r border-sidebar-border z-20 relative">
+      <div class="flex items-center gap-2.5 px-5 py-4 border-b border-sidebar-border">
+        <div class="w-7 h-7 rounded-md overflow-hidden flex items-center justify-center">
+          <img src="/favicon.png" alt="La Vest" class="w-full h-full object-cover">
+        </div>
+        <div>
+          <p class="text-sidebar-accent-foreground leading-none font-semibold text-[13px]">La Vest</p>
+          <p class="text-sidebar-foreground mt-1 text-[11px]">Sistema de Gestão</p>
+        </div>
+      </div>
+
+      <nav class="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <p class="text-sidebar-foreground px-2 mb-2 uppercase font-semibold text-[10px] tracking-widest">Menu Principal</p>
+        <a href="/" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="layout-dashboard" class="w-[15px] h-[15px]"></i><span class="flex-1">Venda (Caixa)</span>
+        </a>
+        <a href="/carne.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="wallet" class="w-[15px] h-[15px]"></i><span class="flex-1">Carnê</span>
+        </a>
+        <a href="/contas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="receipt" class="w-[15px] h-[15px]"></i><span class="flex-1">A Receber</span>
+        </a>
+        <a href="/produtos.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="package" class="w-[15px] h-[15px]"></i><span class="flex-1">Produtos</span>
+        </a>
+        <a href="/clientes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="users" class="w-[15px] h-[15px]"></i><span class="flex-1">Clientes</span>
+        </a>
+        <a href="/caixa.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="calculator" class="w-[15px] h-[15px]"></i><span class="flex-1">Caixa do dia</span>
+        </a>
+        <a href="/fechamento.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="calendar-check" class="w-[15px] h-[15px]"></i><span class="flex-1">Fechamento</span>
+        </a>
+        <a href="/relatorios.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group bg-sidebar-accent text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="bar-chart-3" class="w-[15px] h-[15px] text-primary"></i>
+          <span class="flex-1 font-medium">Relatórios</span>
+          <i data-lucide="chevron-right" class="w-3 h-3 text-primary"></i>
+        </a>
+        <a href="/etiquetas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="tags" class="w-[15px] h-[15px]"></i><span class="flex-1">Etiquetas</span>
+        </a>
+        <a href="/cobranca.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="phone-outgoing" class="w-[15px] h-[15px]"></i><span class="flex-1">Cobrança</span>
+        </a>
+        <a href="/condicional.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="shirt" class="w-[15px] h-[15px]"></i><span class="flex-1">Condicional</span>
+        </a>
+        <a href="/baixas.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="rotate-ccw" class="w-[15px] h-[15px]"></i><span class="flex-1">Baixas</span>
+        </a>
+        <a href="/ajustes.html" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors text-left group text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground text-[13px]">
+          <i data-lucide="settings" class="w-[15px] h-[15px]"></i><span class="flex-1">Ajustes</span>
+        </a>
+      </nav>
+
+      <div class="px-4 py-3 border-t border-sidebar-border">
+        <div class="flex items-center gap-2.5">
+          <div id="usuario-avatar" class="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[11px] font-semibold text-primary"></div>
+          <div class="flex-1 min-w-0">
+            <p id="usuario-nome" class="text-sidebar-accent-foreground truncate text-[12px] font-medium"></p>
+            <button id="sair" class="text-sidebar-foreground text-[11px] hover:underline bg-transparent border-0 p-0 cursor-pointer">Sair</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden" style="background: var(--input-bg, #f3f3f5)">
+      <header class="bg-background border-b border-border px-8 py-4 flex items-center justify-between no-print">
+        <div>
+          <h1 class="text-lg font-bold flex items-center gap-2 m-0">
+            <i data-lucide="bar-chart-3" class="w-5 h-5"></i> Relatórios
+          </h1>
+          <p class="text-[12px] text-muted-foreground m-0 mt-1">Movimento do período e retrato do crediário</p>
+        </div>
+        <button id="imprimir" class="btn-acao"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir</button>
+      </header>
+
+      <div class="flex-1 overflow-y-auto p-8 scrollarea">
+        <div class="max-w-6xl mx-auto w-full flex flex-col gap-6">
+
+          <!-- BARRA DE PERÍODO -->
+          <div class="filtros-bar flex flex-wrap gap-2 items-center bg-background border border-border rounded-xl p-3 no-print">
+            <div class="flex gap-1.5 flex-wrap">
+              <button class="preset" data-preset="hoje">Hoje</button>
+              <button class="preset" data-preset="7">7 dias</button>
+              <button class="preset ativo" data-preset="mes">Este mês</button>
+              <button class="preset" data-preset="mespassado">Mês passado</button>
+              <button class="preset" data-preset="ano">Este ano</button>
+            </div>
+            <div class="w-px h-6 bg-border mx-1"></div>
+            <label class="text-[12px] text-muted-foreground font-medium">De <input id="f-de" type="date"></label>
+            <label class="text-[12px] text-muted-foreground font-medium">até <input id="f-ate" type="date"></label>
+            <button id="f-aplicar" class="btn-acao"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Atualizar</button>
+            <span id="periodo-label" class="text-[12px] text-muted-foreground font-medium ml-auto"></span>
+          </div>
+
+          <!-- ===================== MOVIMENTO DO PERÍODO ===================== -->
+          <div>
+            <h2 class="text-[13px] font-bold uppercase tracking-wider text-muted-foreground m-0 mb-3 flex items-center gap-2">
+              <i data-lucide="trending-up" class="w-4 h-4"></i> Movimento do período
+            </h2>
+            <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+              <div class="kpi"><div class="rotulo">Faturamento</div><div id="k-fat" class="valor" style="color: var(--azul)">—</div><div id="k-fat-sub" class="sub"></div></div>
+              <div class="kpi"><div class="rotulo">Nº de vendas</div><div id="k-qtd" class="valor">—</div><div id="k-qtd-sub" class="sub"></div></div>
+              <div class="kpi"><div class="rotulo">Ticket médio</div><div id="k-ticket" class="valor">—</div></div>
+              <div class="kpi"><div class="rotulo">Peças vendidas</div><div id="k-itens" class="valor">—</div></div>
+              <div class="kpi"><div class="rotulo">Recebido (carnê)</div><div id="k-receb" class="valor" style="color: var(--ok)">—</div></div>
+              <div class="kpi"><div class="rotulo">Descontos</div><div id="k-desc" class="valor" style="color: var(--warn)">—</div></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- por forma -->
+            <div class="card">
+              <div class="cab"><h3><i data-lucide="credit-card" class="w-4 h-4"></i> Vendas por forma</h3></div>
+              <table class="tab"><tbody id="t-forma"></tbody></table>
+            </div>
+            <!-- por vendedor -->
+            <div class="card">
+              <div class="cab"><h3><i data-lucide="user-check" class="w-4 h-4"></i> Por vendedor</h3></div>
+              <table class="tab">
+                <thead><tr><th>Vendedor</th><th class="num">Vendas</th><th class="num">À vista</th><th class="num">Fiado</th><th class="num">Total</th></tr></thead>
+                <tbody id="t-vendedor"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- vendas por dia -->
+          <div class="card">
+            <div class="cab"><h3><i data-lucide="calendar-days" class="w-4 h-4"></i> Vendas por dia</h3><span class="obs">faturamento diário no período</span></div>
+            <table class="tab">
+              <thead><tr><th>Dia</th><th class="num">Vendas</th><th class="num" style="width:55%">Faturamento</th></tr></thead>
+              <tbody id="t-dia"></tbody>
+            </table>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- top produtos -->
+            <div class="card">
+              <div class="cab"><h3><i data-lucide="shopping-bag" class="w-4 h-4"></i> Produtos mais vendidos</h3></div>
+              <table class="tab">
+                <thead><tr><th style="width:28px"></th><th>Produto</th><th class="num">Qtd</th><th class="num">Total</th></tr></thead>
+                <tbody id="t-produto"></tbody>
+              </table>
+            </div>
+            <!-- top clientes -->
+            <div class="card">
+              <div class="cab"><h3><i data-lucide="crown" class="w-4 h-4"></i> Maiores compradores</h3><span class="obs">no período</span></div>
+              <table class="tab">
+                <thead><tr><th style="width:28px"></th><th>Cliente</th><th class="num">Compras</th><th class="num">Total</th></tr></thead>
+                <tbody id="t-cliente"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ===================== RETRATO DO CREDIÁRIO ===================== -->
+          <div>
+            <h2 class="text-[13px] font-bold uppercase tracking-wider text-muted-foreground m-0 mb-1 mt-2 flex items-center gap-2">
+              <i data-lucide="landmark" class="w-4 h-4"></i> Crediário — retrato de hoje
+            </h2>
+            <p class="text-[11px] text-muted-foreground m-0 mb-3">Independe do período acima: é o que ainda falta receber neste momento.</p>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div class="kpi"><div class="rotulo">Total em aberto</div><div id="c-aberto" class="valor" style="color: var(--bad)">—</div></div>
+              <div class="kpi"><div class="rotulo">Vencido</div><div id="c-vencido" class="valor" style="color: var(--warn)">—</div><div id="c-vencido-sub" class="sub"></div></div>
+              <div class="kpi"><div class="rotulo">Parcelas abertas</div><div id="c-parcelas" class="valor">—</div></div>
+              <div class="kpi"><div class="rotulo">Clientes devendo</div><div id="c-devedores" class="valor">—</div></div>
+            </div>
+          </div>
+
+          <!-- aging -->
+          <div class="card">
+            <div class="cab"><h3><i data-lucide="alarm-clock" class="w-4 h-4"></i> Vencimento das parcelas em aberto</h3><span class="obs">quanto está a vencer × quão atrasado</span></div>
+            <div class="p-4"><div class="aging" id="aging"></div></div>
+          </div>
+
+          <!-- maiores devedores -->
+          <div class="card">
+            <div class="cab"><h3><i data-lucide="alert-triangle" class="w-4 h-4"></i> Maiores devedores</h3><span class="obs">clique para abrir o carnê</span></div>
+            <table class="tab">
+              <thead><tr><th style="width:28px"></th><th>Cliente</th><th class="num">Notas</th><th class="num">Vencido</th><th class="num">Em aberto</th></tr></thead>
+              <tbody id="t-devedor"></tbody>
+            </table>
+          </div>
+
+          <p class="text-[11px] text-muted-foreground m-0 pb-4">Vendas canceladas ficam fora de todas as somas. Recebido = recebimentos de carnê e entradas de fiado lançados no sistema.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/js/relatorios.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

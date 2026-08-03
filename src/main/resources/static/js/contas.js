@@ -28,12 +28,6 @@ async function carregar() {
 
   const r = await (await fetch(`/api/contas-receber?${params}`)).json();
 
-  // KPIs (gerais, independem do filtro)
-  $('k-aberto').textContent = fmt(r.totais.totalAberto);
-  $('k-vencido').textContent = fmt(r.totais.totalVencido);
-  $('k-parcelas').textContent = Number(r.totais.parcelasAbertas).toLocaleString('pt-BR');
-  $('k-recebido').textContent = fmt(r.totais.recebidoMes);
-
   // tabela
   $('lista').innerHTML = r.contas.map((c) => `
     <tr data-cliente="${c.clienteId}" ${c.notinha ? `data-notinha="${c.notinha}"` : ''}

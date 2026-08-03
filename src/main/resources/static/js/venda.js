@@ -662,7 +662,15 @@ async function confirmarVenda() {
   }
   body.vendedorId = Number(vendedorId);
   localStorage.setItem('pdv.vendedorId', vendedorId);
-  if ($('v-data').value) body.data = $('v-data').value;
+  // Fechamento de condicional: a venda é do DIA do fechamento (hoje), nunca da
+  // data que estiver no campo — em kiosk a aba fica dias aberta e o v-data pode
+  // ter ficado preso na data em que a condicional começou.
+  if (condicionalEmFechamento) {
+    body.data = new Date().toLocaleDateString('sv-SE'); // hoje
+    $('v-data').value = body.data;                       // reflete na tela
+  } else if ($('v-data').value) {
+    body.data = $('v-data').value;
+  }
   if ($('c-observacao').value.trim()) body.observacao = $('c-observacao').value.trim();
   if (forma === 'CARTAO') body.parcelasCartao = Number($('m-parcelas-cartao').value);
 
@@ -1018,6 +1026,7 @@ resetarVenda();
     await vendedoresProntos;
     if (c.vendedorId) $('c-vendedor').value = c.vendedorId;
     if (c.observacao) $('c-observacao').value = c.observacao;
+    $('v-data').value = new Date().toLocaleDateString('sv-SE'); // fecha HOJE, não na data de saída da condicional
     selecionarForma('FIADO'); // condicional é loja de crediário: já vem fiado (cai no carnê); troca p/ à vista se for o caso
     condicionalEmFechamento = Number(condId);
     renderItens();

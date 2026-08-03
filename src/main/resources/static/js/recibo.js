@@ -189,17 +189,22 @@ function imprimirRecibo(venda, loja) {
  * separados na MP-4200 derrubava o segundo ("Falha na impressão"); um job só
  * elimina o problema na raiz — e o operador confere tudo num preview só.
  */
-function juntarDocumentos(htmls) {
-  if (htmls.length === 1) return htmls[0];
+function juntarDocumentos(htmls, opts = {}) {
+  // cortarUltima: força a quebra (= corte da guilhotina) TAMBÉM depois da última via.
+  // Sem isso, o corte da última depende do fim-de-job do driver; com promissória de
+  // gaveta a gente quer cada via já cortada e pronta pra grampear.
+  const cortarUltima = !!opts.cortarUltima;
+  if (htmls.length === 1 && !cortarUltima) return htmls[0];
   const parser = new DOMParser();
   const docs = htmls.map((h) => parser.parseFromString(h, 'text/html'));
   const estilos = [...new Set(docs.map((d) => d.head.querySelector('style')?.textContent || ''))].join('\n');
-  // Cada via é uma "página" com quebra forçada depois (menos a última): uso as duas
-  // propriedades — a moderna `break-after` e a legada `page-break-after` — porque
-  // o driver da térmica só corta/avança entre páginas se enxergar o page break.
-  // Uma folga no pé (padding-bottom) evita que o corte coma a última linha.
+  // Cada via é uma "página" com quebra forçada depois: uso as duas propriedades — a
+  // moderna `break-after` e a legada `page-break-after` — porque o driver da térmica
+  // só corta/avança entre páginas se enxergar o page break. Uma folga no pé
+  // (padding-bottom) evita que o corte coma a última linha.
   const paginas = docs.map((d, i) => {
-    const quebra = i < docs.length - 1 ? 'page-break-after: always; break-after: page;' : '';
+    const ultima = i === docs.length - 1;
+    const quebra = (!ultima || cortarUltima) ? 'page-break-after: always; break-after: page;' : '';
     return `<div style="${quebra} padding-bottom: 6mm;">${d.body.innerHTML}</div>`;
   }).join('');
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><style>${estilos}</style></head><body>${paginas}</body></html>`;

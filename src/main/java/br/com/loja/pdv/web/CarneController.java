@@ -29,4 +29,10 @@ public class CarneController {
     public ReciboRecebimento receber(@RequestBody @Valid ReceberRequest req) {
         return carneService.receber(req);
     }
+
+    /** Reimprimir um recebimento: recibo + promissória das notas ainda em aberto. */
+    @GetMapping("/api/recebimentos/{id}/reimpressao")
+    public CarneService.Reimpressao reimpressao(@PathVariable Long id) {
+        return carneService.reimpressao(id);
+    }
 }

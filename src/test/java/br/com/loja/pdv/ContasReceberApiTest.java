@@ -82,7 +82,10 @@ class ContasReceberApiTest {
 
         var contas = (List<Map<String, Object>>) listar("?status=ABERTA").get("contas");
         var daVenda = contas.stream().filter(c -> c.get("notinha") != null).findFirst().orElseThrow();
-        assertThat(daVenda.get("descricao")).isEqualTo("Parcela 1/1 · Geral");
-        assertThat(daVenda.get("status")).isEqualTo("ABERTA"); // vence em 2030
+        // a lista agrupa por nota: 1 linha por notinha com a contagem de parcelas
+        // (o tipo "Geral" foi para campo próprio/chip, saiu da descrição)
+        assertThat(daVenda.get("descricao")).isEqualTo("1 parcela");
+        assertThat(daVenda.get("notinha")).isNotNull();            // nº da venda
+        assertThat(daVenda.get("status")).isEqualTo("ABERTA");     // vence em 2030
     }
 }
