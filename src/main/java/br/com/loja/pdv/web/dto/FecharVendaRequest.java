@@ -30,6 +30,7 @@ public record FecharVendaRequest(
         String observacao,
         String tipoNotinha, // "Geral" ou "Tênis" — obrigatório (validado no serviço)
         LocalDate data, // null = agora; preenchida = venda lançada com outra data (ex.: venda de ontem anotada no papel)
+        String idempotencyKey, // UUID gerado pelo cliente por tentativa; null = chamada antiga (retrocompat)
         @Valid Fiado fiado,
         // à vista pago em 2+ formas: formaPagamento = MISTO e a soma tem que fechar com o total
         @Valid List<FormaPaga> formas,

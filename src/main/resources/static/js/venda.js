@@ -20,6 +20,8 @@ let condicionalEmFechamento = null; // id da condicional sendo fechada via /?con
 let tipoNotinha = '';      // "Geral" | "Tênis" — obrigatório
 let tipoManual = false;    // operador escolheu na mão (não deixa a sugestão sobrescrever)
 let enviandoVenda = false; // trava de duplo-submit: F10 repetido não pode gerar duas vendas
+let tokenTentativa = null; // idempotência: 1 UUID por TENTATIVA de venda (abertura do modal);
+                           // reenvios da mesma tentativa reusam, evitando venda duplicada no servidor
 
 fetch('/api/config').then((r) => r.json()).then((c) => { loja = c; });
 
@@ -417,6 +419,9 @@ const modalAberto = () => !$overlay.hidden;
 
 function abrirModal() {
   if (itens.length === 0) { toast('Adicione pelo menos um item'); $busca.focus(); return; }
+  // nova tentativa de venda: token novo. Se o F10 for reenviado (resposta lenta),
+  // reusa este mesmo token e o servidor não duplica a venda.
+  tokenTentativa = crypto.randomUUID();
   if (!$('c-vendedor').value) {
     toast('Selecione um vendedor no rodapé para poder fechar a venda!', 'erro');
     $('c-vendedor').focus();
@@ -652,6 +657,7 @@ async function confirmarVenda() {
     formaPagamento: forma,
     desconto: descontoValor().toFixed(2),
     tipoNotinha,
+    idempotencyKey: tokenTentativa, // mesma tentativa reusa o token: servidor não duplica
     itens: itens.map((i) => ({ variacaoId: i.variacaoId, quantidade: i.qtd, precoUnit: i.preco.toFixed(2) })),
   };
   const vendedorId = $('c-vendedor').value;

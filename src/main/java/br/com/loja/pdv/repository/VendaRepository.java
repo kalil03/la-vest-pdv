@@ -7,8 +7,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Optional;
 
 public interface VendaRepository extends JpaRepository<Venda, Long> {
+
+    /** Idempotência: acha a venda já gravada com este token (reenvio da mesma tentativa). */
+    Optional<Venda> findByIdempotencyKey(String idempotencyKey);
 
     /**
      * Marcação atômica de cancelamento (padrão do baixarEstoque): o WHERE

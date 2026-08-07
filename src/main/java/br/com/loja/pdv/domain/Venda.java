@@ -64,6 +64,14 @@ public class Venda {
     @Column(name = "cancelamento_motivo")
     private String cancelamentoMotivo;
 
+    /**
+     * Chave de idempotência gerada pelo cliente por tentativa de venda: reenvio
+     * da MESMA tentativa (resposta perdida) não duplica — a UNIQUE barra e o
+     * serviço devolve a venda já gravada. NULL = chamada sem token (retrocompat).
+     */
+    @Column(name = "idempotency_key", unique = true)
+    private String idempotencyKey;
+
     @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ItemVenda> itens = new ArrayList<>();
 
@@ -105,6 +113,8 @@ public class Venda {
     public void setObservacao(String observacao) { this.observacao = observacao; }
     public String getCpf() { return cpf; }
     public void setCpf(String cpf) { this.cpf = cpf; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
     public List<ItemVenda> getItens() { return itens; }
     public List<ParcelaFiado> getParcelas() { return parcelas; }
 }

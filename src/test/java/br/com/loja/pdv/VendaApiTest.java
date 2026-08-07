@@ -350,6 +350,72 @@ class VendaApiTest {
         return jdbc.queryForObject("SELECT estoque FROM variacao WHERE id = ?", Integer.class, variacaoId);
     }
 
+    // ---------- idempotência: reenvio da mesma tentativa não duplica ----------
+
+    @Test
+    void vendaComMesmoTokenNaoDuplicaNemBaixaEstoqueDeNovo() {
+        String token = java.util.UUID.randomUUID().toString();
+        var req = pedido(
+                "formaPagamento", "DINHEIRO", "tipoNotinha", "Geral", "idempotencyKey", token,
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 2, "precoUnit", "150.00")));
+
+        ResponseEntity<Map> r1 = http.postForEntity("/api/vendas", req, Map.class);
+        ResponseEntity<Map> r2 = http.postForEntity("/api/vendas", req, Map.class); // reenvio idêntico
+
+        assertThat(r1.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        // a 2ª chamada devolve a MESMA venda, não cria outra
+        assertThat(r2.getBody().get("id")).isEqualTo(r1.getBody().get("id"));
+        assertThat(vendaRepository.count()).isEqualTo(1);
+        assertThat(estoque(variacaoTenis38)).isEqualTo(8); // 10 - 2, baixado UMA vez só
+    }
+
+    @Test
+    void vendasComTokensDiferentesSaoDuasVendas() {
+        ResponseEntity<Map> r1 = http.postForEntity("/api/vendas", pedido(
+                "formaPagamento", "DINHEIRO", "tipoNotinha", "Geral",
+                "idempotencyKey", java.util.UUID.randomUUID().toString(),
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00"))),
+                Map.class);
+        ResponseEntity<Map> r2 = http.postForEntity("/api/vendas", pedido(
+                "formaPagamento", "DINHEIRO", "tipoNotinha", "Geral",
+                "idempotencyKey", java.util.UUID.randomUUID().toString(),
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00"))),
+                Map.class);
+
+        assertThat(r1.getBody().get("id")).isNotEqualTo(r2.getBody().get("id"));
+        assertThat(vendaRepository.count()).isEqualTo(2);
+        assertThat(estoque(variacaoTenis38)).isEqualTo(8); // 10 - 1 - 1
+    }
+
+    @Test
+    void vendaSemTokenContinuaComoAntes_retrocompativel() {
+        var req = pedido(
+                "formaPagamento", "DINHEIRO", "tipoNotinha", "Geral",
+                "itens", List.of(Map.of("variacaoId", variacaoTenis38, "quantidade", 1, "precoUnit", "150.00")));
+
+        ResponseEntity<Map> r1 = http.postForEntity("/api/vendas", req, Map.class);
+        ResponseEntity<Map> r2 = http.postForEntity("/api/vendas", req, Map.class);
+
+        assertThat(r1.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(r2.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        // sem token, cada chamada é uma venda (comportamento de hoje preservado)
+        assertThat(vendaRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void sangriaComMesmoTokenNaoDuplica() {
+        String token = java.util.UUID.randomUUID().toString();
+        var req = Map.of("valor", "40.00", "motivo", "fornecedor", "operador", "Teste",
+                "idempotencyKey", token);
+
+        ResponseEntity<Map> r1 = http.postForEntity("/api/vendas/caixa-dia/retirada", req, Map.class);
+        ResponseEntity<Map> r2 = http.postForEntity("/api/vendas/caixa-dia/retirada", req, Map.class);
+
+        assertThat(r1.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(r2.getBody().get("id")).isEqualTo(r1.getBody().get("id"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM retirada_caixa", Integer.class)).isEqualTo(1);
+    }
+
     @Test
     void dataDeHojeMantemAHoraRealSoRetroativaViraMeioDia() {
         // o caixa envia a data SEMPRE (campo preenchido com hoje por padrão):

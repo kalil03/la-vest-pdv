@@ -1,5 +1,6 @@
 package br.com.loja.pdv.service;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -51,10 +52,13 @@ public class VendaConsultaService {
                     message = "Valor da retirada com mais de 2 casas decimais")
             BigDecimal valor,
             String motivo,
-            String operador) {}
+            String operador,
+            LocalDate data,
+            String idempotencyKey) {} // UUID por tentativa; null = chamada antiga (retrocompat)
 
-    /** Um recebimento/entrada do dia, com quem pagou. */
-    public record RecebimentoDia(Long recibo, String cliente, String tipo, BigDecimal valor, Long vendaEntrada) {}
+    /** Um recebimento/entrada do dia, com quem pagou e a nota (promissória) quitada. */
+    public record RecebimentoDia(Long recibo, String cliente, String tipo, BigDecimal valor,
+                                 Long vendaEntrada, String nota) {}
 
     public record Fechamento(BigDecimal saldoAnterior, BigDecimal contagem, BigDecimal esperado,
                              BigDecimal diferenca, String operador, Instant fechadoEm) {}
@@ -139,8 +143,23 @@ public class VendaConsultaService {
                 (rs, i) -> new VendaDia(rs.getLong("id"), rs.getString("cliente"), rs.getString("vendedor"),
                         rs.getString("forma_pagamento"), rs.getBigDecimal("total")));
 
+        // a nota (promissória) que o recebimento quitou: vem do detalhamento por
+        // parcela (recebimento_item). Pagamento irmão (2ª forma do misto) usa o
+        // detalhamento do pai. Entrada de fiado não tem item — cai no venda_id.
         List<RecebimentoDia> recebimentosDia = jdbc.query("""
-                SELECT p.id, c.nome AS cliente, p.tipo, p.valor, p.venda_id
+                SELECT p.id, c.nome AS cliente, p.tipo, p.valor, p.venda_id,
+                       COALESCE(
+                         (SELECT string_agg(DISTINCT z.nota, ', ' ORDER BY z.nota) FROM (
+                             SELECT CASE WHEN ri.origem = 'V' THEN CAST(pf.venda_id AS text)
+                                         ELSE COALESCE(NULLIF(split_part(dp.documento, '/', 1), ''), CAST(dp.id AS text))
+                                    END AS nota
+                             FROM recebimento_item ri
+                             LEFT JOIN parcela_fiado pf ON ri.origem = 'V' AND pf.id = ri.ref_id
+                             LEFT JOIN pagamento_fiado dp ON ri.origem = 'L' AND dp.id = ri.ref_id
+                             WHERE ri.pagamento_id = COALESCE(p.pagamento_pai_id, p.id)
+                         ) z),
+                         CAST(p.venda_id AS text)
+                       ) AS nota
                 FROM pagamento_fiado p
                 JOIN cliente c ON c.id = p.cliente_id
                 LEFT JOIN venda vx ON vx.id = p.venda_id
@@ -151,7 +170,8 @@ public class VendaConsultaService {
                 """, params,
                 (rs, i) -> new RecebimentoDia(rs.getLong("id"), rs.getString("cliente"), rs.getString("tipo"),
                         rs.getBigDecimal("valor"),
-                        rs.getObject("venda_id") == null ? null : rs.getLong("venda_id")));
+                        rs.getObject("venda_id") == null ? null : rs.getLong("venda_id"),
+                        rs.getString("nota")));
 
         // com a venda cancelada mantendo a data original (nunca é deletada), dá
         // para separar: estorno de venda de HOJE já se anulou nas somas acima;
@@ -228,20 +248,65 @@ public class VendaConsultaService {
                 entradasDinheiro, saidasDinheiro, sugerido, fechamento);
     }
 
-    /** Registra uma sangria (agora, com o timestamp do momento). */
-    @Transactional
+    /**
+     * Registra uma sangria. Idempotente pelo token (UUID por tentativa): reenvio
+     * da mesma tentativa não lança em dobro. Sem @Transactional de propósito — é
+     * um único INSERT (atômico sozinho), então a violação de UNIQUE numa corrida
+     * não deixa transação "abortada" e conseguimos reconsultar o registro.
+     */
     public Retirada registrarRetirada(RetiradaRequest req) {
-        Long id = jdbc.queryForObject("""
-                INSERT INTO retirada_caixa (valor, motivo, operador)
-                VALUES (:valor, :motivo, :operador) RETURNING id
-                """,
+        LocalDate hoje = LocalDate.now(br.com.loja.pdv.Fuso.LOJA);
+        LocalDate dia = req.data();
+        if (dia != null && dia.isAfter(hoje)) {
+            throw new RegraNegocioException("Não dá para registrar retirada em data futura");
+        }
+        String token = req.idempotencyKey() == null || req.idempotencyKey().isBlank()
+                ? null : req.idempotencyKey().trim();
+        if (token != null) {
+            Retirada existente = buscarRetiradaPorToken(token);
+            if (existente != null) return existente;
+        }
+        try {
+            return inserirRetirada(req, dia, hoje, token);
+        } catch (DataIntegrityViolationException e) {
+            // corrida: outra chamada com o MESMO token gravou primeiro — a UNIQUE
+            // barrou a nossa; devolvemos a retirada que ficou, sem duplicar.
+            if (token != null) {
+                Retirada existente = buscarRetiradaPorToken(token);
+                if (existente != null) return existente;
+            }
+            throw e;
+        }
+    }
+
+    private Retirada inserirRetirada(RetiradaRequest req, LocalDate dia, LocalDate hoje, String token) {
+        // a retirada cai no DIA que a tela do caixa está mostrando: se é hoje, usa a
+        // hora real; se é um dia passado (conferindo um caixa anterior), usa meio-dia
+        // dele — antes ela ia sempre para "agora", caindo no dia errado.
+        boolean ehHoje = dia == null || dia.equals(hoje);
+        String dataExpr = ehHoje ? "now()"
+                : "(CAST(:dia AS date) + TIME '12:00') AT TIME ZONE 'America/Sao_Paulo'";
+        Long id = jdbc.queryForObject(
+                "INSERT INTO retirada_caixa (valor, motivo, operador, data, idempotency_key) "
+                        + "VALUES (:valor, :motivo, :operador, " + dataExpr + ", :token) RETURNING id",
                 new MapSqlParameterSource()
                         .addValue("valor", req.valor())
                         .addValue("motivo", req.motivo() == null || req.motivo().isBlank()
                                 ? null : req.motivo().trim())
-                        .addValue("operador", req.operador()),
+                        .addValue("operador", req.operador())
+                        .addValue("dia", dia)
+                        .addValue("token", token),
                 Long.class);
         return new Retirada(id, Instant.now(), req.valor(), req.motivo(), req.operador());
+    }
+
+    private Retirada buscarRetiradaPorToken(String token) {
+        var lista = jdbc.query(
+                "SELECT id, data, valor, motivo, operador FROM retirada_caixa WHERE idempotency_key = :token",
+                new MapSqlParameterSource("token", token),
+                (rs, n) -> new Retirada(rs.getLong("id"), rs.getTimestamp("data").toInstant(),
+                        rs.getBigDecimal("valor"), rs.getString("motivo"), rs.getString("operador")));
+        return lista.isEmpty() ? null : lista.get(0);
     }
 
     /**

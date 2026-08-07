@@ -4,6 +4,8 @@ import br.com.loja.pdv.domain.*;
 import br.com.loja.pdv.repository.*;
 import br.com.loja.pdv.web.dto.FecharVendaRequest;
 import br.com.loja.pdv.web.dto.VendaResumo;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,8 @@ public class VendaService {
     private final EstornoRepository estornoRepository;
     private final NfceRepository nfceRepository;
     private final PagamentoVendaRepository pagamentoVendaRepository;
+    /** Referência ao próprio bean (proxy) para chamar métodos @Transactional de dentro. */
+    private final VendaService self;
 
     public VendaService(VendaRepository vendaRepository,
                         VariacaoRepository variacaoRepository,
@@ -31,7 +35,8 @@ public class VendaService {
                         PagamentoFiadoRepository pagamentoFiadoRepository,
                         EstornoRepository estornoRepository,
                         NfceRepository nfceRepository,
-                        PagamentoVendaRepository pagamentoVendaRepository) {
+                        PagamentoVendaRepository pagamentoVendaRepository,
+                        @Lazy VendaService self) {
         this.vendaRepository = vendaRepository;
         this.variacaoRepository = variacaoRepository;
         this.clienteRepository = clienteRepository;
@@ -40,6 +45,7 @@ public class VendaService {
         this.estornoRepository = estornoRepository;
         this.nfceRepository = nfceRepository;
         this.pagamentoVendaRepository = pagamentoVendaRepository;
+        this.self = self;
     }
 
     /**
@@ -50,9 +56,40 @@ public class VendaService {
      * é o débito e a entrada vira um PagamentoFiado normal; a dívida é sempre
      * SUM(vendas FIADO) - SUM(pagamentos). As parcelas são só o cronograma
      * combinado, impresso no carnê.
+     *
+     * Idempotência: se a requisição vem com um token (UUID por tentativa) e já
+     * existe uma venda gravada com ele, devolvemos essa venda — reenvio da mesma
+     * tentativa (resposta perdida) não duplica venda nem baixa estoque de novo.
+     * A garantia real é a UNIQUE no banco: fazemos um pré-check para o caso comum
+     * (re-clique após sucesso), mas a corrida (duas chamadas simultâneas) é fechada
+     * pelo catch da violação de constraint, não pelo pré-check (que teria janela).
      */
-    @Transactional
     public VendaResumo fechar(FecharVendaRequest req) {
+        String token = req.idempotencyKey() == null || req.idempotencyKey().isBlank()
+                ? null : req.idempotencyKey().trim();
+        if (token != null) {
+            var existente = vendaRepository.findByIdempotencyKey(token);
+            if (existente.isPresent()) {
+                return self.buscarResumo(existente.get().getId());
+            }
+        }
+        try {
+            return self.fecharNova(req, token);
+        } catch (DataIntegrityViolationException e) {
+            // outra chamada com o MESMO token gravou entre o pré-check e o nosso
+            // INSERT; a UNIQUE barrou o duplicado — devolvemos a venda que ficou.
+            if (token != null) {
+                var existente = vendaRepository.findByIdempotencyKey(token);
+                if (existente.isPresent()) {
+                    return self.buscarResumo(existente.get().getId());
+                }
+            }
+            throw e; // violação de outra constraint: não é idempotência, propaga
+        }
+    }
+
+    @Transactional
+    public VendaResumo fecharNova(FecharVendaRequest req, String token) {
         Cliente cliente = resolverCliente(req);
         if (req.formaPagamento() == FormaPagamento.FIADO && cliente == null) {
             throw new RegraNegocioException("Venda fiado precisa de um cliente");
@@ -68,6 +105,7 @@ public class VendaService {
         }
 
         Venda venda = new Venda();
+        venda.setIdempotencyKey(token);
         venda.setTipoNotinha(tipoNotinha);
         if (req.data() != null) {
             java.time.ZoneId fuso = br.com.loja.pdv.Fuso.LOJA;
@@ -142,6 +180,9 @@ public class VendaService {
             pagamento.setVenda(venda);
             pagamento.setValor(entrada);
             pagamento.setTipo(req.fiado().entradaTipo());
+            // a entrada é do MESMO dia da venda — senão uma venda lançada com data de
+            // ontem deixava a entrada caindo no caixa de hoje (dia errado)
+            pagamento.setData(venda.getData());
             pagamentoFiadoRepository.saveAndFlush(pagamento);
         }
 
