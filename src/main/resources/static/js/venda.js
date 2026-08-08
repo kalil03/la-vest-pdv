@@ -23,6 +23,18 @@ let enviandoVenda = false; // trava de duplo-submit: F10 repetido não pode gera
 let tokenTentativa = null; // idempotência: 1 UUID por TENTATIVA de venda (abertura do modal);
                            // reenvios da mesma tentativa reusam, evitando venda duplicada no servidor
 
+// crypto.randomUUID() só existe em contexto seguro (localhost/HTTPS). No PC2, que
+// abre a API por http://IP-da-LAN, o contexto é inseguro e randomUUID é undefined —
+// então geramos um UUID v4 com getRandomValues (esse existe em qualquer contexto).
+function uuid() {
+  if (window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0'));
+  return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
+}
+
 fetch('/api/config').then((r) => r.json()).then((c) => { loja = c; });
 
 // padrões do carnê configuráveis em Ajustes (com fallback se o config não carregou)
@@ -421,7 +433,7 @@ function abrirModal() {
   if (itens.length === 0) { toast('Adicione pelo menos um item'); $busca.focus(); return; }
   // nova tentativa de venda: token novo. Se o F10 for reenviado (resposta lenta),
   // reusa este mesmo token e o servidor não duplica a venda.
-  tokenTentativa = crypto.randomUUID();
+  tokenTentativa = uuid();
   if (!$('c-vendedor').value) {
     toast('Selecione um vendedor no rodapé para poder fechar a venda!', 'erro');
     $('c-vendedor').focus();

@@ -213,6 +213,16 @@ async function fecharCaixa() {
 // ---------- retirada (sangria): valor + motivo, com confirmação ----------
 let registrandoRetirada = false;
 let tokenRetirada = null; // idempotência: 1 UUID por tentativa de sangria; reenvio reusa (servidor não duplica)
+// crypto.randomUUID() só existe em contexto seguro (localhost/HTTPS). No PC2 (http na LAN)
+// é undefined — gera UUID v4 com getRandomValues, que existe em qualquer contexto.
+function uuid() {
+  if (window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0'));
+  return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
+}
 async function registrarRetirada() {
   if (registrandoRetirada) return;
   const valor = lerMoeda($('rt-valor'));
@@ -223,7 +233,7 @@ async function registrarRetirada() {
   }
   const motivo = $('rt-motivo').value.trim();
   // nova tentativa só se não há uma pendente: um reenvio após falha reusa o mesmo token
-  if (!tokenRetirada) tokenRetirada = crypto.randomUUID();
+  if (!tokenRetirada) tokenRetirada = uuid();
   const diaSel = $('cx-data').value;                       // a retirada cai no dia que a tela mostra
   const diaBr = diaSel ? diaSel.split('-').reverse().join('/') : '';
 
