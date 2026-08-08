@@ -10,7 +10,7 @@ outros PCs abrindo só o navegador na rede local.
 - **Backend:** Java 21 (código nível 17) · Spring Boot 3.5 · Spring Data JPA · PostgreSQL 16 · Flyway
 - **Frontend:** HTML/CSS/JS puro servido pelo Spring Boot (sem framework, sem build)
 - **Impressão:** HTML formatado para bobina 80mm via `window.print()` (Edge `--kiosk-printing`)
-- **Nota fiscal:** emitida pelo sistema legado (Set Sistemas). O código de NFC-e
+- **Nota fiscal:** emitida por outro sistema. O código de NFC-e
   (modelo 65, layout 4.00) existe no projeto mas está **desativado** — os endpoints
   respondem `410 Gone`. Ver [Fiscal](#fiscal-nfc-e-desativada).
 
@@ -37,7 +37,7 @@ Estas decisões de projeto são o que mantém o financeiro confiável — mexer 
 - **Dívida nunca é armazenada, é sempre calculada:** `saldoDevedor = Σ(venda FIADO não cancelada) − Σ(pagamento_fiado)`. Invariante conferido em teste: `Σ(valor_aberto das parcelas) == saldoDevedor`.
 - **Estorno é marcação, nunca DELETE.** A venda cancelada mantém numeração e data; sai das somas pelo filtro `cancelada_em IS NULL`. Toda anulação vira registro imutável em `estorno`.
 - **Idempotência de venda e sangria:** o cliente manda um token (UUID por tentativa); reenvio da mesma tentativa não duplica venda/estoque nem sangria (constraint `UNIQUE` + tratamento da colisão no servidor).
-- **`DEBITO_INICIAL`** = carnê migrado do Set (valor negativo empurra o saldo pra cima; `valor_aberto` controla o quanto falta pagar).
+- **`DEBITO_INICIAL`** = carnê migrado do sistema anterior (valor negativo empurra o saldo pra cima; `valor_aberto` controla o quanto falta pagar).
 
 ---
 
@@ -53,7 +53,7 @@ src/main/resources/
   db/migration/ migrations Flyway (V1..V28) — donas do schema
   static/       frontend (html + js/)
 src/test/java/  testes de integração contra PostgreSQL real (pdv_test)
-tools/          scripts de migração do sistema legado (Firebird/Set)
+tools/          scripts de migração do sistema anterior (Firebird)
 deploy/windows/ pacote de produção (WinSW, application.properties, backup-pdv.ps1, instalador)
 ```
 
@@ -113,12 +113,12 @@ C:\LaVest\pdv-backend.exe start
 
 ### Fiscal (NFC-e desativada)
 
-A nota fiscal da loja é emitida pelo **Set Sistemas** (legado), não por este sistema.
-O código de NFC-e (modelo 65, layout 4.00, assinatura/transmissão SEFAZ-PR) continua
-no projeto e o histórico em `nfce` permanece intacto, mas a emissão está **desligada**
-— os endpoints `/api/vendas/{id}/nfce` respondem `410 Gone`. A config fiscal ainda
-vive em `C:\LaVest\application.properties` (fora do git — CNPJ, CSC, senha do
-certificado .pfx); série 2 é da loja, série 1 é do legado.
+A nota fiscal da loja é emitida por outro sistema, não por este. O código de NFC-e
+(modelo 65, layout 4.00, assinatura/transmissão SEFAZ-PR) continua no projeto e o
+histórico em `nfce` permanece intacto, mas a emissão está **desligada** — os
+endpoints `/api/vendas/{id}/nfce` respondem `410 Gone`. A config fiscal ainda vive em
+`C:\LaVest\application.properties` (fora do git — CNPJ, CSC, senha do certificado
+.pfx); a loja usa a série 2 para não colidir com a numeração já existente.
 
 ---
 
@@ -144,8 +144,8 @@ $env:PGPASSWORD="pdv"; & "C:\Program Files\PostgreSQL\16\bin\pg_restore.exe" `
 
 ---
 
-## Migração do sistema legado (Set Sistemas / Firebird)
+## Migração do sistema anterior (Firebird)
 
-Os scripts em `tools/` (`export-set.py`, `import-set.py`, `import-crediario.py`)
-extraem produtos, clientes e crediário do banco Firebird antigo (`DADOS-SET.FDB`)
-e importam no PostgreSQL. Rodados uma vez na virada; ver os comentários de cada script.
+Os scripts em `tools/` extraem produtos, clientes e crediário do banco Firebird
+antigo e importam no PostgreSQL. Rodados uma vez na virada; ver os comentários de
+cada script.
